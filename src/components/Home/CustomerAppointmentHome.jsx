@@ -349,6 +349,7 @@ function TrashIcon() {
 }
 
 /* ---------- Styles (desktop fits; mobile scrolls inside the panel) ---------- */
+/* ---------- Styles (desktop fits; mobile scrolls inside the panel) ---------- */
 const css = `
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
@@ -394,15 +395,21 @@ const css = `
   .cal-table col.col-daytime { width: 20%; }
   .cal-table col.col-car     { width: 22%; }
   .cal-table col.col-notes   { width: 24%; }
-  .cal-table col.col-type    { width: 8%;  }
+  .cal-table col.col-type    { width: 8%; }
   .cal-table col.col-actions { width: 160px; }
 }
 
 /* Tablet & mobile: enable horizontal scrolling INSIDE the container */
 @media (max-width: 1023px){
   .cal-table-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  .cal-table { table-layout:auto; min-width: 720px; } /* force scroll, don't collapse columns */
+  .cal-table { table-layout:auto; min-width: 780px; } /* force scroll, don't collapse columns */
   .cal-table thead th, .cal-table tbody td { white-space:nowrap; }
+
+  /* === NEW: reserve space so Type/Actions never overlap === */
+  .cal-table col.col-type    { width: 90px; }    /* keeps "Type" readable */
+  .cal-table col.col-actions { width: 170px; }   /* room for Delivery + Delete */
+  .cal-actions { gap:8px; flex-wrap:nowrap; justify-content:flex-start; }
+  .cal-actions > * { flex:0 0 auto; }           /* prevent button wrap */
 }
 
 /* Table base */
@@ -452,3 +459,4 @@ const css = `
 .cal-table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
 .cal-table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
 `;
+
