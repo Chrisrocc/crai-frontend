@@ -70,6 +70,7 @@ export default function CustomerAppointmentsHome() {
     const n = new Date();
     return date.getFullYear() === n.getFullYear() && date.getMonth() === n.getMonth() && date.getDate() === n.getDate();
   };
+
   const isTomorrow = (raw) => {
     const { date } = standardizeDayTime(raw);
     if (!date) return false;
@@ -205,6 +206,7 @@ export default function CustomerAppointmentsHome() {
 
   return (
     <div className="cal-home-wrap">
+      {/* Keep your existing CSS block below; not changing it here */}
       <style>{css}</style>
 
       <CarPickerModal
@@ -223,39 +225,44 @@ export default function CustomerAppointmentsHome() {
 
       {err && <div className="cal-alert" role="alert">{err}</div>}
 
-      <div className="cal-table-scroll" role="region" aria-label="Appointments and Deliveries">
-        <table className="cal-table" role="grid">
-          <colgroup>
-            <col className="col-name" />
-            <col className="col-daytime" />
-            <col className="col-car" />
-            <col className="col-notes" />
-            <col className="col-type" />
-            <col className="col-actions" />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Day/Time</th>
-              <th>Car</th>
-              <th>Notes</th>
-              <th>Type</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
+      {/* === Scrollable table (wrapped in clip to match Recon sizing) === */}
+      <div className="cal-table-clip">
+        <div className="cal-table-scroll" role="region" aria-label="Appointments and Deliveries">
+          <table className="cal-table" role="grid">
+            <colgroup>
+              <col className="col-name" />
+              <col className="col-daytime" />
+              <col className="col-car" />
+              <col className="col-notes" />
+              <col className="col-type" />
+              <col className="col-actions" />
+            </colgroup>
+
+            <thead>
               <tr>
-                <td colSpan="6" className="cal-empty">Loading…</td>
+                <th>Name</th>
+                <th>Day/Time</th>
+                <th>Car</th>
+                <th>Notes</th>
+                <th>Type</th>
+                <th>Actions</th>
               </tr>
-            )}
-            {!loading && ordered.length === 0 && (
-              <tr>
-                <td colSpan="6" className="cal-empty">No entries for today or tomorrow.</td>
-              </tr>
-            )}
-            {!loading &&
-              ordered.map((a) => {
+            </thead>
+
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan="6" className="cal-empty">Loading…</td>
+                </tr>
+              )}
+
+              {!loading && ordered.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="cal-empty">No entries for today or tomorrow.</td>
+                </tr>
+              )}
+
+              {!loading && ordered.map((a) => {
                 const isEditing = editRow === a._id;
                 const rowCls = dayTimeHighlightClass(a.dateTime || a.dayTime);
                 return (
@@ -267,11 +274,16 @@ export default function CustomerAppointmentsHome() {
                   >
                     <td>
                       {isEditing ? (
-                        <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus />
-                      ) : (
-                        a.name || "—"
-                      )}
+                        <input
+                          name="name"
+                          value={editData.name}
+                          onChange={handleChange}
+                          className="cal-input"
+                          autoFocus
+                        />
+                      ) : (a.name || "—")}
                     </td>
+
                     <td>
                       {isEditing ? (
                         <input
@@ -285,24 +297,38 @@ export default function CustomerAppointmentsHome() {
                         formatWhen(a.dateTime || a.dayTime || "")
                       )}
                     </td>
+
                     <td onDoubleClick={() => openCarPicker(a)} title="Double-click to pick a car">
                       {isEditing ? (
                         <div className="car-edit">
-                          <input className="cal-input" value={carLabelFromId(editData.car)} readOnly placeholder="No Car" />
-                          <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>Pick</button>
+                          <input
+                            className="cal-input"
+                            value={carLabelFromId(editData.car)}
+                            readOnly
+                            placeholder="No Car"
+                          />
+                          <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>
+                            Pick
+                          </button>
                         </div>
                       ) : (
                         renderCarCell(a)
                       )}
                     </td>
+
                     <td>
                       {isEditing ? (
-                        <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" />
-                      ) : (
-                        a.notes || "—"
-                      )}
+                        <input
+                          name="notes"
+                          value={editData.notes}
+                          onChange={handleChange}
+                          className="cal-input"
+                        />
+                      ) : (a.notes || "—")}
                     </td>
+
                     <td>{a.isDelivery ? "Delivery" : "Appointment"}</td>
+
                     <td className="cal-actions">
                       {isEditing ? (
                         <>
@@ -330,8 +356,9 @@ export default function CustomerAppointmentsHome() {
                   </tr>
                 );
               })}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -348,9 +375,14 @@ function TrashIcon() {
   );
 }
 
+// Keep your existing CSS `const css = \`...\`` block below this file.
+// (No changes required; the JSX above expects .cal-table-clip and uses your current styles.)
+
+
 /* ---------- Styles (desktop fits; mobile scrolls inside the panel) ---------- */
 /* ---------- Styles (desktop fits; mobile scrolls inside the panel) ---------- */
 /* ---------- Styles (desktop & mobile: fixed table, no overlaps) ---------- */
+/* ---------- Styles (both desktop & mobile: same width as Recon; wider scroll) ---------- */
 /* ---------- Styles (both desktop & mobile: same width as Recon; wider scroll) ---------- */
 const css = `
 :root { color-scheme: dark; }
@@ -378,16 +410,21 @@ const css = `
 .cal-head-titles { display:flex; flex-direction:column; gap:4px; }
 .cal-alert { background:#3B0D0D; border:1px solid #7F1D1D; color:#FECACA; padding:10px 12px; border-radius:12px; margin-bottom:12px; }
 
-/* scroll container */
+/* NEW: clip wrapper (same as recon) */
+.cal-table-clip{ width:100%; overflow:hidden; border-radius:14px; }
+
+/* scroller (now 1:1 with recon) */
 .cal-table-scroll {
   position:relative;
   border:1px solid var(--line);
   border-radius:14px;
   background:var(--panel);
-  overflow-x:auto;               /* horizontal scroll lives here */
+  overflow-x:auto;
   overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
+  padding-bottom:0;              /* match recon */
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
+  max-width:100%;
 }
 
 /* fixed table at ALL sizes */
@@ -396,16 +433,16 @@ const css = `
   border-collapse:separate;
   border-spacing:0;
   table-layout:fixed;
-  min-width:1200px;              /* <<< SAME as Recon + wider for more scroll */
+  min-width:1200px;              /* SAME as recon -> identical scroll width */
 }
 
-/* column widths (bigger than before) */
+/* column widths (bigger) */
 .cal-table col.col-name    { width: 20%; }
 .cal-table col.col-daytime { width: 20%; }
 .cal-table col.col-car     { width: 28%; }
 .cal-table col.col-notes   { width: 20%; }
 .cal-table col.col-type    { width: 7%;  }
-.cal-table col.col-actions { width: 190px; } /* more room for buttons */
+.cal-table col.col-actions { width: 190px; }
 
 /* clamp text to columns */
 .cal-table thead th,
@@ -465,5 +502,3 @@ const css = `
 .cal-table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
 .cal-table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
 `;
-
-
