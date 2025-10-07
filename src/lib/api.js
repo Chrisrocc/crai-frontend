@@ -1,24 +1,25 @@
-// DEBUG: remove later
-console.log("VITE_API_URL =", import.meta.env.VITE_API_URL);
-
 // src/lib/api.js
-import axios from "axios";
+// Use Cloudflare Pages Functions proxy by default.
+// If you really need to hit a different origin, set VITE_API_URL at build time.
+const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace(/\/+$/, "");
 
-const base = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, ""); // strip trailing slash
-
-const api = axios.create({
-  baseURL: base,                // e.g. https://.../api  (from your .env.*)
-  withCredentials: true,        // send/receive cookies for auth
-  timeout: 30000,
-  headers: { "Cache-Control": "no-cache" }
-});
-
-// normalize relative paths so you can call api.get("/cars") or api.get("cars")
-api.interceptors.request.use((config) => {
-  if (!config.url?.startsWith("http")) {
-    config.url = `/${String(config.url || "").replace(/^\/+/, "")}`;
+async function jfetch(path, opts = {}) {
+  const url = `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+    ...opts,
+  });
+  const ct = res.headers.get("content-type") || "";
+  const isJSON = ct.includes("application/json");
+  const body = isJSON ? await res.json().catch(() => ({})) : {};
+  if (!res.ok) {
+    const err = new Error(body?.message || `HTTP ${res.status}`);
+    err.response = { data: body, status: res.status };
+    throw err;
   }
-  return config;
-});
+  return body;
+}
 
-export default api;
+export default { jfetch };
+export { jfetch };
