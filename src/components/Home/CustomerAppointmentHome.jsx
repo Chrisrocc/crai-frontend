@@ -351,6 +351,7 @@ function TrashIcon() {
 /* ---------- Styles (desktop fits; mobile scrolls inside the panel) ---------- */
 /* ---------- Styles (desktop fits; mobile scrolls inside the panel) ---------- */
 /* ---------- Styles (desktop & mobile: fixed table, no overlaps) ---------- */
+/* ---------- Styles (both desktop & mobile: same width as Recon; wider scroll) ---------- */
 const css = `
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
@@ -377,44 +378,44 @@ const css = `
 .cal-head-titles { display:flex; flex-direction:column; gap:4px; }
 .cal-alert { background:#3B0D0D; border:1px solid #7F1D1D; color:#FECACA; padding:10px 12px; border-radius:12px; margin-bottom:12px; }
 
-/* Scroll container (only this scrolls sideways on mobile) */
+/* scroll container */
 .cal-table-scroll {
   position:relative;
   border:1px solid var(--line);
   border-radius:14px;
   background:var(--panel);
-  overflow-x:auto;               /* always allow horizontal scroll */
+  overflow-x:auto;               /* horizontal scroll lives here */
   overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
 }
 
-/* === Table: fixed layout (prevents header/body width drift) === */
+/* fixed table at ALL sizes */
 .cal-table {
   width:100%;
   border-collapse:separate;
   border-spacing:0;
-  table-layout:fixed;            /* key: fixed at ALL breakpoints */
-  min-width: 980px;              /* force a wide canvas so columns never cram */
+  table-layout:fixed;
+  min-width:1200px;              /* <<< SAME as Recon + wider for more scroll */
 }
 
-/* Col widths apply in both desktop & mobile due to fixed table */
-.cal-table col.col-name    { width: 16%; }
-.cal-table col.col-daytime { width: 18%; }
-.cal-table col.col-car     { width: 28%; }  /* longer strings here */
+/* column widths (bigger than before) */
+.cal-table col.col-name    { width: 20%; }
+.cal-table col.col-daytime { width: 20%; }
+.cal-table col.col-car     { width: 28%; }
 .cal-table col.col-notes   { width: 20%; }
-.cal-table col.col-type    { width: 10%; }
-.cal-table col.col-actions { width: 170px; }/* guaranteed room for buttons */
+.cal-table col.col-type    { width: 7%;  }
+.cal-table col.col-actions { width: 190px; } /* more room for buttons */
 
-/* Cells never overflow their box */
+/* clamp text to columns */
 .cal-table thead th,
 .cal-table tbody td {
   white-space:nowrap;
   overflow:hidden;
-  text-overflow:ellipsis;        /* long text fades with … instead of overlapping */
+  text-overflow:ellipsis;
 }
 
-/* Sticky header */
+/* header */
 .cal-table thead th{
   position:sticky; top:0; z-index:1;
   background:var(--panel);
@@ -423,16 +424,15 @@ const css = `
   padding:12px 12px;
 }
 
-/* Body rows */
+/* rows */
 .cal-table tbody td{
-  padding:12px 12px;
-  border-bottom:1px solid var(--line);
+  padding:12px 12px; border-bottom:1px solid var(--line);
   font-size:14px; color:var(--text); vertical-align:middle;
 }
 .cal-table tbody tr:hover td { background:#0B1428; }
 .cal-table tbody tr:nth-child(odd) td { background:rgba(255,255,255,0.01); }
 
-/* Row highlights (fill full width including Actions) */
+/* highlights */
 .cal-table tbody tr.is-today td{
   background:#0f2a12 !important;
   box-shadow: inset 0 0 0 1px #1e3a23;
@@ -442,13 +442,13 @@ const css = `
   box-shadow: inset 0 0 0 1px #3a2e1e;
 }
 
-/* Inputs & buttons */
+/* inputs & actions */
 .cal-input{ width:100%; padding:8px 10px; border-radius:10px; border:1px solid #243041; background:#0B1220; color:#E5E7EB; outline:none; transition:border-color .2s, box-shadow .2s; }
 .cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,0.25); }
 
-/* Keep buttons in a single line and inside their column */
 .cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
-.cal-actions > * { flex:0 0 auto; }       /* no wrapping */
+.cal-actions > * { flex:0 0 auto; }
+
 .btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
 .btn--primary{ background:var(--primary); color:#fff; }
 .btn--ghost{ background:var(--ghost); color:var(--text); border-color:#243041; }
@@ -456,20 +456,14 @@ const css = `
 .btn--sm{ font-size:12px; }
 .btn--icon{ padding:6px; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; }
 
-/* Car inline editor */
 .car-edit{ display:flex; align-items:center; gap:8px; }
 .cal-empty{ text-align:center; color:var(--muted); padding:16px 10px; }
 
-/* Nice horizontal scrollbar */
+/* scrollbar */
 .cal-table-scroll::-webkit-scrollbar{ height:12px; }
 .cal-table-scroll::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
 .cal-table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
 .cal-table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
-
-/* Slightly tighten on very narrow phones if needed */
-@media (max-width: 380px){
-  .cal-table { min-width: 940px; }
-  .cal-table col.col-actions { width: 160px; }
-}
 `;
+
 

@@ -331,13 +331,14 @@ function TrashIcon() {
 }
 
 /* ---------- Styles (inner wrapper scrolls; table has min width) ---------- */
+/* ---------- Styles (match Customer table size; wider mobile scroll) ---------- */
 const css = `
 .ra-home { width:100%; min-width:0; }
 
-/* clip to avoid page scrollbars */
+/* clip radius + hide any outer overflow */
 .cal-table-clip{ width:100%; overflow:hidden; border-radius:14px; }
 
-/* this wrapper owns the horizontal scrollbar on small screens */
+/* inner scroller (identical look to Customer) */
 .cal-table-scroll{
   border:1px solid #1F2937;
   border-radius:14px;
@@ -345,56 +346,61 @@ const css = `
   overflow-x:auto;
   overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
-  padding-bottom:14px;
+  padding-bottom:0;              /* no extra bottom padding needed */
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
   max-width:100%;
 }
 
-/* table */
-.cal-table{ width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; min-width:720px; } /* ensure inner scroll on phones */
+/* fixed table, same width as Customer */
+.cal-table{
+  width:100%;
+  border-collapse:separate; border-spacing:0; table-layout:fixed;
+  min-width:1200px;              /* <<< SAME as Customer for identical scroll track */
+}
+
+/* headers & body cells */
 .cal-table thead th{
   position:sticky; top:0; z-index:1; background:#0F172A;
   border-bottom:1px solid #1F2937;
   text-align:left; font-size:12px; color:#9CA3AF;
   padding:12px;
 }
+.cal-table thead th,
+.cal-table tbody td{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
 .cal-table tbody td{
   padding:12px;
   border-bottom:1px solid #1F2937;
-  font-size:14px;
-  color:#E5E7EB;
-  vertical-align:middle;
-  background: transparent; /* cells stay transparent so row highlight shows through */
+  font-size:14px; color:#E5E7EB; vertical-align:middle;
+  background: transparent;
 }
-/* Zebra and hover on <tr> so highlight spans the whole row */
+
+/* zebra + hover */
 .cal-table tbody tr:nth-child(odd){ background: rgba(255,255,255,0.01); }
 .cal-table tbody tr:hover{ background:#0B1428; }
 
 .cal-empty{ text-align:center; padding:20px; color:#9CA3AF; }
 
-/* column widths */
-.cal-table col.col-name        { width:20%; }
+/* column widths — larger! */
+.cal-table col.col-name        { width:18%; }
 .cal-table col.col-daytime     { width:18%; }
-.cal-table col.col-car         { width:24%; }
+.cal-table col.col-car         { width:28%; }
 .cal-table col.col-notes       { width:20%; }
-.cal-table col.col-datecreated { width:10%; }
-.cal-table col.col-category    { width:12%; }
-.cal-table col.col-actions     { width:100px; }
+.cal-table col.col-datecreated { width: 8%; }
+.cal-table col.col-category    { width: 8%; }
+.cal-table col.col-actions     { width:130px; }
 
 /* inputs & actions */
 .cal-input{
-  width:100%;
-  padding:8px 10px;
-  border-radius:10px;
-  border:1px solid #243041;
-  background:#0B1220;
-  color:#E5E7EB;
-  outline:none;
-  transition:border-color .2s, box-shadow .2s;
+  width:100%; padding:8px 10px; border-radius:10px;
+  border:1px solid #243041; background:#0B1220; color:#E5E7EB;
+  outline:none; transition:border-color .2s, box-shadow .2s;
 }
 .cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
 
 .cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
+.cal-actions > * { flex:0 0 auto; }
+
 .stack{ display:flex; flex-direction:column; gap:4px; }
 
 /* chip editor */
@@ -410,7 +416,7 @@ const css = `
 .muted{ color:#9CA3AF; }
 .hint{ color:#9CA3AF; font-size:12px; }
 
-/* === FULL-ROW HIGHLIGHTS (covers Actions cell to the bottom) === */
+/* FULL-ROW HIGHLIGHTS */
 .cal-table tbody tr.is-today{
   background:#10321a !important;
   box-shadow: inset 0 0 0 1px #1e3a23;
@@ -419,18 +425,13 @@ const css = `
   background:#2a1f12 !important;
   box-shadow: inset 0 0 0 1px #3a2e1e;
 }
-/* ensure cells never repaint over the highlighted row */
 .cal-table tbody tr.is-today > td,
-.cal-table tbody tr.is-tomorrow > td{
-  background: transparent !important;
-}
-/* Actions cell should never add a background */
+.cal-table tbody tr.is-tomorrow > td{ background: transparent !important; }
 .cal-table td.cal-actions { background: transparent; }
 
-/* nicer horizontal scrollbar on webkit */
+/* scrollbar */
 .cal-table-scroll::-webkit-scrollbar{ height:12px; }
 .cal-table-scroll::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
 .cal-table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
 .cal-table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
 `;
-
