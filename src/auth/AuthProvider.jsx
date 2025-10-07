@@ -1,14 +1,12 @@
-// src/auth/AuthProvider.jsx
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useState } from "react";
-
-const AuthCtx = createContext(null);
+import { useEffect, useState } from "react";
+import { AuthCtx } from "./AuthContext";
 
 export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [booting, setBooting] = useState(true);
 
-  // Helper: JSON fetch with credentials
+  // Helper: JSON fetch with credentials, relative to same-origin (/api proxy)
   async function jfetch(path, opts = {}) {
     const res = await fetch(path, {
       credentials: "include",
@@ -46,15 +44,14 @@ export default function AuthProvider({ children }) {
       body: JSON.stringify({ password }),
     });
 
-    // After backend issued cookie (and returned { token }),
-    // let caller use data.token to hit /api/token-cookie.
+    // Try to read session immediately (cookie may already be set)
     try {
       const me = await jfetch("/api/auth/me");
       setUser(me?.user || { role: "user" });
     } catch {
-      // ignore; Login.jsx will still try token-cookie and then navigate
+      // ignore; Login.jsx may also finalize cookie via /api/token-cookie
     }
-    return data; // IMPORTANT: contains { message: "ok", token }
+    return data; // { message: "ok", token }
   }
 
   async function logout() {
@@ -65,12 +62,15 @@ export default function AuthProvider({ children }) {
     }
   }
 
-  const value = { user, booting, login, logout, isAuthed: !!user };
-  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
-}
+  const value = {
+    user,
+    booting,
+    ready: !booting,            // ✅ what ProtectedRoute expects
+    loggedIn: !!user,           // ✅ what ProtectedRoute expects
+    isAuthed: !!user,           // legacy alias
+    login,
+    logout,
+  };
 
-export function useAuth() {
-  const ctx = useContext(AuthCtx);
-  if (!ctx) throw new Error("useAuth must be used within <AuthProvider>");
-  return ctx;
+  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
