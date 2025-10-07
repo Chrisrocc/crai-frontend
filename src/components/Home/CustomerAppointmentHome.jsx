@@ -12,12 +12,15 @@ export default function CustomerAppointmentsHome() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
+  // inline edit
   const [editRow, setEditRow] = useState(null);
   const [editData, setEditData] = useState({});
   const savingRef = useRef(false);
 
+  // car picker
   const [carPicker, setCarPicker] = useState({ open: false, forId: null });
 
+  // -------- fetch ----------
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -38,7 +41,9 @@ export default function CustomerAppointmentsHome() {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const refresh = async () => {
@@ -46,14 +51,15 @@ export default function CustomerAppointmentsHome() {
     setRows(Array.isArray(res.data?.data) ? res.data.data : []);
   };
 
+  // -------- helpers ----------
   const formatWhen = (raw) => {
     const { date, label } = standardizeDayTime(raw);
     if (!date) return label || (raw || "—");
-    const wd = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][date.getDay()];
-    const dd = String(date.getDate()).padStart(2,"0");
-    const mm = String(date.getMonth()+1).padStart(2,"0");
-    const hh = String(date.getHours()).padStart(2,"0");
-    const mi = String(date.getMinutes()).padStart(2,"0");
+    const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getDay()];
+    const dd = String(date.getDate()).padStart(2, "0");
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const hh = String(date.getHours()).padStart(2, "0");
+    const mi = String(date.getMinutes()).padStart(2, "0");
     const hasTime = !(date.getHours() === 0 && date.getMinutes() === 0);
     return hasTime ? `${wd} ${dd}/${mm} ${hh}:${mi}` : `${wd} ${dd}/${mm}`;
   };
@@ -62,14 +68,14 @@ export default function CustomerAppointmentsHome() {
     const { date } = standardizeDayTime(raw);
     if (!date) return false;
     const n = new Date();
-    return date.getFullYear()===n.getFullYear() && date.getMonth()===n.getMonth() && date.getDate()===n.getDate();
+    return date.getFullYear() === n.getFullYear() && date.getMonth() === n.getMonth() && date.getDate() === n.getDate();
   };
   const isTomorrow = (raw) => {
     const { date } = standardizeDayTime(raw);
     if (!date) return false;
     const n = new Date();
-    const t = new Date(n.getFullYear(), n.getMonth(), n.getDate()+1);
-    return date.getFullYear()===t.getFullYear() && date.getMonth()===t.getMonth() && date.getDate()===t.getDate();
+    const t = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1);
+    return date.getFullYear() === t.getFullYear() && date.getMonth() === t.getMonth() && date.getDate() === t.getDate();
   };
 
   const filtered = useMemo(
@@ -96,6 +102,7 @@ export default function CustomerAppointmentsHome() {
     return c ? `${c.rego} • ${c.make} ${c.model}` : "";
   };
 
+  // -------- edit ----------
   const enterEdit = (a) => {
     setEditRow(a._id);
     setEditData({
@@ -129,6 +136,7 @@ export default function CustomerAppointmentsHome() {
       if (editData.car) payload.car = editData.car;
       payload.dayTime = payload.dateTime;
 
+      // optimistic
       setRows((prev) => prev.map((a) => (a._id === editRow ? { ...a, ...payload, car: a.car } : a)));
 
       const res = await api.put(`/customer-appointments/${editRow}`, payload, {
@@ -183,6 +191,7 @@ export default function CustomerAppointmentsHome() {
     }
   };
 
+  // click outside saves
   useEffect(() => {
     const onDown = (e) => {
       if (!editRow) return;
@@ -191,10 +200,11 @@ export default function CustomerAppointmentsHome() {
     };
     if (editRow) document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editRow, editData]);
 
   return (
-    <div className="cust-appt-wrap">
+    <div className="cal-home-wrap">
       <style>{css}</style>
 
       <CarPickerModal
@@ -204,8 +214,17 @@ export default function CustomerAppointmentsHome() {
         onSelect={onCarPicked}
       />
 
-      <div className="table-wrap" role="region" aria-label="Customer Appointments & Deliveries (Today & Tomorrow)">
-        <table className="appt-table" role="grid">
+      <header className="cal-head">
+        <div className="cal-head-titles">
+          <h1>Today &amp; Tomorrow</h1>
+          <p className="cal-sub">Customer Appointments &amp; Deliveries (swipe to scroll on mobile)</p>
+        </div>
+      </header>
+
+      {err && <div className="cal-alert" role="alert">{err}</div>}
+
+      <div className="cal-table-scroll" role="region" aria-label="Appointments and Deliveries">
+        <table className="cal-table" role="grid">
           <colgroup>
             <col className="col-name" />
             <col className="col-daytime" />
@@ -227,95 +246,90 @@ export default function CustomerAppointmentsHome() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan="6" className="empty">Loading…</td>
+                <td colSpan="6" className="cal-empty">Loading…</td>
               </tr>
             )}
-            {!loading && err && (
+            {!loading && ordered.length === 0 && (
               <tr>
-                <td colSpan="6" className="empty error">{err}</td>
+                <td colSpan="6" className="cal-empty">No entries for today or tomorrow.</td>
               </tr>
             )}
-            {!loading && !err && ordered.length === 0 && (
-              <tr>
-                <td colSpan="6" className="empty">No entries for today or tomorrow.</td>
-              </tr>
-            )}
-            {!loading && !err && ordered.map((a) => {
-              const isEditing = editRow === a._id;
-              const rowCls = dayTimeHighlightClass(a.dateTime || a.dayTime);
-              return (
-                <tr
-                  key={a._id}
-                  data-id={a._id}
-                  className={rowCls}
-                  onDoubleClick={(e) => { e.stopPropagation(); enterEdit(a); }}
-                >
-                  <td data-field="name">
-                    {isEditing ? (
-                      <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus />
-                    ) : (a.name || "—")}
-                  </td>
-
-                  <td data-field="daytime">
-                    {isEditing ? (
-                      <input
-                        name="dateTime"
-                        value={editData.dateTime}
-                        onChange={handleChange}
-                        className="cal-input"
-                        placeholder="e.g. Mon 30/09 09:00"
-                      />
-                    ) : (
-                      formatWhen(a.dateTime || a.dayTime || "")
-                    )}
-                  </td>
-
-                  <td data-field="car" onDoubleClick={() => openCarPicker(a)} title="Double-click to pick a car">
-                    {isEditing ? (
-                      <div className="car-edit">
-                        <input className="cal-input" value={carLabelFromId(editData.car)} readOnly placeholder="No Car" />
-                        <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>Pick</button>
-                      </div>
-                    ) : (
-                      renderCarCell(a)
-                    )}
-                  </td>
-
-                  <td data-field="notes">
-                    {isEditing ? (
-                      <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" />
-                    ) : (a.notes || "—")}
-                  </td>
-
-                  <td data-field="type">{a.isDelivery ? "Delivery" : "Appointment"}</td>
-
-                  <td className="cal-actions" data-field="actions">
-                    {isEditing ? (
-                      <>
-                        <button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
-                        <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>Cancel</button>
-                      </>
-                    ) : (
-                      <>
-                        {a.isDelivery ? (
-                          <button className="btn btn--ghost btn--sm" onClick={() => undoDelivery(a)}>Undo</button>
-                        ) : (
-                          <button className="btn btn--primary btn--sm" onClick={() => moveToDelivery(a)}>Delivery</button>
-                        )}
-                        <button
-                          className="btn btn--danger btn--sm btn--icon"
-                          onClick={() => handleDelete(a)}
-                          title="Delete"
-                          aria-label="Delete appointment"
-                        >
-                          <TrashIcon />
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+            {!loading &&
+              ordered.map((a) => {
+                const isEditing = editRow === a._id;
+                const rowCls = dayTimeHighlightClass(a.dateTime || a.dayTime);
+                return (
+                  <tr
+                    key={a._id}
+                    data-id={a._id}
+                    className={rowCls}
+                    onDoubleClick={(e) => { e.stopPropagation(); enterEdit(a); }}
+                  >
+                    <td>
+                      {isEditing ? (
+                        <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus />
+                      ) : (
+                        a.name || "—"
+                      )}
+                    </td>
+                    <td>
+                      {isEditing ? (
+                        <input
+                          name="dateTime"
+                          value={editData.dateTime}
+                          onChange={handleChange}
+                          className="cal-input"
+                          placeholder="e.g. Wed 09:00"
+                        />
+                      ) : (
+                        formatWhen(a.dateTime || a.dayTime || "")
+                      )}
+                    </td>
+                    <td onDoubleClick={() => openCarPicker(a)} title="Double-click to pick a car">
+                      {isEditing ? (
+                        <div className="car-edit">
+                          <input className="cal-input" value={carLabelFromId(editData.car)} readOnly placeholder="No Car" />
+                          <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>Pick</button>
+                        </div>
+                      ) : (
+                        renderCarCell(a)
+                      )}
+                    </td>
+                    <td>
+                      {isEditing ? (
+                        <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" />
+                      ) : (
+                        a.notes || "—"
+                      )}
+                    </td>
+                    <td>{a.isDelivery ? "Delivery" : "Appointment"}</td>
+                    <td className="cal-actions">
+                      {isEditing ? (
+                        <>
+                          <button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
+                          <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          {a.isDelivery ? (
+                            <button className="btn btn--ghost btn--sm" onClick={() => undoDelivery(a)}>Undo</button>
+                          ) : (
+                            <button className="btn btn--primary btn--sm" onClick={() => moveToDelivery(a)}>Delivery</button>
+                          )}
+                          <button
+                            className="btn btn--danger btn--sm btn--icon"
+                            onClick={() => handleDelete(a)}
+                            title="Delete"
+                            aria-label="Delete"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
       </div>
@@ -334,119 +348,107 @@ function TrashIcon() {
   );
 }
 
-/* styles: table on desktop; card layout on phones */
+/* ---------- Styles (desktop fits; mobile scrolls inside the panel) ---------- */
 const css = `
-.cust-appt-wrap { width:100%; min-width:0; }
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+.cal-home-wrap {
+  --bg: #0B1220;
+  --panel: #0F172A;
+  --muted: #9CA3AF;
+  --text: #E5E7EB;
+  --line: #1F2937;
+  --primary: #2563EB;
+  --danger: #DC2626;
+  --ghost: #111827;
+  --ring: #2E4B8F;
+  color: var(--text);
+  background: var(--bg);
+  padding: 16px;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Arial;
+}
 
-/* Bordered wrapper: this is the scroller */
-.table-wrap{
+.cal-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.cal-head h1 { margin:0 0 2px; font-size:20px; letter-spacing:0.2px; }
+.cal-sub { margin:0; color:var(--muted); font-size:12px; }
+.cal-head-titles { display:flex; flex-direction:column; gap:4px; }
+.cal-alert { background:#3B0D0D; border:1px solid #7F1D1D; color:#FECACA; padding:10px 12px; border-radius:12px; margin-bottom:12px; }
+
+/* Bordered table container that scrolls sideways on small screens */
+.cal-table-scroll {
   position:relative;
-  border:1px solid #1F2937; border-radius:14px;
-  background:#0F172A;
-  overflow-x:auto;
-  overflow-y:hidden;
-  -webkit-overflow-scrolling:touch;
-  padding-bottom:14px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--panel);
+  overflow:hidden; /* clip sticky header radius */
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
-  max-width:100%;
 }
 
-/* Table (desktop) */
-.appt-table{
-  width:100%;
-  border-collapse:separate; border-spacing:0; table-layout:fixed;
-  min-width:720px;
+/* Desktop: no horizontal scroll; fixed column widths */
+@media (min-width: 1024px){
+  .cal-table-scroll { overflow-x:hidden; }
+  .cal-table { width:100%; table-layout:fixed; }
+  .cal-table thead th, .cal-table tbody td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  .cal-table col.col-name    { width: 18%; }
+  .cal-table col.col-daytime { width: 20%; }
+  .cal-table col.col-car     { width: 22%; }
+  .cal-table col.col-notes   { width: 24%; }
+  .cal-table col.col-type    { width: 8%;  }
+  .cal-table col.col-actions { width: 160px; }
 }
-.appt-table thead th{
+
+/* Tablet & mobile: enable horizontal scrolling INSIDE the container */
+@media (max-width: 1023px){
+  .cal-table-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .cal-table { table-layout:auto; min-width: 720px; } /* force scroll, don't collapse columns */
+  .cal-table thead th, .cal-table tbody td { white-space:nowrap; }
+}
+
+/* Table base */
+.cal-table { border-collapse:separate; border-spacing:0; }
+.cal-table thead th {
   position:sticky; top:0; z-index:1;
-  background:#0F172A;
-  border-bottom:1px solid #1F2937;
-  text-align:left; font-size:12px; color:#9CA3AF;
+  background:var(--panel);
+  border-bottom:1px solid var(--line);
+  text-align:left; font-size:12px; color:var(--muted);
   padding:12px 12px;
 }
-.appt-table tbody td{
-  padding:12px 12px; border-bottom:1px solid #1F2937;
-  font-size:14px; color:#E5E7EB; vertical-align:middle;
-  background: transparent;
+.cal-table tbody td {
+  padding:12px 12px; border-bottom:1px solid var(--line);
+  font-size:14px; color:var(--text); vertical-align:middle;
 }
-.appt-table tbody tr:nth-child(odd) { background: rgba(255,255,255,0.01); }
-.appt-table tbody tr:hover { background:#0B1428; }
+.cal-table tbody tr:hover { background:#0B1428; }
+.cal-table tbody tr:nth-child(odd) td { background:rgba(255,255,255,0.01); }
 
-/* Column sizing (desktop) */
-.col-name{ width:18%; } .col-daytime{ width:20%; } .col-car{ width:24%; } .col-notes{ width:24%; } .col-type{ width:8%; }
-.col-actions{ width:160px; text-align:right; }
-
-/* Row highlights */
-.appt-table tbody tr.is-today{
-  background:#10321a !important;
+/* Row highlights (fill full-width so actions are included) */
+.cal-table tbody tr.is-today td{
+  background:#0f2a12 !important;
   box-shadow: inset 0 0 0 1px #1e3a23;
 }
-.appt-table tbody tr.is-tomorrow{
-  background:#2a1f12 !important;
+.cal-table tbody tr.is-tomorrow td{
+  background:#2a210f !important;
   box-shadow: inset 0 0 0 1px #3a2e1e;
 }
-.appt-table tbody tr.is-today > td,
-.appt-table tbody tr.is-tomorrow > td{
-  background: transparent !important;
-}
-.appt-table td.cal-actions { background: transparent; }
 
 /* Inputs + buttons */
-.cal-input{ width:100%; padding:8px 10px; border-radius:10px; border:1px solid #243041; background:#0B1220; color:#E5E7EB; outline:none; }
+.cal-input{ width:100%; padding:8px 10px; border-radius:10px; border:1px solid #243041; background:#0B1220; color:#E5E7EB; outline:none; transition:border-color .2s, box-shadow .2s; }
 .cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,0.25); }
-.cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; flex-wrap:wrap; }
 
+.cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
 .btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
-.btn--primary{ background:#2563EB; color:#fff; } .btn--ghost{ background:#111827; color:#E5E7EB; border-color:#243041; } .btn--danger{ background:#DC2626; color:#fff; }
+.btn--primary{ background:var(--primary); color:#fff; }
+.btn--ghost{ background:var(--ghost); color:var(--text); border-color:#243041; }
+.btn--danger{ background:var(--danger); color:#fff; }
 .btn--sm{ font-size:12px; }
 .btn--icon{ padding:6px; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; }
 
 .car-edit{ display:flex; align-items:center; gap:8px; }
-.empty{ text-align:center; color:#9CA3AF; padding:16px 10px; } .error{ color:#ef9a9a; }
+.cal-empty{ text-align:center; color:var(--muted); padding:16px 10px; }
 
 /* Nice horizontal scrollbar (optional) */
-.table-wrap::-webkit-scrollbar{ height:12px; }
-.table-wrap::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
-.table-wrap::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
-.table-wrap:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
-
-/* ================== MOBILE CARD LAYOUT ================== */
-@media (max-width: 720px){
-  .table-wrap{ padding-bottom:0; }       /* no extra bottom gap */
-  .appt-table{ min-width:0; display:block; }
-  .appt-table thead{ display:none; }
-  .appt-table colgroup{ display:none; }
-
-  .appt-table tbody{ display:block; }
-  .appt-table tbody tr{
-    display:grid;
-    grid-template-columns: 1fr auto;   /* content + actions */
-    gap:8px 12px;
-    padding:12px;
-    border-bottom:1px solid #1F2937;
-    background: transparent !important; /* keep highlight visible via row class */
-  }
-  .appt-table tbody td{
-    display:block;
-    padding:4px 0;
-    border:0;
-    white-space:normal;                 /* allow wrapping so no massive gaps */
-  }
-
-  /* order & span */
-  td[data-field="name"]{ grid-column:1 / 2; font-weight:600; }
-  td[data-field="daytime"]{ grid-column:1 / 2; color:#cbd5e1; opacity:.9; }
-  td[data-field="car"]{ grid-column:1 / 3; }
-  td[data-field="notes"]{ grid-column:1 / 3; }
-  td[data-field="type"]{ grid-column:1 / 2; }
-  td[data-field="actions"].cal-actions{
-    grid-column:2 / 3;
-    align-self:start;
-    justify-content:flex-end;
-  }
-
-  /* smaller buttons so they never overlap text */
-  .btn{ padding:6px 10px; }
-  .btn--sm{ font-size:12px; }
-}
+.cal-table-scroll::-webkit-scrollbar{ height:12px; }
+.cal-table-scroll::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
+.cal-table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
+.cal-table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
 `;
