@@ -1,5 +1,5 @@
 // src/components/Home/CustomerAppointmentHome.jsx
-// Uses central API client (src/lib/api.js) so it respects VITE_API_URL.
+// Uses central API client (src/lib/api.js) so it respects VITE_API_URL).
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../../lib/api";
@@ -206,7 +206,6 @@ export default function CustomerAppointmentsHome() {
 
   return (
     <div className="cal-home-wrap">
-      {/* Keep your existing CSS block below; not changing it here */}
       <style>{css}</style>
 
       <CarPickerModal
@@ -216,16 +215,11 @@ export default function CustomerAppointmentsHome() {
         onSelect={onCarPicked}
       />
 
-      <header className="cal-head">
-        <div className="cal-head-titles">
-          <h1>Today &amp; Tomorrow</h1>
-          <p className="cal-sub">Customer Appointments &amp; Deliveries (swipe to scroll on mobile)</p>
-        </div>
-      </header>
+      {/* Removed the "Today & Tomorrow" heading + subtitle */}
 
       {err && <div className="cal-alert" role="alert">{err}</div>}
 
-      {/* === Scrollable table (wrapped in clip to match Recon sizing) === */}
+      {/* Scrollable table (same wrapper as Recon) */}
       <div className="cal-table-clip">
         <div className="cal-table-scroll" role="region" aria-label="Appointments and Deliveries">
           <table className="cal-table" role="grid">
@@ -375,8 +369,10 @@ function TrashIcon() {
   );
 }
 
-// Keep your existing CSS `const css = \`...\`` block below this file.
-// (No changes required; the JSX above expects .cal-table-clip and uses your current styles.)
+/* CSS NOTE:
+   To ensure it's wider than before, set `.cal-table { min-width: 1400px; }`
+   in this file's CSS block AND in ReconditionerAppointmentHome.jsx so both match.
+*/
 
 
 /* ---------- Styles (desktop fits; mobile scrolls inside the panel) ---------- */
