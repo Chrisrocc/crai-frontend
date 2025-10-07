@@ -2,16 +2,17 @@
 import { useEffect, useState } from "react";
 import { AuthCtx } from "./AuthContext";
 
-/** Backend base:
- *  1) VITE_API_BASE from Cloudflare Pages (you set it to https://crai-backend.onrender.com/api)
- *  2) localhost in dev
- *  3) hard fallback to your prod backend
- */
-const API_BASE =
+/** Resolve backend base URL (no placeholders) */
+const ENV_BASE =
   (import.meta.env?.VITE_API_BASE && import.meta.env.VITE_API_BASE.trim()) ||
+  (import.meta.env?.VITE_API_URL && import.meta.env.VITE_API_URL.trim()) ||
+  "";
+
+const API_BASE =
+  ENV_BASE ||
   ((location.hostname === "localhost" || location.hostname === "127.0.0.1")
     ? "http://localhost:5000/api"
-    : "https://crai-backend.onrender.com/api");
+    : "https://crai-backend-production.up.railway.app/api"); // prod fallback
 
 function getToken() {
   try {
@@ -21,6 +22,7 @@ function getToken() {
     return "";
   }
 }
+
 function setToken(t) {
   try {
     if (t) localStorage.setItem("sid_token", t);
@@ -33,20 +35,24 @@ function setToken(t) {
 function toApiUrl(path) {
   if (!path) return API_BASE;
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  if (path.startsWith("/api/")) return API_BASE + path.slice(4);
+  if (path.startsWith("/api/")) return API_BASE + path.slice(4); // strip leading /api
   if (path.startsWith("/")) return API_BASE + path;
-  return API_BASE + (path.startsWith("auth/") ? "/" : "/") + path.replace(/^api\//, "");
+  return API_BASE + "/" + path.replace(/^api\//, "");
 }
 
 /** JSON fetch that sends cookies AND Bearer token (hybrid) */
 async function jfetch(path, opts = {}) {
   const url = toApiUrl(path);
-  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  const headers = {
+    "Content-Type": "application/json",
+    ...(opts.headers || {}),
+  };
+
   const token = getToken();
   if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(url, {
-    credentials: "include",
+    credentials: "include", // keep cookie path for browsers that allow it
     headers,
     ...opts,
   });
@@ -68,7 +74,7 @@ export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [booting, setBooting] = useState(true);
 
-  // Try session on mount
+  // Attempt session on mount
   useEffect(() => {
     (async () => {
       try {
@@ -90,7 +96,7 @@ export default function AuthProvider({ children }) {
       body: JSON.stringify({ password }),
     });
 
-    // Store bearer token as fallback for cookie-blocked browsers
+    // Store bearer token as fallback when cookies are blocked
     try {
       if (data?.token) setToken(data.token);
     } catch (e) {
@@ -102,7 +108,7 @@ export default function AuthProvider({ children }) {
       const me = await jfetch("/auth/me");
       setUser(me?.user || { role: "user" });
     } catch (e) {
-      // If cookies are blocked, future calls still succeed via Bearer
+      // If cookies are blocked, subsequent requests still succeed via Bearer
       console.debug("me() after login failed (likely cookies blocked)", e);
     }
     return data; // { message: "ok", token }
