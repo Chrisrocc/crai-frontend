@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { AuthCtx } from "./AuthContext";
 
-/** Resolve backend base URL (no placeholders) */
+/** Resolve backend base URL (Railway prod, env if set, localhost in dev) */
 const ENV_BASE =
   (import.meta.env?.VITE_API_BASE && import.meta.env.VITE_API_BASE.trim()) ||
   (import.meta.env?.VITE_API_URL && import.meta.env.VITE_API_URL.trim()) ||
@@ -12,13 +12,13 @@ const API_BASE =
   ENV_BASE ||
   ((location.hostname === "localhost" || location.hostname === "127.0.0.1")
     ? "http://localhost:5000/api"
-    : "https://crai-backend-production.up.railway.app/api"); // prod fallback
+    : "https://crai-backend-production.up.railway.app/api");
 
 function getToken() {
   try {
     return localStorage.getItem("sid_token") || "";
   } catch (e) {
-    console.debug("getToken localStorage unavailable", e);
+    console.debug("localStorage getItem failed", e);
     return "";
   }
 }
@@ -28,7 +28,7 @@ function setToken(t) {
     if (t) localStorage.setItem("sid_token", t);
     else localStorage.removeItem("sid_token");
   } catch (e) {
-    console.debug("setToken localStorage unavailable", e);
+    console.debug("localStorage set/remove failed", e);
   }
 }
 
@@ -43,28 +43,31 @@ function toApiUrl(path) {
 /** JSON fetch that sends cookies AND Bearer token (hybrid) */
 async function jfetch(path, opts = {}) {
   const url = toApiUrl(path);
-  const headers = {
-    "Content-Type": "application/json",
-    ...(opts.headers || {}),
-  };
-
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
   const token = getToken();
   if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(url, {
-    credentials: "include", // keep cookie path for browsers that allow it
+    credentials: "include",
     headers,
     ...opts,
   });
 
   const isJSON = (res.headers.get("content-type") || "").includes("application/json");
-  const body = isJSON ? await res.json().catch(() => ({})) : {};
+  let body = {};
+  if (isJSON) {
+    try {
+      body = await res.json();
+    } catch (e) {
+      console.debug("JSON parse failed for", url, e);
+      body = {};
+    }
+  }
 
   if (!res.ok) {
     const err = new Error(body?.message || `HTTP ${res.status}`);
     // attach status/body for callers
-    // eslint-disable-next-line no-unused-expressions
-    (err).response = { data: body, status: res.status };
+    err.response = { data: body, status: res.status };
     throw err;
   }
   return body;
@@ -74,14 +77,14 @@ export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [booting, setBooting] = useState(true);
 
-  // Attempt session on mount
+  // On first load, try to restore session (cookie or bearer)
   useEffect(() => {
     (async () => {
       try {
         const me = await jfetch("/auth/me");
         setUser(me?.user || { role: "user" });
       } catch (e) {
-        console.debug("me() at mount failed", e);
+        console.debug("GET /auth/me on mount failed", e);
         setUser(null);
       } finally {
         setBooting(false);
@@ -96,21 +99,20 @@ export default function AuthProvider({ children }) {
       body: JSON.stringify({ password }),
     });
 
-    // Store bearer token as fallback when cookies are blocked
-    try {
-      if (data?.token) setToken(data.token);
-    } catch (e) {
-      console.debug("Failed to persist token", e);
-    }
+    // 1) Store bearer token so all future requests are authenticated even if cookies are blocked
+    if (data?.token) setToken(data.token);
 
-    // Try to read session immediately (cookie may already be set)
+    // 2) Immediately consider user logged in (don’t wait for /me which may depend on cookies)
+    setUser({ role: "user" });
+
+    // 3) Try to hydrate from /me; if it fails due to cookies, bearer still keeps requests authed
     try {
       const me = await jfetch("/auth/me");
-      setUser(me?.user || { role: "user" });
+      if (me?.user) setUser(me.user);
     } catch (e) {
-      // If cookies are blocked, subsequent requests still succeed via Bearer
-      console.debug("me() after login failed (likely cookies blocked)", e);
+      console.debug("GET /auth/me right after login failed (likely cookies blocked)", e);
     }
+
     return data; // { message: "ok", token }
   }
 
@@ -118,11 +120,10 @@ export default function AuthProvider({ children }) {
     try {
       await jfetch("/auth/logout", { method: "POST" });
     } catch (e) {
-      console.debug("logout() request failed", e);
-    } finally {
-      setToken("");
-      setUser(null);
+      console.debug("POST /auth/logout failed", e);
     }
+    setToken("");
+    setUser(null);
   }
 
   const value = {
