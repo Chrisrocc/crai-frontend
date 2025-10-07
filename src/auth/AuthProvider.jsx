@@ -1,57 +1,77 @@
 // src/auth/AuthProvider.jsx
-import { useEffect, useState, useCallback } from "react";
-import api from "../lib/api";
-import { AuthCtx } from "./AuthContext";
+/* eslint-disable react-refresh/only-export-components */
+
+import { createContext, useContext, useEffect, useState } from "react";
+
+const AuthCtx = createContext(null);
 
 export default function AuthProvider({ children }) {
-  const [ready, setReady] = useState(false);
   const [user, setUser] = useState(null);
+  const [booting, setBooting] = useState(true);
 
-  const fetchMe = useCallback(async () => {
-    try {
-      const { data } = await api.get("/auth/me"); // baseURL already has /api
-      setUser(data?.data || data || true);
-    } catch {
-      setUser(null);
-    } finally {
-      setReady(true);
+  // Helper: JSON fetch with credentials
+  async function jfetch(path, opts = {}) {
+    const res = await fetch(path, {
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+      ...opts,
+    });
+    const isJSON = (res.headers.get("content-type") || "").includes("application/json");
+    const body = isJSON ? await res.json().catch(() => ({})) : {};
+    if (!res.ok) {
+      const err = new Error(body?.message || `HTTP ${res.status}`);
+      err.response = { data: body, status: res.status };
+      throw err;
     }
-  }, []);
+    return body;
+  }
 
+  // Try session on mount
   useEffect(() => {
-    fetchMe();
-  }, [fetchMe]);
-
-  // optionally react to 401s globally (keeps UI in sync if session expires)
-  useEffect(() => {
-    const id = api.interceptors.response.use(
-      (r) => r,
-      (err) => {
-        if (err?.response?.status === 401) setUser(null);
-        return Promise.reject(err);
+    (async () => {
+      try {
+        const me = await jfetch("/api/auth/me");
+        setUser(me?.user || { role: "user" });
+      } catch {
+        setUser(null);
+      } finally {
+        setBooting(false);
       }
-    );
-    return () => api.interceptors.response.eject(id);
+    })();
   }, []);
 
-  const login = useCallback(async (password) => {
-    await api.post("/auth/login", { password });
-    await fetchMe();
-  }, [fetchMe]);
+  // Called by Login.jsx
+  async function login(password) {
+    const data = await jfetch("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
 
-  const logout = useCallback(async () => {
-    await api.post("/auth/logout", {});
-    setUser(null);
-  }, []);
+    // After backend issued cookie (and returned { token }),
+    // let caller use data.token to hit /api/token-cookie.
+    try {
+      const me = await jfetch("/api/auth/me");
+      setUser(me?.user || { role: "user" });
+    } catch {
+      // ignore; Login.jsx will still try token-cookie and then navigate
+    }
+    return data; // IMPORTANT: contains { message: "ok", token }
+  }
 
-  const value = {
-    ready,
-    loggedIn: !!user,
-    user,
-    login,
-    logout,
-    refresh: fetchMe,
-  };
+  async function logout() {
+    try {
+      await jfetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      setUser(null);
+    }
+  }
 
+  const value = { user, booting, login, logout, isAuthed: !!user };
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthCtx);
+  if (!ctx) throw new Error("useAuth must be used within <AuthProvider>");
+  return ctx;
 }
