@@ -1,11 +1,11 @@
-export async function onRequest(context) {
-  const req = context.request;
-  // Read the Cookie header the browser sent to *this* host
-  const cookie = req.headers.get("Cookie") || "";
-  // Also show the User-Agent so we know which device hit it
-  const ua = req.headers.get("User-Agent") || "";
-  return new Response(
-    JSON.stringify({ cookie, ua }, null, 2),
-    { status: 200, headers: { "Content-Type": "application/json" } }
-  );
+// functions/api/debug-cookie.js
+export async function onRequest({ request }) {
+  const cookie = request.headers.get("cookie") || "";
+  const ua = request.headers.get("user-agent") || "";
+  return new Response(JSON.stringify({ cookie, ua }), {
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
 }
