@@ -1,8 +1,7 @@
 // src/lib/api.js
-// Hybrid backend client: correct base URL + cookies + Bearer + JSON.
-// Exports a DEFAULT object with .get/.post/.put/.patch/.delete
+// fetch-based client that mimics axios responses ({ data, status, headers })
+// + Bearer from localStorage + cookies + FormData-safe body handling.
 
-// 1) Resolve backend base (Railway in prod, env if set, localhost in dev)
 const ENV_BASE =
   (import.meta.env?.VITE_API_BASE && import.meta.env.VITE_API_BASE.trim()) ||
   (import.meta.env?.VITE_API_URL && import.meta.env.VITE_API_URL.trim()) ||
@@ -14,12 +13,10 @@ const API_BASE =
     ? "http://localhost:5000/api"
     : "https://crai-backend-production.up.railway.app/api");
 
-// 2) Token helpers
 function getToken() {
-  try { return localStorage.getItem("sid_token") || ""; } catch (e) { console.debug(e); return ""; }
+  try { return localStorage.getItem("sid_token") || ""; } catch { return ""; }
 }
 
-// 3) URL builder (accepts "/api/...", "/...", or "path")
 function toUrl(path) {
   if (!path) return API_BASE;
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
@@ -28,11 +25,22 @@ function toUrl(path) {
   return API_BASE + "/" + path.replace(/^api\//, "");
 }
 
-// 4) Core request (supports { headers } the way your code passes it)
+function isFormData(x) {
+  return typeof FormData !== "undefined" && x instanceof FormData;
+}
+
 async function request(method, path, body, opts = {}) {
   const url = toUrl(path);
-  const extraHeaders = opts.headers || {};
-  const headers = { "Content-Type": "application/json", ...extraHeaders };
+
+  // headers: don’t set Content-Type for FormData (browser sets boundary)
+  const extra = opts.headers || {};
+  const headers = { ...extra };
+  if (!isFormData(body)) {
+    headers["Content-Type"] ??= "application/json";
+  } else {
+    delete headers["Content-Type"];
+    delete headers["content-type"];
+  }
 
   const token = getToken();
   if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
@@ -41,30 +49,39 @@ async function request(method, path, body, opts = {}) {
     method,
     credentials: "include",
     headers,
-    body: body == null ? undefined : JSON.stringify(body),
+    body:
+      body == null
+        ? undefined
+        : isFormData(body)
+        ? body
+        : JSON.stringify(body),
   });
 
-  const isJSON = (res.headers.get("content-type") || "").includes("application/json");
-  let data = {};
-  if (isJSON) {
-    try { data = await res.json(); } catch (e) { console.debug("JSON parse failed for", url, e); }
-  }
+  const ct = res.headers.get("content-type") || "";
+  const payload = ct.includes("application/json") ? await res.json().catch(() => ({})) : await res.text();
+
+  // axios-shaped response object
+  const response = {
+    data: payload,
+    status: res.status,
+    headers: Object.fromEntries(res.headers.entries()),
+  };
 
   if (!res.ok) {
-    const err = new Error(data?.message || `HTTP ${res.status}`);
-    err.response = { data, status: res.status };
+    const err = new Error((payload && payload.message) || `HTTP ${res.status}`);
+    err.response = response;
     throw err;
   }
-  return data;
+  return response;
 }
 
-// 5) Default export with the methods your code expects
-const be = {
-  get:   (path, opts)        => request("GET",    path, undefined, opts),
-  delete:(path, opts)        => request("DELETE", path, undefined, opts),
-  post:  (path, body, opts)  => request("POST",   path, body,      opts),
-  put:   (path, body, opts)  => request("PUT",    path, body,      opts),
-  patch: (path, body, opts)  => request("PATCH",  path, body,      opts),
+const api = {
+  get:    (path, opts)       => request("GET",    path, undefined, opts),
+  delete: (path, opts)       => request("DELETE", path, undefined, opts),
+  post:   (path, body, opts) => request("POST",   path, body,      opts),
+  put:    (path, body, opts) => request("PUT",    path, body,      opts),
+  patch:  (path, body, opts) => request("PATCH",  path, body,      opts),
+  getBase: () => API_BASE,
 };
 
-export default be;
+export default api;
