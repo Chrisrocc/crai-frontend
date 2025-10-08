@@ -104,6 +104,15 @@ const stageChipCss = `
 .chip:hover{ filter:brightness(1.1); }
 .chip:active{ transform: translateY(0.5px); }
 .chip.chip--on{ background:#2563EB; color:#fff; border-color:transparent; }
+
+/* Larger, easier-to-tap select for Stage */
+.input--select-lg{
+  min-height:44px;      /* comfortable touch size */
+  font-size:16px;       /* avoids iOS zoom */
+  padding-top:10px;
+  padding-bottom:10px;
+}
+
 `;
 
 /* trash icon */
@@ -158,6 +167,8 @@ export default function CarListRegular() {
   const [nextModal, setNextModal] = useState({ open: false, car: null });
   const openNextModal = (car) => setNextModal({ open: true, car });
   const closeNextModal = () => setNextModal({ open: false, car: null });
+  const openChecklistModal = (car) => setChecklistModal({ open: true, car });
+  const closeChecklistModal = () => setChecklistModal({ open: false, car: null });
 
   // profile modal
   const [profileOpen, setProfileOpen] = useState(false);
@@ -562,20 +573,14 @@ export default function CarListRegular() {
                   </Cell>
                 </td>
 
-                {/* CHECKLIST */}
-                <td onDoubleClick={() => !isEditingChecklist && startEdit(car, "checklist", "checklist")} className={isEditingChecklist ? "is-editing" : ""}>
-                  {isEditingChecklist ? (
-                    <div className="edit-cell">
-                      <input className="input input--compact" name="checklist" value={editData.checklist} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Tyres, Service, Detail" />
-                      <div className="edit-actions">
-                        <button className="btn btn--primary" onClick={saveChanges}>Save</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <Cell title={Array.isArray(car.checklist) ? car.checklist.join(", ") : ""}>
-                      {car.checklist && car.checklist.length > 0 ? car.checklist.join(", ") : "-"}
-                    </Cell>
-                  )}
+                {/* CHECKLIST (open modal) */}
+                <td
+                  onClick={() => openChecklistModal(car)}
+                  onDoubleClick={() => openChecklistModal(car)}
+                >
+                  <Cell title={Array.isArray(car.checklist) ? car.checklist.join(", ") : ""}>
+                    {car.checklist && car.checklist.length > 0 ? car.checklist.join(", ") : "-"}
+                  </Cell>
                 </td>
 
                 {/* NOTES */}
@@ -592,12 +597,24 @@ export default function CarListRegular() {
                   )}
                 </td>
 
-                {/* STAGE */}
-                <td onDoubleClick={() => !isEditingStage && startEdit(car, "stage", "stage")} className={isEditingStage ? "is-editing" : ""}>
+                {/* STAGE (tap-friendly) */}
+                <td
+                  onClick={() => startEdit(car, "stage", "stage")}
+                  onDoubleClick={() => startEdit(car, "stage", "stage")}
+                  className={isEditingStage ? "is-editing" : ""}
+                >
                   {isEditingStage ? (
                     <div className="edit-cell">
-                      <select className="input input--compact" name="stage" value={editData.stage} onChange={handleChange} onClick={rememberCaret}>
-                        {STAGES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                      <select
+                        className="input input--compact input--select-lg"
+                        name="stage"
+                        value={editData.stage}
+                        onChange={handleChange}
+                        onClick={rememberCaret}
+                      >
+                        {STAGES.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
                       </select>
                       <div className="edit-actions">
                         <button className="btn btn--primary" onClick={saveChanges}>Save</button>
@@ -864,7 +881,7 @@ export default function CarListRegular() {
             } catch (e) { alert(e.response?.data?.message || e.message || "Error saving checklist"); }
             finally { setChecklistModal({ open: false, car: null }); }
           }}
-          onClose={() => setChecklistModal({ open: false, car: null })}
+          onClose={closeChecklistModal}
         />
       )}
 
