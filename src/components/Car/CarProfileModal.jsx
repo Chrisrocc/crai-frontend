@@ -1,6 +1,6 @@
 // src/components/Car/CarProfileModal.jsx
 import { useEffect, useRef, useState } from "react";
-import api from "../../lib/api"; // ✅ use configured axios instance
+import api from "../../lib/api";
 
 // --- date helpers ---
 const msPerDay = 1000 * 60 * 60 * 24;
@@ -14,7 +14,7 @@ export default function CarProfileModal({ open, car, onClose }) {
   const [tab, setTab] = useState("info"); // 'info' | 'photos' | 'history'
   const [photos, setPhotos] = useState([]);
   const [busy, setBusy] = useState(false);
-  const [localCar, setLocalCar] = useState(car || null); // fresh copy for info/history
+  const [localCar, setLocalCar] = useState(car || null);
   const fileRef = useRef(null);
 
   // single form state for Info tab
@@ -22,7 +22,7 @@ export default function CarProfileModal({ open, car, onClose }) {
     rego: "", make: "", model: "", series: "", readinessStatus: "", notes: "", checklist: "",
   });
 
-  // per-field edit state: locked by default; double-click to unlock
+  // per-field edit state (locked by default; double-tap to unlock)
   const [editable, setEditable] = useState({
     rego: false, make: false, model: false, series: false, readinessStatus: false, notes: false, checklist: false,
   });
@@ -42,7 +42,6 @@ export default function CarProfileModal({ open, car, onClose }) {
       notes: localCar.notes || "",
       checklist: Array.isArray(localCar.checklist) ? localCar.checklist.join(", ") : (localCar.checklist || ""),
     });
-    // lock all fields on load
     setEditable({ rego:false, make:false, model:false, series:false, readinessStatus:false, notes:false, checklist:false });
   }, [localCar]);
 
@@ -61,7 +60,6 @@ export default function CarProfileModal({ open, car, onClose }) {
   const refreshCar = async () => {
     if (!localCar?._id) return;
     try {
-      // list => find (compatible with your backend)
       const res = await api.get("/cars");
       const fresh = (res.data?.data || []).find((c) => c._id === localCar._id);
       if (fresh) setLocalCar(fresh);
@@ -150,7 +148,6 @@ export default function CarProfileModal({ open, car, onClose }) {
         .map((s) => s.trim())
         .filter(Boolean);
 
-      // Use PUT as in your working list editor route
       await api.put(`/cars/${localCar._id}`, {
         rego: (infoForm.rego || "").trim(),
         make: (infoForm.make || "").trim(),
@@ -163,7 +160,6 @@ export default function CarProfileModal({ open, car, onClose }) {
 
       await refreshCar();
       alert("Info saved");
-      // relock fields after save
       setEditable({ rego:false, make:false, model:false, series:false, readinessStatus:false, notes:false, checklist:false });
     } catch (err) {
       console.error(err);
@@ -177,114 +173,88 @@ export default function CarProfileModal({ open, car, onClose }) {
 
   return (
     <div style={overlayStyle}>
-      <div style={modalStyle}>
-        {/* Header */}
-        <div style={headerRow}>
+      {/* extra CSS for responsive layout */}
+      <style>{responsiveCss}</style>
+
+      <div style={modalShell}>
+        {/* Sticky header */}
+        <div className="cpm-header">
           <div>
-            <div style={{ fontWeight: 800, fontSize: 18 }}>Car Profile</div>
-            <div style={{ fontSize: 13, color: "#9ca3af" }}>{carTitle || "—"}</div>
+            <div className="cpm-title">Car Profile</div>
+            <div className="cpm-sub">{carTitle || "—"}</div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="cpm-actions">
             {tab === "photos" ? (
               <button onClick={fetchPhotos} className="btn btn--muted">Refresh</button>
             ) : (
               <button onClick={refreshCar} className="btn btn--muted">Refresh</button>
             )}
-            <button onClick={() => onClose(false)} style={closeBtnStyle} aria-label="Close">×</button>
+            <button onClick={() => onClose(false)} className="cpm-close" aria-label="Close">×</button>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div style={tabsWrap}>
+        {/* Sticky tabs on mobile */}
+        <div className="cpm-tabs">
           <button className={`tab ${tab === "info" ? "tab--active" : ""}`} onClick={() => setTab("info")}>Info</button>
           <button className={`tab ${tab === "photos" ? "tab--active" : ""}`} onClick={() => setTab("photos")}>Photos</button>
           <button className={`tab ${tab === "history" ? "tab--active" : ""}`} onClick={() => setTab("history")}>History</button>
         </div>
 
-        {/* Content */}
-        <div style={{ paddingTop: 8 }}>
+        {/* Scrollable content */}
+        <div className="cpm-body">
           {tab === "info" && (
-            <div style={infoGrid}>
+            <div className="info-grid">
               {/* Read-only meta */}
               <InfoItem label="Created" value={fullDT(localCar?.dateCreated || localCar?.createdAt)} />
               <InfoItem label="Updated" value={fullDT(localCar?.updatedAt)} />
 
-              {/* Editable fields (locked by default; double-click to edit) */}
+              {/* Editable fields (locked by default; double-tap to edit) */}
               <EditableField
-                label="Rego"
-                name="rego"
-                value={infoForm.rego}
-                editable={editable.rego}
-                onDblClick={() => unlockField("rego")}
-                onChange={onInfoChange}
-                onBlur={() => lockField("rego")}
+                label="Rego" name="rego" value={infoForm.rego}
+                editable={editable.rego} onDblClick={() => unlockField("rego")}
+                onChange={onInfoChange} onBlur={() => lockField("rego")}
               />
 
               <EditableField
-                label="Make"
-                name="make"
-                value={infoForm.make}
-                editable={editable.make}
-                onDblClick={() => unlockField("make")}
-                onChange={onInfoChange}
-                onBlur={() => lockField("make")}
+                label="Make" name="make" value={infoForm.make}
+                editable={editable.make} onDblClick={() => unlockField("make")}
+                onChange={onInfoChange} onBlur={() => lockField("make")}
               />
 
               <EditableField
-                label="Model"
-                name="model"
-                value={infoForm.model}
-                editable={editable.model}
-                onDblClick={() => unlockField("model")}
-                onChange={onInfoChange}
-                onBlur={() => lockField("model")}
+                label="Model" name="model" value={infoForm.model}
+                editable={editable.model} onDblClick={() => unlockField("model")}
+                onChange={onInfoChange} onBlur={() => lockField("model")}
               />
 
               <EditableField
-                label="Series"
-                name="series"
-                value={infoForm.series}
-                editable={editable.series}
-                onDblClick={() => unlockField("series")}
-                onChange={onInfoChange}
-                onBlur={() => lockField("series")}
+                label="Series" name="series" value={infoForm.series}
+                editable={editable.series} onDblClick={() => unlockField("series")}
+                onChange={onInfoChange} onBlur={() => lockField("series")}
               />
 
               <EditableField
-                label="Readiness"
-                name="readinessStatus"
-                value={infoForm.readinessStatus}
-                editable={editable.readinessStatus}
-                onDblClick={() => unlockField("readinessStatus")}
-                onChange={onInfoChange}
-                onBlur={() => lockField("readinessStatus")}
-              />
-
-              <EditableField
-                label="Checklist"
-                name="checklist"
-                value={infoForm.checklist}
-                editable={editable.checklist}
-                onDblClick={() => unlockField("checklist")}
-                onChange={onInfoChange}
-                onBlur={() => lockField("checklist")}
+                label="Readiness" name="readinessStatus" value={infoForm.readinessStatus}
+                editable={editable.readinessStatus} onDblClick={() => unlockField("readinessStatus")}
+                onChange={onInfoChange} onBlur={() => lockField("readinessStatus")}
                 long
-                placeholder="Tyres, Service, Detail"
+              />
+
+              <EditableField
+                label="Checklist" name="checklist" value={infoForm.checklist}
+                editable={editable.checklist} onDblClick={() => unlockField("checklist")}
+                onChange={onInfoChange} onBlur={() => lockField("checklist")}
+                long placeholder="Tyres, Service, Detail"
               />
 
               <EditableTextArea
-                label="Notes"
-                name="notes"
-                value={infoForm.notes}
-                editable={editable.notes}
-                onDblClick={() => unlockField("notes")}
-                onChange={onInfoChange}
-                onBlur={() => lockField("notes")}
-                long
-                placeholder="Add any notes…"
+                label="Notes" name="notes" value={infoForm.notes}
+                editable={editable.notes} onDblClick={() => unlockField("notes")}
+                onChange={onInfoChange} onBlur={() => lockField("notes")}
+                long placeholder="Add any notes…"
               />
 
-              <div style={{ gridColumn: "span 2", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <div className="info-actions">
                 <button className="btn btn--muted" onClick={resetInfo} disabled={busy}>Reset</button>
                 <button className="btn btn--primary" onClick={saveInfo} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
               </div>
@@ -293,21 +263,21 @@ export default function CarProfileModal({ open, car, onClose }) {
 
           {tab === "photos" && (
             <>
-              <div style={{ marginBottom: 10, display: "flex", gap: 8, alignItems: "center" }}>
+              <div className="row mb8">
                 <button onClick={handlePick} className="btn btn--primary">Upload Photos</button>
                 <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleFiles} />
-                {busy && <span style={{ color: "#9ca3af" }}>Working…</span>}
+                {busy && <span className="muted">Working…</span>}
               </div>
 
-              <div style={{ maxHeight: 460, overflow: "auto", borderTop: "1px solid #1f2937", paddingTop: 10 }}>
+              <div className="photos-wrap">
                 {photos.length === 0 ? (
-                  <div style={{ color: "#9ca3af" }}>{busy ? "Loading photos…" : "No photos yet."}</div>
+                  <div className="muted">{busy ? "Loading photos…" : "No photos yet."}</div>
                 ) : (
-                  <div style={grid}>
+                  <div className="photo-grid">
                     {photos.map((p) => (
-                      <div key={p.key} style={card}>
+                      <div key={p.key} className="photo-card">
                         <a href={p.url} target="_blank" rel="noreferrer">
-                          <img src={p.url} alt={p.caption || "photo"} style={img} />
+                          <img src={p.url} alt={p.caption || "photo"} className="photo-img" />
                         </a>
                         <input
                           type="text"
@@ -317,9 +287,9 @@ export default function CarProfileModal({ open, car, onClose }) {
                             const newCap = e.target.value || "";
                             if (newCap !== (p.caption || "")) handleCaption(p.key, newCap);
                           }}
-                          style={captionInput}
+                          className="caption-input"
                         />
-                        <button onClick={() => handleDelete(p.key)} className="btn btn--danger" style={{ width: "100%" }}>
+                        <button onClick={() => handleDelete(p.key)} className="btn btn--danger w100">
                           Delete
                         </button>
                       </div>
@@ -331,12 +301,12 @@ export default function CarProfileModal({ open, car, onClose }) {
           )}
 
           {tab === "history" && (
-            <div style={{ maxHeight: 500, overflow: "auto" }}>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>Location History</div>
+            <div className="history-wrap">
+              <div className="section-title">Location History</div>
               {history.length === 0 ? (
-                <div style={{ color: "#9ca3af" }}>No history recorded.</div>
+                <div className="muted">No history recorded.</div>
               ) : (
-                <table style={historyTable}>
+                <table className="history-table">
                   <thead>
                     <tr>
                       <th>#</th><th>Location</th><th>Start</th><th>End</th><th>Days</th><th>Status</th>
@@ -368,24 +338,20 @@ export default function CarProfileModal({ open, car, onClose }) {
   );
 }
 
-// --- reusable UI blocks ---
+/* ---------- Reusable blocks ---------- */
 function InfoItem({ label, value, long = false }) {
   return (
-    <div style={{ ...infoItem, gridColumn: long ? "span 2" : "span 1" }}>
-      <div style={infoLabel}>{label}</div>
-      <div style={infoValue}>{value}</div>
+    <div className={`card ${long ? "span-2" : ""}`}>
+      <div className="label">{label}</div>
+      <div className="value">{value}</div>
     </div>
   );
 }
 
 function EditableField({ label, name, value, editable, onDblClick, onChange, onBlur, long = false, placeholder = "" }) {
   return (
-    <div
-      style={{ ...fieldWrap, gridColumn: long ? "span 2" : "span 1", cursor: editable ? "text" : "pointer" }}
-      onDoubleClick={onDblClick}
-      title={editable ? "" : "Double-click to edit"}
-    >
-      <div style={fieldLabel}>{label}</div>
+    <div className={`card ${long ? "span-2" : ""} ${editable ? "is-editing" : ""}`} onDoubleClick={onDblClick} title={editable ? "" : "Double-click to edit"}>
+      <div className="label">{label}</div>
       <input
         type="text"
         name={name}
@@ -393,60 +359,123 @@ function EditableField({ label, name, value, editable, onDblClick, onChange, onB
         onChange={editable ? onChange : undefined}
         onBlur={editable ? onBlur : undefined}
         readOnly={!editable}
-        style={{ ...input, opacity: editable ? 1 : 0.7 }}
+        className="input"
         placeholder={placeholder}
       />
-      {!editable && <div style={hint}>Double-click to edit</div>}
+      {!editable && <div className="hint">Double-click to edit</div>}
     </div>
   );
 }
 
 function EditableTextArea({ label, name, value, editable, onDblClick, onChange, onBlur, long = false, placeholder = "" }) {
   return (
-    <div
-      style={{ ...fieldWrap, gridColumn: long ? "span 2" : "span 1", cursor: editable ? "text" : "pointer" }}
-      onDoubleClick={onDblClick}
-      title={editable ? "" : "Double-click to edit"}
-    >
-      <div style={fieldLabel}>{label}</div>
+    <div className={`card ${long ? "span-2" : ""} ${editable ? "is-editing" : ""}`} onDoubleClick={onDblClick} title={editable ? "" : "Double-click to edit"}>
+      <div className="label">{label}</div>
       <textarea
         name={name}
         value={value}
         onChange={editable ? onChange : undefined}
         onBlur={editable ? onBlur : undefined}
         readOnly={!editable}
-        style={{ ...input, minHeight: 100, resize: "vertical", opacity: editable ? 1 : 0.7 }}
+        className="input textarea"
         placeholder={placeholder}
       />
-      {!editable && <div style={hint}>Double-click to edit</div>}
+      {!editable && <div className="hint">Double-click to edit</div>}
     </div>
   );
 }
 
-/* inline styles */
-const overlayStyle = { position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 };
-const modalStyle = { width:"min(1100px,94vw)", background:"#0b1220", color:"#e5e7eb", borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.35)", padding:16, border:"1px solid #1f2937" };
-const headerRow = { display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 };
-const closeBtnStyle = { border:"none", background:"#1f2937", color:"#e5e7eb", width:32, height:32, borderRadius:8, cursor:"pointer", lineHeight:1, fontSize:18 };
-const tabsWrap = { display:"flex", gap:6, borderBottom:"1px solid #1f2937", marginTop:8, paddingBottom:6 };
+/* ---------- Inline styles & CSS ---------- */
+const overlayStyle = {
+  position:"fixed", inset:0, background:"rgba(0,0,0,0.45)",
+  display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000,
+};
 
-// Info grid styles
-const infoGrid = { display:"grid", gridTemplateColumns:"repeat(2, minmax(0,1fr))", gap:12 };
-const infoItem = { background:"#0f172a", border:"1px solid #1f2937", borderRadius:10, padding:12 };
-const infoLabel = { fontSize:12, color:"#9ca3af", marginBottom:4, fontWeight:700 };
-const infoValue = { fontSize:14, wordBreak:"break-word" };
+const modalShell = {
+  width:"min(1100px, 96vw)",
+  maxHeight:"94vh",                     // total height cap
+  background:"#0b1220", color:"#e5e7eb",
+  borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.35)",
+  border:"1px solid #1f2937",
+  display:"flex", flexDirection:"column",
+  overflow:"hidden",                    // header/tabs fixed, body scrolls
+};
 
-// Photos styles
-const grid = { display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px,1fr))", gap:12 };
-const card = { border:"1px solid #1f2937", borderRadius:10, padding:10, display:"flex", flexDirection:"column", gap:8, background:"#0f172a" };
-const img = { width:"100%", height:160, objectFit:"cover", borderRadius:8 };
-const captionInput = { width:"100%", padding:8, borderRadius:8, border:"1px solid #243041", background:"#0b1220", color:"#e5e7eb", outline:"none" };
+const responsiveCss = `
+  .btn{border:1px solid #243041;border-radius:10px;padding:8px 12px;font-weight:600;cursor:pointer;background:#1f2937;color:#e5e7eb;}
+  .btn--muted{background:#1f2937;}
+  .btn--primary{background:#2563EB;color:#fff;border-color:transparent;}
+  .btn--danger{background:#DC2626;color:#fff;border-color:transparent;}
+  .w100{width:100%;}
+  .muted{color:#9ca3af}
+  .mb8{margin-bottom:8px;}
 
-// History styles
-const historyTable = { width:"100%", borderCollapse:"collapse", fontSize:14 };
+  .cpm-header{
+    position:sticky; top:0; z-index:2;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 14px; background:#0b1220; border-bottom:1px solid #1f2937;
+  }
+  .cpm-title{font-weight:800;font-size:18px;}
+  .cpm-sub{font-size:13px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw;}
+  .cpm-actions{display:flex;gap:8px;align-items:center;}
+  .cpm-close{border:none;background:#1f2937;color:#e5e7eb;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;}
 
-// form styles
-const fieldWrap = { display:"flex", flexDirection:"column", gap:6, background:"#0f172a", border:"1px solid #1f2937", borderRadius:10, padding:12 };
-const fieldLabel = { fontSize:12, color:"#9ca3af", fontWeight:700 };
-const input = { width:"100%", padding:8, borderRadius:8, border:"1px solid #243041", background:"#0b1220", color:"#e5e7eb", outline:"none" };
-const hint = { fontSize:11, color:"#9ca3af", marginTop:4 };
+  .cpm-tabs{
+    position:sticky; top:56px; z-index:1;
+    display:flex; gap:6px; padding:8px 12px;
+    background:#0b1220; border-bottom:1px solid #1f2937;
+  }
+  .tab{border:0;padding:8px 12px;border-radius:10px;background:#0f172a;color:#cbd5e1;font-weight:700;cursor:pointer;}
+  .tab--active{background:#1f2937;color:#fff;}
+
+  .cpm-body{padding:12px; overflow:auto; overscroll-behavior:contain;}
+
+  /* Info grid */
+  .info-grid{
+    display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px;
+  }
+  .card{
+    background:#0f172a;border:1px solid #1f2937;border-radius:10px;padding:12px;min-width:0;
+  }
+  .card.is-editing{box-shadow:inset 0 0 0 1px #334155}
+  .span-2{grid-column:span 2;}
+  .label{font-size:12px;color:#9ca3af;font-weight:700;margin-bottom:6px;}
+  .value{font-size:14px;word-break:break-word;}
+  .input{
+    width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px;
+    border:1px solid #243041; background:#0b1220; color:#e5e7eb; outline:none;
+  }
+  .textarea{min-height:120px; resize:vertical;}
+  .hint{font-size:11px;color:#9ca3af;margin-top:6px;}
+
+  .info-actions{
+    grid-column:span 2; display:flex; justify-content:flex-end; gap:8px; margin-top:2px;
+    position:sticky; bottom:0; background:linear-gradient(180deg, rgba(11,18,32,0) 0%, #0b1220 20%);
+    padding-top:12px; padding-bottom:4px;
+  }
+
+  /* Photos */
+  .photos-wrap{ max-height:calc(94vh - 190px); overflow:auto; border-top:1px solid #1f2937; padding-top:10px; }
+  .photo-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; }
+  .photo-card{ border:1px solid #1f2937; border-radius:10px; padding:10px; background:#0f172a; display:flex; flex-direction:column; gap:8px; }
+  .photo-img{ width:100%; height:160px; object-fit:cover; border-radius:8px; display:block; }
+  .caption-input{ width:100%; padding:8px 10px; border-radius:8px; border:1px solid #243041; background:#0b1220; color:#e5e7eb; outline:none; box-sizing:border-box; }
+
+  /* History */
+  .history-wrap{ max-height:calc(94vh - 170px); overflow:auto; }
+  .section-title{ font-weight:700; margin-bottom:8px; }
+  .history-table{ width:100%; border-collapse:collapse; font-size:14px; }
+  .history-table th, .history-table td{ padding:8px; border-bottom:1px solid #1f2937; text-align:left; }
+  .chip{display:inline-block;padding:4px 8px;border-radius:999px;font-weight:700;}
+  .chip--open{ background:#22c55e1f; color:#22c55e; }
+  .chip--closed{ background:#6b72801a; color:#9ca3af; }
+
+  /* Mobile tweaks */
+  @media (max-width: 720px){
+    .cpm-title{font-size:16px;}
+    .cpm-tabs{ top:52px; }
+    .info-grid{ grid-template-columns:1fr; }
+    .span-2{ grid-column:span 1; }
+    .photos-wrap, .history-wrap{ max-height:calc(94vh - 170px); }
+  }
+`;
