@@ -607,8 +607,8 @@ export default function CarListRegular() {
 
                 {/* STAGE (tap-friendly, auto-save, no button) */}
                 <td
-                  onClick={() => startEdit(car, "stage", "stage")}
-                  onDoubleClick={() => startEdit(car, "stage", "stage")}
+                  onClick={!isEditingStage ? () => startEdit(car, "stage", "stage") : undefined}
+                  onDoubleClick={!isEditingStage ? () => startEdit(car, "stage", "stage") : undefined}
                   className={isEditingStage ? "is-editing" : ""}
                 >
                   {isEditingStage ? (
@@ -617,13 +617,11 @@ export default function CarListRegular() {
                         className="input input--compact input--select-lg"
                         name="stage"
                         value={editData.stage}
-                        onClick={rememberCaret}
+                        onClick={(e) => e.stopPropagation()}                // <-- important
                         onChange={(e) => {
-                          // update local state for UI
                           const val = e.target.value;
                           setEditData((p) => ({ ...p, stage: val }));
-                          // persist immediately
-                          setTimeout(saveChanges, 0);
+                          setTimeout(saveChanges, 0);                       // auto-save
                         }}
                       >
                         {STAGES.map((s) => (
@@ -635,6 +633,7 @@ export default function CarListRegular() {
                     <Cell>{car.stage || "-"}</Cell>
                   )}
                 </td>
+
 
 
                 {/* ACTIONS */}
