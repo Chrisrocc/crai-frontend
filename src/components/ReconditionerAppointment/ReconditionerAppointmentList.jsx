@@ -1,6 +1,6 @@
 // src/components/ReconditionerAppointment/ReconditionerAppointmentList.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import api from "../../lib/api"; // ✅ env-based axios instance
+import api from "../../lib/api";
 import ReconditionerAppointmentFormModal from "./ReconditionerAppointmentFormModal";
 import ReconditionerCategoryManager from "./ReconditionerCategoryManager";
 import CarPickerModal from "../CarPicker/CarPickerModal";
@@ -14,46 +14,44 @@ export default function ReconditionerAppointmentList() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  // Page filter tabs: 'all' | 'on' | 'off'
+  // filter: 'all' | 'on' | 'off'
   const [catTab, setCatTab] = useState("all");
 
-  // Create modal
+  // create modal
   const [showForm, setShowForm] = useState(false);
   const [formCategoryId, setFormCategoryId] = useState(null);
 
-  // Inline editing
+  // inline edit (whole row on dbl-click)
   const [editRow, setEditRow] = useState(null);
   const [editData, setEditData] = useState({ name: "", dateTime: "", carIds: [], notesAll: "" });
   const savingRef = useRef(false);
 
-  // Car picker (for editing)
+  // car picker for editing
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const headers = useMemo(() => ({ "Cache-Control": "no-cache" }), []);
 
-  const fetchAll = async () => {
-    setErr("");
-    setLoading(true);
-    try {
-      const [cat, apps, carList] = await Promise.all([
-        api.get("/reconditioner-categories", { headers }),
-        api.get("/reconditioner-appointments", { headers }),
-        api.get("/cars", { headers }),
-      ]);
-      setCategories(cat.data?.data || []);
-      setAppointments(apps.data?.data || []);
-      setCars(carList.data?.data || []);
-    } catch (e) {
-      setErr(e.response?.data?.message || e.message || "Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchAll = async () => {
+      setErr("");
+      setLoading(true);
+      try {
+        const [cat, apps, carList] = await Promise.all([
+          api.get("/reconditioner-categories", { headers }),
+          api.get("/reconditioner-appointments", { headers }),
+          api.get("/cars", { headers }),
+        ]);
+        setCategories(cat.data?.data || []);
+        setAppointments(apps.data?.data || []);
+        setCars(carList.data?.data || []);
+      } catch (e) {
+        setErr(e.response?.data?.message || e.message || "Failed to load data");
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [headers]);
 
   const refreshAppointments = async () => {
     try {
@@ -64,7 +62,7 @@ export default function ReconditionerAppointmentList() {
     }
   };
 
-  // ---- edit helpers ----
+  // ----- edit helpers -----
   const enterEdit = (a) => {
     let notesDefault = "";
     if (Array.isArray(a.cars) && a.cars.length) {
@@ -85,7 +83,6 @@ export default function ReconditionerAppointmentList() {
   };
 
   const handleChange = (e) => setEditData((p) => ({ ...p, [e.target.name]: e.target.value }));
-
   const cancelEdit = () => {
     setEditRow(null);
     setEditData({ name: "", dateTime: "", carIds: [], notesAll: "" });
@@ -113,7 +110,7 @@ export default function ReconditionerAppointmentList() {
         cars: [...preservedTextRows, ...identifiedRows],
       };
 
-      // optimistic render
+      // optimistic UI
       setAppointments((prev) =>
         prev.map((a) =>
           a._id === editRow
@@ -164,7 +161,6 @@ export default function ReconditionerAppointmentList() {
     };
     if (editRow) document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editRow, editData, pickerOpen]);
 
   const deleteAppointment = async (id) => {
@@ -200,10 +196,7 @@ export default function ReconditionerAppointmentList() {
     );
   }
 
-  const fmtDateShort = (d) =>
-    d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
-
-  // --- page tab filters
+  // page tab filters
   const onCount = categories.filter((c) => !!c.onPremises).length;
   const offCount = categories.filter((c) => !c.onPremises).length;
   const filteredCategories =
@@ -211,17 +204,17 @@ export default function ReconditionerAppointmentList() {
     : catTab === "off" ? categories.filter((c) => !c.onPremises)
     : categories;
 
-  // Day/Time helpers
   const renderDayTime = (raw) => {
     const { label } = standardizeDayTime(raw);
     return label || (raw || "—");
   };
-  const rowClassFor = (raw) => dayTimeHighlightClass(raw);
+
+  const fmtDateShort = (d) =>
+    d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
 
   return (
     <div className="ra-wrap with-ham">
       <style>{css}</style>
-
       <HamburgerMenu />
 
       <header className="cal-head">
@@ -233,7 +226,7 @@ export default function ReconditionerAppointmentList() {
 
       {err ? <div className="cal-alert">{err}</div> : null}
 
-      {/* Category manager (closed by default) */}
+      {/* Category manager (collapsed by default) */}
       <ReconditionerCategoryManager categories={categories} setCategories={setCategories} />
 
       {/* PAGE FILTER TABS */}
@@ -276,16 +269,16 @@ export default function ReconditionerAppointmentList() {
               </button>
             </div>
 
-            <div className="cal-table-clip">
-              <div className="cal-table-scroll" role="region" aria-label={`${cat.name} appointments`}>
+            <div className="table-clip">
+              <div className="table-scroll" role="region" aria-label={`${cat.name} appointments`}>
                 <table className="cal-table" role="grid">
                   <colgroup>
-                    <col className="col-name" />
-                    <col className="col-daytime" />
-                    <col className="col-car" />
-                    <col className="col-notes" />
-                    <col className="col-datecreated" />
-                    <col className="col-actions" />
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "30%" }} />
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "90px" }} />
                   </colgroup>
                   <thead>
                     <tr>
@@ -305,7 +298,7 @@ export default function ReconditionerAppointmentList() {
                     ) : (
                       catApps.map((a) => {
                         const isEditing = editRow === a._id;
-                        const rowCls = rowClassFor(a.dateTime);
+                        const rowCls = dayTimeHighlightClass(a.dateTime);
                         return (
                           <tr
                             key={a._id}
@@ -313,13 +306,23 @@ export default function ReconditionerAppointmentList() {
                             className={rowCls}
                             onDoubleClick={(e) => { e.stopPropagation(); enterEdit(a); }}
                           >
-                            <td data-label="Name">
+                            {/* NAME */}
+                            <td>
                               {isEditing ? (
-                                <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus />
-                              ) : (a.name || "—")}
+                                <input
+                                  name="name"
+                                  value={editData.name}
+                                  onChange={handleChange}
+                                  className="cal-input"
+                                  autoFocus
+                                />
+                              ) : (
+                                <div className="one-line">{a.name || "—"}</div>
+                              )}
                             </td>
 
-                            <td data-label="Date/Time">
+                            {/* DATE/TIME */}
+                            <td>
                               {isEditing ? (
                                 <input
                                   name="dateTime"
@@ -329,11 +332,12 @@ export default function ReconditionerAppointmentList() {
                                   placeholder="e.g. Sat 10:30, tomorrow 2pm, 27/9 09:00"
                                 />
                               ) : (
-                                renderDayTime(a.dateTime)
+                                <div className="one-line">{renderDayTime(a.dateTime)}</div>
                               )}
                             </td>
 
-                            <td data-label="Car(s)">
+                            {/* CARS */}
+                            <td>
                               {isEditing ? (
                                 <div className="chipbox">
                                   {editData.carIds.length === 0 && <div className="muted">No cars selected.</div>}
@@ -358,16 +362,17 @@ export default function ReconditionerAppointmentList() {
                                   {a.cars.map((c, i) => {
                                     if (c.car && typeof c.car === "object") {
                                       const label = [c.car.rego, c.car.make, c.car.model].filter(Boolean).join(" • ");
-                                      return <div key={(c.car?._id || c.car) + i}>{label}</div>;
+                                      return <div key={(c.car?._id || c.car) + i} className="two-line">{label}</div>;
                                     }
-                                    if (c.carText) return <div key={"t" + i}>{c.carText}</div>;
-                                    return <div key={"u" + i}>[Unidentified]</div>;
+                                    if (c.carText) return <div key={"t" + i} className="two-line">{c.carText}</div>;
+                                    return <div key={"u" + i} className="two-line">[Unidentified]</div>;
                                   })}
                                 </div>
                               ) : "—"}
                             </td>
 
-                            <td data-label="Notes">
+                            {/* NOTES */}
+                            <td>
                               {isEditing ? (
                                 <input
                                   name="notesAll"
@@ -377,15 +382,15 @@ export default function ReconditionerAppointmentList() {
                                   placeholder="Optional notes for all cars"
                                 />
                               ) : a.cars && a.cars.length ? (
-                                <div className="stack">{a.cars.map((c, i) => <div key={"n"+i}>{c.notes || "—"}</div>)}</div>
+                                <div className="stack">{a.cars.map((c, i) => <div key={"n"+i} className="two-line">{c.notes || "—"}</div>)}</div>
                               ) : "—"}
                             </td>
 
-                            <td data-label="Created">
-                              {fmtDateShort(a.createdAt)}
-                            </td>
+                            {/* CREATED */}
+                            <td><div className="one-line">{fmtDateShort(a.createdAt)}</div></td>
 
-                            <td data-label="Actions" className="cal-actions">
+                            {/* ACTIONS */}
+                            <td className="cal-actions">
                               {isEditing ? (
                                 <>
                                   <button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
@@ -445,7 +450,7 @@ function TrashIcon() {
   );
 }
 
-/* ---------- Styles ---------- */
+/* ---------- Styles (regular table) ---------- */
 const css = `
 :root { color-scheme: dark; }
 html, body, #root { background:#0B1220; overflow-x:hidden; }
@@ -469,7 +474,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-head-titles { display:flex; flex-direction:column; gap:4px; }
 .cal-alert { background:#3B0D0D; border:1px solid #7F1D1D; color:#FECACA; padding:10px 12px; border-radius:12px; margin-bottom:12px; }
 
-/* page filter tabs */
 .ra-tabs { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
 .ra-tab {
   background:#0F172A; border:1px solid #243041; color:#E5E7EB;
@@ -491,61 +495,90 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-title{ margin:0; font-size:18px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 
 /* clip + per-table scroller */
-.cal-table-clip{ width:100%; overflow:hidden; border-radius:14px; }
-.cal-table-scroll{
+.table-clip{ width:100%; overflow:hidden; border-radius:14px; }
+.table-scroll{
   border:1px solid var(--line);
   border-radius:14px;
   background:var(--panel);
-  overflow-x:auto;
+  overflow-x:auto;   /* ← only the table scrolls horizontally on phones */
   overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
-  padding-bottom:14px;
+  padding-bottom:10px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
 }
 
 /* visible scrollbar */
-.cal-table-scroll::-webkit-scrollbar{ height:12px; }
-.cal-table-scroll::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
-.cal-table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
-.cal-table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
-.cal-table-scroll{ scrollbar-color:#59637C #0B1220; scrollbar-width:thin; }
+.table-scroll::-webkit-scrollbar{ height:12px; }
+.table-scroll::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
+.table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
+.table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
+.table-scroll{ scrollbar-color:#59637C #0B1220; scrollbar-width:thin; }
 
-/* table (desktop) */
-.cal-table{ width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; min-width:780px; }
+/* regular table */
+.cal-table{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  table-layout:fixed;          /* predictable widths + ellipsis */
+  min-width: 980px;            /* forces horizontal scroll on narrow screens instead of squashing letters */
+}
+
 .cal-table thead th{
   position:sticky; top:0; z-index:1; background:var(--panel);
   border-bottom:1px solid var(--line);
   text-align:left; font-size:12px; color:#9CA3AF;
   padding:12px 12px;
 }
+
 .cal-table tbody td{
   padding:12px 12px;
   border-bottom:1px solid var(--line);
   font-size:14px; color:#E5E7EB; vertical-align:middle;
-  word-break:break-word; white-space:normal; line-height:1.35;
 }
+
 .cal-table tbody tr:hover{ background:#0B1428; }
 .cal-empty{ text-align:center; padding:20px; color:#9CA3AF; }
 
-/* column widths (desktop) */
-.cal-table col.col-name        { width:18%; }
-.cal-table col.col-daytime     { width:16%; }
-.cal-table col.col-car         { width:30%; }
-.cal-table col.col-notes       { width:26%; }
-.cal-table col.col-datecreated { width:8%; }
-.cal-table col.col-actions     { width:120px; }
-
-/* helpers */
-.cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
+/* No weird vertical character stacking */
+.one-line{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.two-line{
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+  white-space:normal;
+  word-break:normal;
+}
 .stack{ display:flex; flex-direction:column; gap:4px; }
+
+/* inputs in edit mode */
+.cal-input{
+  width:100%;
+  padding:8px 10px;
+  border-radius:10px;
+  border:1px solid #243041;
+  background:#0B1220;
+  color:#E5E7EB;
+  outline:none;
+  transition:border-color .2s, box-shadow .2s;
+}
+.cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
+
+.cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
+
+/* chips in edit mode */
 .chipbox{ display:flex; flex-direction:column; gap:8px; }
-.chipbox-actions{ display:flex; gap:8px; flex-wrap:wrap; }
-.chip{ display:inline-flex; align-items:center; gap:6px; background:#111827; border:1px solid #243041; padding:6px 8px; border-radius:12px; margin:0 6px 6px 0; }
+.chipbox-actions{ display:flex; gap:8px; }
+.chip{ display:inline-flex; align-items:center; gap:6px; background:#111827; border:1px solid #243041; padding:6px 8px; border-radius:12px; margin:0 8px 8px 0; }
 .chip-x{ background:transparent; border:none; color:#9CA3AF; cursor:pointer; font-size:14px; line-height:1; }
 .muted{ color:#9CA3AF; }
 .hint{ color:#9CA3AF; font-size:12px; }
 
-/* Row highlights */
+/* Highlight rows (same palette) */
 .cal-table tbody tr.is-today td {
   background:#0f2a12 !important;
   box-shadow: inset 0 0 0 1px #1e3a23;
@@ -553,42 +586,5 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-table tbody tr.is-tomorrow td {
   background:#2a210f !important;
   box-shadow: inset 0 0 0 1px #3a2e1e;
-}
-
-/* ========= Mobile: turn rows into clean cards ========= */
-@media (max-width: 820px){
-  .cal-table{ min-width:0; }
-  .cal-table thead{ display:none; }
-
-  .cal-table tbody tr{
-    display:block;
-    border:1px solid var(--line);
-    border-radius:12px;
-    margin:10px;
-    padding:4px 8px 8px;
-    background:transparent;
-  }
-  .cal-table tbody tr:hover{ background:transparent; }
-
-  .cal-table tbody td{
-    display:flex;
-    align-items:flex-start;
-    gap:12px;
-    border-bottom:none;
-    padding:8px 2px;
-  }
-  .cal-table tbody td:last-child{ padding-bottom:4px; }
-
-  .cal-table tbody td::before{
-    content: attr(data-label);
-    flex: 0 0 108px;
-    min-width:108px;
-    color:#9CA3AF;
-    font-size:12px;
-    padding-top:2px;
-  }
-
-  .btn--sm{ padding:6px 9px; }
-  .cal-actions{ justify-content:flex-start; }
 }
 `;
