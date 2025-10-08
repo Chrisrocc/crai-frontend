@@ -313,12 +313,13 @@ export default function ReconditionerAppointmentList() {
                             className={rowCls}
                             onDoubleClick={(e) => { e.stopPropagation(); enterEdit(a); }}
                           >
-                            <td>
+                            <td data-label="Name">
                               {isEditing ? (
                                 <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus />
                               ) : (a.name || "—")}
                             </td>
-                            <td>
+
+                            <td data-label="Date/Time">
                               {isEditing ? (
                                 <input
                                   name="dateTime"
@@ -331,7 +332,8 @@ export default function ReconditionerAppointmentList() {
                                 renderDayTime(a.dateTime)
                               )}
                             </td>
-                            <td>
+
+                            <td data-label="Car(s)">
                               {isEditing ? (
                                 <div className="chipbox">
                                   {editData.carIds.length === 0 && <div className="muted">No cars selected.</div>}
@@ -364,7 +366,8 @@ export default function ReconditionerAppointmentList() {
                                 </div>
                               ) : "—"}
                             </td>
-                            <td>
+
+                            <td data-label="Notes">
                               {isEditing ? (
                                 <input
                                   name="notesAll"
@@ -377,8 +380,12 @@ export default function ReconditionerAppointmentList() {
                                 <div className="stack">{a.cars.map((c, i) => <div key={"n"+i}>{c.notes || "—"}</div>)}</div>
                               ) : "—"}
                             </td>
-                            <td>{fmtDateShort(a.createdAt)}</td>
-                            <td className="cal-actions">
+
+                            <td data-label="Created">
+                              {fmtDateShort(a.createdAt)}
+                            </td>
+
+                            <td data-label="Actions" className="cal-actions">
                               {isEditing ? (
                                 <>
                                   <button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
@@ -503,40 +510,42 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
 .cal-table-scroll{ scrollbar-color:#59637C #0B1220; scrollbar-width:thin; }
 
-/* table */
-.cal-table{ width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; min-width:760px; }
+/* table (desktop) */
+.cal-table{ width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; min-width:780px; }
 .cal-table thead th{
   position:sticky; top:0; z-index:1; background:var(--panel);
   border-bottom:1px solid var(--line);
   text-align:left; font-size:12px; color:#9CA3AF;
   padding:12px 12px;
 }
-.cal-table tbody td{ padding:12px 12px; border-bottom:1px solid var(--line); font-size:14px; color:#E5E7EB; vertical-align:middle; }
+.cal-table tbody td{
+  padding:12px 12px;
+  border-bottom:1px solid var(--line);
+  font-size:14px; color:#E5E7EB; vertical-align:middle;
+  word-break:break-word; white-space:normal; line-height:1.35;
+}
 .cal-table tbody tr:hover{ background:#0B1428; }
 .cal-empty{ text-align:center; padding:20px; color:#9CA3AF; }
 
-/* column widths */
-.cal-table col.col-name        { width:20%; }
-cal-table col.col-daytime     { width:18%; }
-.cal-table col.col-car         { width:24%; }
-.cal-table col.col-notes       { width:28%; }
-.cal-table col.col-datecreated { width:10%; }
+/* column widths (desktop) */
+.cal-table col.col-name        { width:18%; }
+.cal-table col.col-daytime     { width:16%; }
+.cal-table col.col-car         { width:30%; }
+.cal-table col.col-notes       { width:26%; }
+.cal-table col.col-datecreated { width:8%; }
 .cal-table col.col-actions     { width:120px; }
 
-.cal-input{ width:100%; padding:8px 10px; border-radius:10px; border:1px solid #243041; background:#0B1220; color:#E5E7EB; outline:none; transition:border-color .2s, box-shadow .2s; }
-.cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
-
+/* helpers */
 .cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
 .stack{ display:flex; flex-direction:column; gap:4px; }
-
 .chipbox{ display:flex; flex-direction:column; gap:8px; }
-.chipbox-actions{ display:flex; gap:8px; }
-.chip{ display:inline-flex; align-items:center; gap:6px; background:#111827; border:1px solid #243041; padding:6px 8px; border-radius:12px; margin:0 8px 8px 0; }
+.chipbox-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+.chip{ display:inline-flex; align-items:center; gap:6px; background:#111827; border:1px solid #243041; padding:6px 8px; border-radius:12px; margin:0 6px 6px 0; }
 .chip-x{ background:transparent; border:none; color:#9CA3AF; cursor:pointer; font-size:14px; line-height:1; }
 .muted{ color:#9CA3AF; }
 .hint{ color:#9CA3AF; font-size:12px; }
 
-/* Highlight rows (match Customer Appointments palette) */
+/* Row highlights */
 .cal-table tbody tr.is-today td {
   background:#0f2a12 !important;
   box-shadow: inset 0 0 0 1px #1e3a23;
@@ -544,5 +553,42 @@ cal-table col.col-daytime     { width:18%; }
 .cal-table tbody tr.is-tomorrow td {
   background:#2a210f !important;
   box-shadow: inset 0 0 0 1px #3a2e1e;
+}
+
+/* ========= Mobile: turn rows into clean cards ========= */
+@media (max-width: 820px){
+  .cal-table{ min-width:0; }
+  .cal-table thead{ display:none; }
+
+  .cal-table tbody tr{
+    display:block;
+    border:1px solid var(--line);
+    border-radius:12px;
+    margin:10px;
+    padding:4px 8px 8px;
+    background:transparent;
+  }
+  .cal-table tbody tr:hover{ background:transparent; }
+
+  .cal-table tbody td{
+    display:flex;
+    align-items:flex-start;
+    gap:12px;
+    border-bottom:none;
+    padding:8px 2px;
+  }
+  .cal-table tbody td:last-child{ padding-bottom:4px; }
+
+  .cal-table tbody td::before{
+    content: attr(data-label);
+    flex: 0 0 108px;
+    min-width:108px;
+    color:#9CA3AF;
+    font-size:12px;
+    padding-top:2px;
+  }
+
+  .btn--sm{ padding:6px 9px; }
+  .cal-actions{ justify-content:flex-start; }
 }
 `;
