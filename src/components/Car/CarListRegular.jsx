@@ -1,8 +1,8 @@
 // src/components/Car/CarListRegular.jsx
-// Uses central API client (src/lib/api.js) + VITE_API_URL
+// Rewritten to use central API client (src/lib/api.js) + VITE_API_URL
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
-import api from "../../lib/api";
+import api from "../../lib/api"; // <-- central axios instance (baseURL from VITE_API_URL)
 import CarFormModal from "./CarFormModal";
 import CarProfileModal from "./CarProfileModal";
 import ChecklistFormModal from "./ChecklistFormModal";
@@ -18,15 +18,24 @@ const cssFix = `
 html, body { width: 100%; margin:0; overflow-x:hidden; }
 #root { overflow-x:hidden; }
 
+/* keep header/toolbars clear of the fixed hamburger on desktop */
 .with-ham .toolbar,
 .with-ham .titlebar,
 .with-ham .page-head { padding-left:56px; }
 
+/* container padding but never exceed viewport width */
 .page-pad { padding: clamp(12px, 2vw, 20px); max-width:100vw; }
 
+/* ===== Toolbar (desktop-first, wraps when needed) ===== */
 .toolbar{
-  display:flex; align-items:flex-end; justify-content:space-between;
-  gap:12px; flex-wrap:wrap; margin-bottom:12px; max-width:100%;
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;         /* allow wrapping to a new line if tight */
+  margin-bottom:12px;
+  max-width:100%;
+  overflow-x:hidden;
 }
 .toolbar, .split-toolbar, .titlebox, .chipbar { min-width:0; }
 
@@ -34,21 +43,34 @@ html, body { width: 100%; margin:0; overflow-x:hidden; }
 .title{ margin:0; font-size:28px; }
 .subtitle{ margin:0; color:#9CA3AF; font-size:13px; }
 
+/* Right-side controls block: takes remaining space and wraps nicely */
 .split-toolbar{
-  display:flex; flex-wrap:wrap; column-gap:8px; row-gap:8px;
-  align-items:center; justify-content:flex-end; flex:1 1 600px; min-width:260px; max-width:100%;
+  display:flex;
+  flex-wrap:wrap;
+  column-gap:8px;
+  row-gap:8px;
+  align-items:center;
+  justify-content:flex-end;
+  flex: 1 1 600px;   /* can grow and shrink */
+  min-width: 260px;
+  max-width:100%;
 }
 
+/* tabs */
 .tabbar{display:inline-flex;gap:6px;background:#0b1220;border:1px solid #243041;padding:6px;border-radius:12px;}
 .tab{border:0;padding:8px 14px;border-radius:10px;background:transparent;color:#cbd5e1;cursor:pointer;font-weight:600;}
 .tab.is-active{background:#1f2937;color:#fff;}
 
+/* inputs: responsive width, never force overflow */
 .input{
   background:#0b1220; color:#e5e7eb; border:1px solid #243041; border-radius:10px;
-  padding:10px 12px; outline:none; min-width:140px; width: clamp(160px, 24vw, 320px);
+  padding:10px 12px; outline:none;
+  min-width: 140px;
+  width: clamp(160px, 24vw, 320px); /* grows on wide screens, shrinks on tight ones */
 }
 .input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
 
+/* buttons */
 .btn{
   border:1px solid #243041; border-radius:10px;
   padding: clamp(8px, 1.6vw, 10px) clamp(10px, 2.4vw, 14px);
@@ -59,6 +81,7 @@ html, body { width: 100%; margin:0; overflow-x:hidden; }
 .btn.btn--primary:hover{ filter:brightness(1.05); }
 .btn.btn--primary:active{ transform: translateY(0.5px); }
 
+/* stage chips row can wrap */
 .chipbar{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 
 /* ---------- MOBILE/TABLET ---------- */
@@ -67,23 +90,53 @@ html, body { width: 100%; margin:0; overflow-x:hidden; }
   .with-ham .titlebar,
   .with-ham .page-head { padding-left:0; }
 
-  .toolbar{ flex-direction: column; align-items: center; gap: 12px; text-align: center; }
-  .titlebox{ min-width: 0; width: 100%; align-items: center; text-align: center; }
-  .split-toolbar{ justify-content:center; width: 100%; }
-  .split-toolbar .input{ width: min(520px, 100%) !important; min-width: 0; }
+  .toolbar{
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .titlebox{
+    min-width: 0; width: 100%;
+    align-items: center; text-align: center;
+  }
+
+  .split-toolbar{
+    justify-content:center;
+    width: 100%;
+  }
+
+  .split-toolbar .input{
+    width: min(520px, 100%) !important;
+    min-width: 0;
+  }
 }
 
 /* table: ONLY this scrolls horizontally */
 .table-wrap{
-  position:relative; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; max-width:100%;
+  position:relative;
+  overflow-x:auto;     /* horizontal scroll lives here */
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  max-width:100%;
 }
+
+/* Optional: nicer horizontal scrollbar on WebKit */
 .table-wrap::-webkit-scrollbar{ height:12px; }
 .table-wrap::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
 .table-wrap::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
 .table-wrap:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
+
+/* tiny phones tweak */
+@media (max-width:480px){
+  .with-ham .toolbar,
+  .with-ham .titlebar,
+  .with-ham .page-head { padding-left:0; }
+}
 `;
 
-/* Stage chip theme */
+/* Stage chip visual theme (shared) */
 const stageChipCss = `
 .chipbar{ display:flex; gap:6px; flex-wrap:wrap; }
 .chip{
@@ -93,9 +146,12 @@ const stageChipCss = `
 }
 .chip:hover{ filter:brightness(1.1); }
 .chip:active{ transform: translateY(0.5px); }
-.chip.chip--on{ background:#2563EB; color:#fff; border-color:transparent; }
+.chip.chip--on{
+  background:#2563EB; color:#fff; border-color:transparent;
+}
 `;
 
+/* Red-trash-can icon (strokes inherit currentColor) */
 const TrashIcon = ({ size = 16 }) => (
   <svg className="icon" viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" focusable="false">
     <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -132,27 +188,37 @@ export default function CarListRegular() {
 
   const [showForm, setShowForm] = useState(false);
 
+  // row edit
   const [editRow, setEditRow] = useState(null);
   const [editData, setEditData] = useState({});
   const savingRef = useRef(false);
 
+  // caret restore
   const activeRef = useRef(null);
   const caretRef = useRef({ name: null, start: null, end: null });
 
+  // modals
   const [checklistModal, setChecklistModal] = useState({ open: false, car: null });
   const [nextModal, setNextModal] = useState({ open: false, car: null });
 
+  // profile modal
   const [profileOpen, setProfileOpen] = useState(false);
   const [selectedCar, setSelectedCar] = useState(null);
 
+  // search + sort
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState({ key: null, dir: null });
+
+  // Stage filter
   const [stageFilter, setStageFilter] = useState(() => new Set(STAGES));
+
+  // CSV upload
 
   const [uploading, setUploading] = useState(false);
   const fileInputRefRegular = useRef(null);
   const fileInputRefSplit = useRef(null);
 
+  // Paste-Online
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
 
@@ -231,7 +297,11 @@ export default function CarListRegular() {
   const saveChecklist = async (items) => {
     if (!checklistModal.car) return;
     try {
-      await api.put(`/cars/${checklistModal.car._id}`, { checklist: items }, { headers: { "Content-Type": "application/json" } });
+      await api.put(
+        `/cars/${checklistModal.car._id}`,
+        { checklist: items },
+        { headers: { "Content-Type": "application/json" } }
+      );
       await refreshCars();
     } catch (e) {
       alert(e.response?.data?.message || e.message || "Error saving checklist");
@@ -247,7 +317,10 @@ export default function CarListRegular() {
     try {
       await api.put(
         `/cars/${nextModal.car._id}`,
-        { nextLocations: items, nextLocation: items[items.length - 1] ?? "" },
+        {
+          nextLocations: items,
+          nextLocation: items[items.length - 1] ?? "",
+        },
         { headers: { "Content-Type": "application/json" } }
       );
       await refreshCars();
@@ -269,7 +342,11 @@ export default function CarListRegular() {
       const remaining = existing.filter((s) => s !== loc);
       await api.put(
         `/cars/${nextModal.car._id}`,
-        { location: loc, nextLocations: remaining, nextLocation: remaining[remaining.length - 1] ?? "" },
+        {
+          location: loc,
+          nextLocations: remaining,
+          nextLocation: remaining[remaining.length - 1] ?? "",
+        },
         { headers: { "Content-Type": "application/json" } }
       );
       await refreshCars();
@@ -307,8 +384,10 @@ export default function CarListRegular() {
       const el =
         root.querySelector(`[name="${CSS.escape(initialField)}"]`) ||
         root.querySelector("input, textarea, select");
-      el?.focus?.();
-      el?.select?.();
+      if (el) {
+        el.focus();
+        el.select?.();
+      }
     });
   };
 
@@ -321,7 +400,10 @@ export default function CarListRegular() {
     rememberCaret(e);
     const { name, value } = e.target;
     if (name === "year") return setEditData((p) => ({ ...p, year: value.replace(/[^\d]/g, "") }));
-    if (name === "rego") return setEditData((p) => ({ ...p, rego: value.toUpperCase().replace(/[^A-Z0-9]/g, "") }));
+    if (name === "rego") {
+      const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      return setEditData((p) => ({ ...p, rego: clean }));
+    }
     if (name === "badge") return setEditData((p) => ({ ...p, badge: value.slice(0, 4) }));
     setEditData((p) => ({ ...p, [name]: value }));
   };
@@ -366,6 +448,7 @@ export default function CarListRegular() {
       }
       setEditRow(null);
     } catch (err) {
+      console.error("Update failed", err.response?.data || err.message);
       alert("Error updating car: " + (err.response?.data?.message || err.message));
       await refreshCars();
     } finally {
@@ -414,10 +497,20 @@ export default function CarListRegular() {
     if (q) {
       list = list.filter((car) => {
         const hay = [
-          car.make, car.model, car.badge, car.rego, car.year, car.description, car.location, car.stage,
+          car.make,
+          car.model,
+          car.badge,
+          car.rego,
+          car.year,
+          car.description,
+          car.location,
+          car.stage,
           ...(Array.isArray(car.nextLocations) ? car.nextLocations : [car.nextLocation]),
           ...(Array.isArray(car.checklist) ? car.checklist : []),
-        ].filter(Boolean).join(" ").toLowerCase();
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
         return hay.includes(q);
       });
     }
@@ -432,7 +525,8 @@ export default function CarListRegular() {
           if (byMake !== 0) return byMake;
           return compareStr(a.model, b.model, dir);
         }
-        case "location": return compareStr(a.location, b.location, dir);
+        case "location":
+          return compareStr(a.location, b.location, dir);
         case "next":
           return compareStr(
             Array.isArray(a.nextLocations) && a.nextLocations.length ? a.nextLocations.join(", ") : a.nextLocation,
@@ -445,10 +539,14 @@ export default function CarListRegular() {
             Array.isArray(b.checklist) ? b.checklist.join(", ") : b.checklist,
             dir
           );
-        case "notes": return compareStr(a.notes, b.notes, dir);
-        case "stage": return compareStr(a.stage, b.stage, dir);
-        case "year":  return compareNum(a.year, b.year, dir);
-        default: return 0;
+        case "notes":
+          return compareStr(a.notes, b.notes, dir);
+        case "stage":
+          return compareStr(a.stage, b.stage, dir);
+        case "year":
+          return compareNum(a.year, b.year, dir);
+        default:
+          return 0;
       }
     };
 
@@ -456,7 +554,8 @@ export default function CarListRegular() {
   }, [cars, query, sort, stageFilter]);
 
   const soldFirstList = useMemo(() => {
-    const sold = [], other = [];
+    const sold = [];
+    const other = [];
     for (const c of filteredSorted) (isSold(c) ? sold : other).push(c);
     return [...sold, ...other];
   }, [filteredSorted]);
@@ -473,9 +572,7 @@ export default function CarListRegular() {
     return [head, right].filter(Boolean).join(", ");
   };
 
-  const SortChevron = ({ dir }) => (
-    <span style={{ marginLeft: 6, opacity: 0.8 }}>{dir === "desc" ? "↓" : dir === "asc" ? "↑" : ""}</span>
-  );
+  const SortChevron = ({ dir }) => <span style={{ marginLeft: 6, opacity: 0.8 }}>{dir === "desc" ? "↓" : dir === "asc" ? "↑" : ""}</span>;
 
   const clickSort = (key) => {
     setSort((prev) => {
@@ -484,10 +581,11 @@ export default function CarListRegular() {
     });
   };
 
+  /* ---------- table header: mark first th sticky ---------- */
   const Header = () => (
     <thead>
       <tr>
-        <th>
+        <th className="sticky-col">
           <button className="thbtn" onClick={() => clickSort("car")}>
             Car {sort.key === "car" && <SortChevron dir={sort.dir} />}
           </button>
@@ -534,7 +632,9 @@ export default function CarListRegular() {
       <tbody>
         {list.length === 0 ? (
           <tr>
-            <td colSpan={visibleCols} className="empty">No cars found.</td>
+            <td colSpan={visibleCols} className="empty">
+              No cars found.
+            </td>
           </tr>
         ) : (
           list.map((car) => {
@@ -546,7 +646,8 @@ export default function CarListRegular() {
                 className={`row ${isEditing ? "row--editing" : ""} ${isSold(car) ? "row--sold" : ""}`}
                 ref={isEditing ? (el) => { activeRef.current = el; } : null}
               >
-                <td onDoubleClick={() => !isEditing && handleDoubleClick(car, "make")}>
+                {/* STICKY first cell */}
+                <td className="sticky-col" onDoubleClick={() => !isEditing && handleDoubleClick(car, "make")}>
                   {isEditing ? (
                     <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "nowrap" }}>
                       <input className="input input--compact" name="make" value={editData.make} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Make" style={{ width: 120 }} />
@@ -596,7 +697,11 @@ export default function CarListRegular() {
                 <td onDoubleClick={() => !isEditing && handleDoubleClick(car, "stage")}>
                   {isEditing ? (
                     <select className="input input--compact" name="stage" value={editData.stage} onChange={handleChange} onClick={rememberCaret}>
-                      {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      {STAGES.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
                     </select>
                   ) : (
                     <Cell>{car.stage || "-"}</Cell>
@@ -608,7 +713,10 @@ export default function CarListRegular() {
                     <button
                       className="btn btn--kebab btn--xs"
                       title="Open car profile"
-                      onClick={() => { setSelectedCar(car); setProfileOpen(true); }}
+                      onClick={() => {
+                        setSelectedCar(car);
+                        setProfileOpen(true);
+                      }}
                     >
                       ⋯
                     </button>
@@ -625,24 +733,50 @@ export default function CarListRegular() {
     );
   };
 
+  /* ---------- Table: adds sticky-col styles + wider first column ---------- */
   const Table = ({ list }) => (
     <div className="table-wrap">
       <style>{`
+        .table-wrap{position:relative; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;}
         .car-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0; min-width:1200px;}
         .car-table th,.car-table td{padding:6px 10px;vertical-align:middle;}
-        .car-table col.col-car{width:auto;}
+
+        /* --- column widths (make Car nice & wide) --- */
+        .car-table col.col-car{width:420px;}
         .car-table col.col-loc{width:140px;}
         .car-table col.col-next{width:280px;}
         .car-table col.col-chk{width:440px;}
         .car-table col.col-notes{width:300px;}
         .car-table col.col-stage{width:90px;}
         .car-table col.col-act{width:90px;}
+
         .car-table .cell{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
         .thbtn{all:unset;cursor:pointer;color:#cbd5e1;padding:4px 6px;border-radius:6px;}
         .thbtn:hover{background:#1f2937;}
 
-        /* IMPORTANT: no sticky columns — normal table scroll */
-        .car-table th:first-child, .car-table td:first-child { position:static; left:auto; z-index:auto; box-shadow:none; background:transparent; }
+        /* --- sticky first column (DESKTOP) --- */
+        .car-table th.sticky-col,
+        .car-table td.sticky-col{
+          position: sticky;
+          left: 0;
+          background: #0F172A;        /* match panel background */
+        }
+        /* bump z-index so it always floats above scrolled content */
+        .car-table th.sticky-col{ z-index: 3; }
+        .car-table td.sticky-col{ z-index: 2; }
+
+        .car-table th.sticky-col::after,
+        .car-table td.sticky-col::after{
+          content:"";
+          position:absolute; top:0; right:-1px; bottom:0; width:1px;
+          background:#243041;
+          box-shadow: 6px 0 8px rgba(0,0,0,.25);
+        }
+
+        .btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
+        .btn--danger{ background:#DC2626; color:#fff; }
+        .btn--xs{ font-size:12px; padding:4px 8px; }
+        .btn--icon{ padding:6px; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; }
 
         :root{
           --sold-bg: rgba(14, 165, 233, 0.12);
@@ -653,7 +787,27 @@ export default function CarListRegular() {
           background: var(--sold-bg);
           box-shadow: inset 0 0 0 1px var(--sold-border);
         }
-        .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
+        .car-table tr.row--sold:hover td{
+          background: var(--sold-bg-hover);
+        }
+
+        /* ---------- iOS/Small-screen fix ----------
+           Safari on iPhone has bugs with sticky table cells inside
+           horizontally scrolling containers. We disable sticky on
+           narrow screens so the first column behaves like a normal
+           column and is visible when you scroll. */
+        @media (max-width: 820px){
+          .car-table th.sticky-col,
+          .car-table td.sticky-col{
+            position: static;   /* disable sticky */
+            left: auto;
+            z-index: auto;
+          }
+          .car-table th.sticky-col::after,
+          .car-table td.sticky-col::after{
+            display:none;
+          }
+        }
       `}</style>
 
       <table className="car-table">
@@ -687,7 +841,9 @@ export default function CarListRegular() {
 
           <div className="split-toolbar">
             <div className="tabbar">
-              <button className="tab" onClick={() => setView("regular")}>Regular</button>
+              <button className="tab" onClick={() => setView("regular")}>
+                Regular
+              </button>
               <button className="tab is-active">Split</button>
             </div>
 
@@ -714,28 +870,88 @@ export default function CarListRegular() {
               })}
             </div>
 
-            <input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search cars…" />
-            <button className="btn btn--primary" onClick={() => setShowForm(true)}>+ Add New Car</button>
+            <input
+              className="input"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search cars…"
+            />
+            <button className="btn btn--primary" onClick={() => setShowForm(true)}>
+              + Add New Car
+            </button>
 
             <button className="btn btn--muted" onClick={triggerCsvSplit} disabled={uploading}>
               {uploading ? "Uploading…" : "Upload CSV"}
             </button>
-            <input ref={fileInputRefSplit} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={handleCsvChosen} />
+            <input
+              ref={fileInputRefSplit}
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: "none" }}
+              onChange={handleCsvChosen}
+            />
 
-            <button className="btn btn--muted" onClick={() => setPasteOpen(true)}>Paste Online List</button>
+            <button className="btn btn--muted" onClick={() => setPasteOpen(true)}>
+              Paste Online List
+            </button>
           </div>
         </div>
 
         <CarListSplit embedded listOverride={soldFirstList} sortState={sort} />
+
         <style>{stageChipCss}</style>
 
         {showForm && <CarFormModal show={showForm} onClose={() => setShowForm(false)} onSave={handleSave} />}
+
+        {pasteOpen && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+            }}
+            onClick={() => setPasteOpen(false)}
+          >
+            <div
+              style={{ background: "#0b1220", border: "1px solid #243041", borderRadius: 12, width: "min(900px, 92vw)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ padding: 14, borderBottom: "1px solid #243041" }}>
+                <h3 style={{ margin: 0 }}>Paste Autogate List</h3>
+                <p style={{ margin: "4px 0 0", color: "#9CA3AF", fontSize: 13 }}>
+                  We’ll set cars to <b>Online</b> only if they’re currently <b>In Works</b>.
+                </p>
+              </div>
+              <div style={{ padding: 14 }}>
+                <textarea
+                  className="input"
+                  style={{ width: "100%", minHeight: 280, resize: "vertical" }}
+                  placeholder="Paste the whole Autogate block here…"
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                />
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+                  <button className="btn" onClick={() => setPasteOpen(false)}>
+                    Cancel
+                  </button>
+                  <button className="btn btn--primary" onClick={submitPaste}>
+                    Process
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   // REGULAR view
-  if (loading) {
+  if (loading)
     return (
       <div className="page-pad with-ham">
         <HamburgerMenu />
@@ -743,13 +959,11 @@ export default function CarListRegular() {
         Loading…
       </div>
     );
-  }
 
   return (
     <div className="page-pad with-ham">
       <HamburgerMenu />
       <style>{cssFix}</style>
-      <style>{stageChipCss}</style>
 
       <div className="toolbar">
         <div className="titlebox">
@@ -760,7 +974,9 @@ export default function CarListRegular() {
         <div className="split-toolbar">
           <div className="tabbar">
             <button className="tab is-active">Regular</button>
-            <button className="tab" onClick={() => setView("split")}>Split</button>
+            <button className="tab" onClick={() => setView("split")}>
+              Split
+            </button>
           </div>
 
           <div className="chipbar">
@@ -786,25 +1002,54 @@ export default function CarListRegular() {
             })}
           </div>
 
-          <input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search cars…" />
-          <button className="btn btn--primary" onClick={() => setShowForm(true)}>+ Add New Car</button>
+          <input
+            className="input"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search cars…"
+          />
+          <button className="btn btn--primary" onClick={() => setShowForm(true)}>
+            + Add New Car
+          </button>
 
           <button className="btn btn--muted" onClick={triggerCsvRegular} disabled={uploading}>
             {uploading ? "Uploading…" : "Upload CSV"}
           </button>
-          <input ref={fileInputRefRegular} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={handleCsvChosen} />
+          <input
+            ref={fileInputRefRegular}
+            type="file"
+            accept=".csv,text/csv"
+            style={{ display: "none" }}
+            onChange={handleCsvChosen}
+          />
 
-          <button className="btn btn--muted" onClick={() => setPasteOpen(true)}>Paste Online List</button>
+          <button className="btn btn--muted" onClick={() => setPasteOpen(true)}>
+            Paste Online List
+          </button>
         </div>
       </div>
+
+      <style>{stageChipCss}</style>
 
       {errMsg && <div className="alert alert--error">{errMsg}</div>}
 
       <Table list={soldFirstList} />
 
-      {showForm && <CarFormModal show={showForm} onClose={() => setShowForm(false)} onSave={handleSave} />}
+      {showForm && (
+        <CarFormModal
+          show={showForm}
+          onClose={() => setShowForm(false)}
+          onSave={handleSave}
+        />
+      )}
 
-      {profileOpen && <CarProfileModal open={profileOpen} car={selectedCar} onClose={() => setProfileOpen(false)} />}
+      {profileOpen && (
+        <CarProfileModal
+          open={profileOpen}
+          car={selectedCar}
+          onClose={() => setProfileOpen(false)}
+        />
+      )}
 
       {checklistModal.open && (
         <ChecklistFormModal
@@ -845,7 +1090,12 @@ export default function CarListRegular() {
           onClick={() => setPasteOpen(false)}
         >
           <div
-            style={{ background: "#0b1220", border: "1px solid #243041", borderRadius: 12, width: "min(900px, 92vw)" }}
+            style={{
+              background: "#0b1220",
+              border: "1px solid #243041",
+              borderRadius: 12,
+              width: "min(900px, 92vw)",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ padding: 14, borderBottom: "1px solid #243041" }}>
@@ -863,8 +1113,12 @@ export default function CarListRegular() {
                 onChange={(e) => setPasteText(e.target.value)}
               />
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
-                <button className="btn" onClick={() => setPasteOpen(false)}>Cancel</button>
-                <button className="btn btn--primary" onClick={submitPaste}>Process</button>
+                <button className="btn" onClick={() => setPasteOpen(false)}>
+                  Cancel
+                </button>
+                <button className="btn btn--primary" onClick={submitPaste}>
+                  Process
+                </button>
               </div>
             </div>
           </div>
