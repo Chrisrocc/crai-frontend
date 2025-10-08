@@ -113,6 +113,14 @@ const stageChipCss = `
   padding-bottom:10px;
 }
 
+/* Larger, easy-to-tap select for Stage */
+.input--select-lg{
+  min-height: 44px;     /* comfortable touch size */
+  font-size: 16px;      /* avoids iOS zoom */
+  width: 100%;
+}
+
+
 `;
 
 /* trash icon */
@@ -597,7 +605,7 @@ export default function CarListRegular() {
                   )}
                 </td>
 
-                {/* STAGE (tap-friendly) */}
+                {/* STAGE (tap-friendly, auto-save, no button) */}
                 <td
                   onClick={() => startEdit(car, "stage", "stage")}
                   onDoubleClick={() => startEdit(car, "stage", "stage")}
@@ -609,21 +617,25 @@ export default function CarListRegular() {
                         className="input input--compact input--select-lg"
                         name="stage"
                         value={editData.stage}
-                        onChange={handleChange}
                         onClick={rememberCaret}
+                        onChange={(e) => {
+                          // update local state for UI
+                          const val = e.target.value;
+                          setEditData((p) => ({ ...p, stage: val }));
+                          // persist immediately
+                          setTimeout(saveChanges, 0);
+                        }}
                       >
                         {STAGES.map((s) => (
                           <option key={s} value={s}>{s}</option>
                         ))}
                       </select>
-                      <div className="edit-actions">
-                        <button className="btn btn--primary" onClick={saveChanges}>Save</button>
-                      </div>
                     </div>
                   ) : (
                     <Cell>{car.stage || "-"}</Cell>
                   )}
                 </td>
+
 
                 {/* ACTIONS */}
                 <td>
