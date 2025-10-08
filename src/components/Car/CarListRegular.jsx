@@ -105,22 +105,12 @@ const stageChipCss = `
 .chip:active{ transform: translateY(0.5px); }
 .chip.chip--on{ background:#2563EB; color:#fff; border-color:transparent; }
 
-/* Larger, easier-to-tap select for Stage */
-.input--select-lg{
-  min-height:44px;      /* comfortable touch size */
-  font-size:16px;       /* avoids iOS zoom */
-  padding-top:10px;
-  padding-bottom:10px;
-}
-
 /* Larger, easy-to-tap select for Stage */
 .input--select-lg{
   min-height: 44px;     /* comfortable touch size */
   font-size: 16px;      /* avoids iOS zoom */
   width: 100%;
 }
-
-
 `;
 
 /* trash icon */
@@ -170,6 +160,10 @@ export default function CarListRegular() {
   const activeRef = useRef(null);
   const caretRef = useRef({ name: null, start: null, end: null });
 
+  // Stage dropdown auto-open on touch/iOS
+  const stageSelectRef = useRef(null);
+  const [stageAutoOpen, setStageAutoOpen] = useState(false);
+
   // modals
   const [checklistModal, setChecklistModal] = useState({ open: false, car: null });
   const [nextModal, setNextModal] = useState({ open: false, car: null });
@@ -215,7 +209,7 @@ export default function CarListRegular() {
   const refreshCars = useCallback(async () => {
     try {
       const res = await api.get("/cars", { headers: { "Cache-Control": "no-cache" } });
-    const data = (res.data?.data || []).map((c, idx) => ({ ...c, __idx: idx }));
+      const data = (res.data?.data || []).map((c, idx) => ({ ...c, __idx: idx }));
       setCars(data);
     } catch (err) {
       setErrMsg(err.response?.data?.message || err.message || "Error fetching cars");
@@ -292,6 +286,9 @@ export default function CarListRegular() {
       stage: car.stage ?? "In Works",
     };
     setEditData(base);
+
+    // if editing stage, request auto-open of native picker (helps iOS)
+    if (field === "stage") setStageAutoOpen(true);
 
     caretRef.current = { name: initialNameForCaret, start: null, end: null };
 
@@ -418,6 +415,34 @@ export default function CarListRegular() {
       el.setSelectionRange(s, e);
     }
   }, [editData, editTarget]);
+
+  // Auto-open the Stage native picker when Stage just entered edit mode (helps iOS)
+  useEffect(() => {
+    if (editTarget.field !== "stage" || !editTarget.id || !stageAutoOpen) return;
+    const el = stageSelectRef.current;
+    if (!el) return;
+
+    const tryShowPicker = (node) => {
+      if (node && typeof node.showPicker === "function") {
+        try {
+          node.showPicker();
+        } catch {
+          return; // swallow error so block isn't empty (fixes eslint no-empty)
+        }
+      }
+    };
+
+    // Attempt immediately, then again after focus/microtask
+    tryShowPicker(el);
+    el.focus();
+    setTimeout(() => {
+      tryShowPicker(el);
+      el.focus();
+    }, 0);
+
+    setStageAutoOpen(false);
+  }, [editTarget, stageAutoOpen]);
+
 
   const filteredSorted = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -570,10 +595,8 @@ export default function CarListRegular() {
                   )}
                 </td>
 
-                {/* NEXT (opens modal on normal double-tap; allow inline too if you want) */}
-                <td
-                  onDoubleClick={() => openNextModal(car)}
-                >
+                {/* NEXT (open modal) */}
+                <td onDoubleClick={() => openNextModal(car)}>
                   <Cell>
                     {Array.isArray(car.nextLocations) && car.nextLocations.length
                       ? car.nextLocations.join(", ")
@@ -605,7 +628,7 @@ export default function CarListRegular() {
                   )}
                 </td>
 
-                {/* STAGE (tap-friendly, auto-save, no button) */}
+                {/* STAGE (tap-friendly, auto-open on mobile, auto-save, no button) */}
                 <td
                   onClick={!isEditingStage ? () => startEdit(car, "stage", "stage") : undefined}
                   onDoubleClick={!isEditingStage ? () => startEdit(car, "stage", "stage") : undefined}
@@ -614,14 +637,18 @@ export default function CarListRegular() {
                   {isEditingStage ? (
                     <div className="edit-cell">
                       <select
+                        ref={stageSelectRef}
                         className="input input--compact input--select-lg"
                         name="stage"
                         value={editData.stage}
-                        onClick={(e) => e.stopPropagation()}                // <-- important
+                        // Prevent parent handlers from interfering
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
                         onChange={(e) => {
                           const val = e.target.value;
                           setEditData((p) => ({ ...p, stage: val }));
-                          setTimeout(saveChanges, 0);                       // auto-save
+                          setTimeout(saveChanges, 0); // auto-save
                         }}
                       >
                         {STAGES.map((s) => (
@@ -633,8 +660,6 @@ export default function CarListRegular() {
                     <Cell>{car.stage || "-"}</Cell>
                   )}
                 </td>
-
-
 
                 {/* ACTIONS */}
                 <td>
@@ -836,7 +861,7 @@ export default function CarListRegular() {
             <button className="tab" onClick={() => setView("split")}>Split</button>
           </div>
 
-          <div className="chipbar">
+        <div className="chipbar">
             {STAGES.map((s) => {
               const on = stageFilter.has(s);
               return (
