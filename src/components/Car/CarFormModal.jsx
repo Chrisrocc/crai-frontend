@@ -1,7 +1,6 @@
-// src/components/Cars/CarFormModal.jsx
+// src/components/Car/CarFormModal.jsx
 import { useState, useEffect, useRef } from "react";
 import api from "../../lib/api";
- // uses VITE_API_URL base + withCredentials
 
 export default function CarFormModal({ show, onClose, onSave }) {
   const [formData, setFormData] = useState({
@@ -114,7 +113,6 @@ export default function CarFormModal({ show, onClose, onSave }) {
       onSave?.();
       onClose?.();
     } catch (err) {
-      // Normalize the error message a bit
       const msg =
         err.response?.data?.message ||
         err.message ||
@@ -130,32 +128,43 @@ export default function CarFormModal({ show, onClose, onSave }) {
 
   return (
     <div style={overlay}>
-      <div style={modal}>
-        <button onClick={onClose} style={closeBtn} aria-label="Close">
-          ×
-        </button>
-        <h2>Add New Car</h2>
+      <div style={modal} role="dialog" aria-modal="true" aria-labelledby="add-car-title">
+        {/* Header */}
+        <div style={header}>
+          <h2 id="add-car-title" style={{ margin: 0, fontSize: 18 }}>Add New Car</h2>
+          <button onClick={onClose} style={closeBtn} aria-label="Close">×</button>
+        </div>
 
-        <form onSubmit={handleSubmit}>
-          {/* Standard fields */}
-          {["rego", "make", "model", "location", "year", "description", "notes"].map((field) => (
-            <div style={mb} key={field}>
-              <label style={lbl}>{field[0].toUpperCase() + field.slice(1)}</label>
+        {/* Scrollable content */}
+        <form onSubmit={handleSubmit} style={content}>
+          {/* Fields */}
+          {[
+            { key: "rego", label: "Rego", placeholder: "ABC123", required: true },
+            { key: "make", label: "Make" },
+            { key: "model", label: "Model" },
+            { key: "location", label: "Location" },
+            { key: "year", label: "Year" },
+            { key: "description", label: "Description" },
+            { key: "notes", label: "Notes" },
+          ].map((f) => (
+            <div style={mb} key={f.key}>
+              <label style={lbl}>{f.label}</label>
               <input
                 type="text"
-                name={field}
-                value={formData[field]}
+                name={f.key}
+                value={formData[f.key]}
                 onChange={handleChange}
-                required={field === "rego"}
+                required={!!f.required}
                 style={inp}
-                placeholder={field === "rego" ? "ABC123" : ""}
+                placeholder={f.placeholder || ""}
+                inputMode={f.key === "year" ? "numeric" : undefined}
               />
             </div>
           ))}
 
           <div style={mb}>
             <label style={lbl}>Stage</label>
-            <select name="stage" value={formData.stage} onChange={handleChange} style={inp}>
+            <select name="stage" value={formData.stage} onChange={handleChange} style={inpSelect}>
               <option>In Works</option>
               <option>In Works/Online</option>
               <option>Online</option>
@@ -163,8 +172,8 @@ export default function CarFormModal({ show, onClose, onSave }) {
             </select>
           </div>
 
-          {/* --- Checklist section --- */}
-          <div style={{ ...mb, borderTop: "1px solid #444", paddingTop: 10 }}>
+          {/* Checklist */}
+          <div style={{ ...mb, borderTop: "1px solid #2a3446", paddingTop: 10 }}>
             <label style={lbl}>Checklist Items</label>
             <div style={{ display: "flex", gap: 8 }}>
               <input
@@ -174,22 +183,22 @@ export default function CarFormModal({ show, onClose, onSave }) {
                 style={{ ...inp, flex: 1 }}
                 placeholder="e.g. Spare key"
               />
-              <button type="button" onClick={addChecklistItem} className="btn btn--primary">
+              <button type="button" onClick={addChecklistItem} className="btn btn--primary" style={btnPrimary}>
                 Add
               </button>
             </div>
             {formData.checklist.length > 0 && (
-              <ul style={{ marginTop: 8, fontSize: 12 }}>
+              <ul style={{ marginTop: 8, fontSize: 13, paddingLeft: 16 }}>
                 {formData.checklist.map((item, i) => (
                   <li
                     key={i}
-                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
                   >
-                    <span>{item}</span>
+                    <span style={{ overflowWrap: "anywhere" }}>{item}</span>
                     <button
                       type="button"
                       onClick={() => removeChecklistItem(item)}
-                      style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer" }}
+                      style={linkDanger}
                       aria-label={`Remove ${item}`}
                     >
                       ✕
@@ -200,10 +209,10 @@ export default function CarFormModal({ show, onClose, onSave }) {
             )}
           </div>
 
-          {/* Photo uploader */}
-          <div style={{ ...mb, borderTop: "1px solid #444", paddingTop: 10 }}>
+          {/* Photos */}
+          <div style={{ ...mb, borderTop: "1px solid #2a3446", paddingTop: 10 }}>
             <label style={lbl}>Photos (auto-analysis for damage & features)</label>
-            <button type="button" className="btn btn--primary" onClick={handlePick}>
+            <button type="button" onClick={handlePick} style={btnPrimary}>
               Select Photos
             </button>
             <input
@@ -215,24 +224,26 @@ export default function CarFormModal({ show, onClose, onSave }) {
               onChange={handleFiles}
             />
             {photos.length > 0 && (
-              <ul style={{ marginTop: 8, fontSize: 12 }}>
-                {photos.map((p, i) => (
-                  <li key={i}>{p.name}</li>
-                ))}
+              <ul style={{ marginTop: 8, fontSize: 13, paddingLeft: 16 }}>
+                {photos.map((p, i) => <li key={i}>{p.name}</li>)}
               </ul>
             )}
           </div>
 
-          <button type="submit" disabled={busy} className="btn btn--primary">
-            {busy ? "Saving…" : "Add Car"}
-          </button>
+          {/* Sticky footer actions */}
+          <div style={footer}>
+            <button type="button" onClick={onClose} style={btnMuted}>Cancel</button>
+            <button type="submit" disabled={busy} style={btnPrimary}>
+              {busy ? "Saving…" : "Add Car"}
+            </button>
+          </div>
         </form>
       </div>
     </div>
   );
 }
 
-/* --- styling --- */
+/* --- styling (mobile-first) --- */
 const overlay = {
   position: "fixed",
   inset: 0,
@@ -240,21 +251,31 @@ const overlay = {
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
+  padding: 10,                 // small gutter so modal never touches edges
   zIndex: 1000,
 };
+
 const modal = {
-  width: "min(500px,94vw)",
+  width: "min(560px, 96vw)",
+  maxHeight: "92vh",           // <— controls overall height
   background: "#0b1220",
   color: "#e5e7eb",
   borderRadius: 14,
   boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
-  padding: 20,
-  position: "relative",
+  border: "1px solid #1f2937",
+  display: "flex",
+  flexDirection: "column",
 };
+
+const header = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  padding: "12px 16px",
+  borderBottom: "1px solid #1f2937",
+};
+
 const closeBtn = {
-  position: "absolute",
-  right: 20,
-  top: 20,
   border: "none",
   background: "#1f2937",
   color: "#e5e7eb",
@@ -263,15 +284,60 @@ const closeBtn = {
   borderRadius: 8,
   cursor: "pointer",
   fontSize: 18,
+  lineHeight: 1,
 };
+
+const content = {
+  padding: 16,
+  paddingTop: 12,
+  overflow: "auto",            // <— scrollable content
+  WebkitOverflowScrolling: "touch",
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+};
+
 const lbl = { fontSize: 12, color: "#9ca3af", display: "block", marginBottom: 4, fontWeight: 700 };
-const inp = {
+
+const baseInput = {
   width: "100%",
-  padding: 8,
-  borderRadius: 8,
+  padding: 10,
+  borderRadius: 10,
   border: "1px solid #243041",
   background: "#0b1220",
   color: "#e5e7eb",
   outline: "none",
+  fontSize: 16,                // prevents iOS zoom
+  minHeight: 44,               // comfortable touch target
+  boxSizing: "border-box",
 };
-const mb = { marginBottom: 12 };
+
+const inp = baseInput;
+const inpSelect = { ...baseInput, appearance: "none" };
+const mb = { marginBottom: 2 };
+
+const footer = {
+  position: "sticky",
+  bottom: 0,
+  display: "flex",
+  gap: 8,
+  justifyContent: "flex-end",
+  paddingTop: 8,
+  marginTop: 4,
+  background: "linear-gradient(to top, #0b1220, rgba(11,18,32,0.85) 60%, transparent)",
+  borderTop: "1px solid #1f2937",
+  paddingBottom: 4,
+};
+
+const btnBase = {
+  border: "none",
+  borderRadius: 10,
+  padding: "10px 14px",
+  fontWeight: 700,
+  cursor: "pointer",
+  fontSize: 16,
+};
+
+const btnPrimary = { ...btnBase, background: "#2563EB", color: "#fff" };
+const btnMuted   = { ...btnBase, background: "#1f2937", color: "#e5e7eb" };
+const linkDanger = { background: "none", border: "none", color: "#f87171", cursor: "pointer" };
