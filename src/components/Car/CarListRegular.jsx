@@ -1,8 +1,7 @@
 // src/components/Car/CarListRegular.jsx
 // Rewritten to use central API client (src/lib/api.js) + VITE_API_URL
-
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
-import api from "../../lib/api"; // <-- central axios instance (baseURL from VITE_API_URL)
+import api from "../../lib/api";
 import CarFormModal from "./CarFormModal";
 import CarProfileModal from "./CarProfileModal";
 import ChecklistFormModal from "./ChecklistFormModal";
@@ -18,24 +17,16 @@ const cssFix = `
 html, body { width: 100%; margin:0; overflow-x:hidden; }
 #root { overflow-x:hidden; }
 
-/* keep header/toolbars clear of the fixed hamburger on desktop */
 .with-ham .toolbar,
 .with-ham .titlebar,
 .with-ham .page-head { padding-left:56px; }
 
-/* container padding but never exceed viewport width */
 .page-pad { padding: clamp(12px, 2vw, 20px); max-width:100vw; }
 
-/* ===== Toolbar (desktop-first, wraps when needed) ===== */
+/* ===== Toolbar ===== */
 .toolbar{
-  display:flex;
-  align-items:flex-end;
-  justify-content:space-between;
-  gap:12px;
-  flex-wrap:wrap;         /* allow wrapping to a new line if tight */
-  margin-bottom:12px;
-  max-width:100%;
-  overflow-x:hidden;
+  display:flex; align-items:flex-end; justify-content:space-between;
+  gap:12px; flex-wrap:wrap; margin-bottom:12px; max-width:100%; overflow-x:hidden;
 }
 .toolbar, .split-toolbar, .titlebox, .chipbar { min-width:0; }
 
@@ -43,17 +34,9 @@ html, body { width: 100%; margin:0; overflow-x:hidden; }
 .title{ margin:0; font-size:28px; }
 .subtitle{ margin:0; color:#9CA3AF; font-size:13px; }
 
-/* Right-side controls block: takes remaining space and wraps nicely */
 .split-toolbar{
-  display:flex;
-  flex-wrap:wrap;
-  column-gap:8px;
-  row-gap:8px;
-  align-items:center;
-  justify-content:flex-end;
-  flex: 1 1 600px;   /* can grow and shrink */
-  min-width: 260px;
-  max-width:100%;
+  display:flex; flex-wrap:wrap; column-gap:8px; row-gap:8px; align-items:center;
+  justify-content:flex-end; flex: 1 1 600px; min-width:260px; max-width:100%;
 }
 
 /* tabs */
@@ -61,14 +44,17 @@ html, body { width: 100%; margin:0; overflow-x:hidden; }
 .tab{border:0;padding:8px 14px;border-radius:10px;background:transparent;color:#cbd5e1;cursor:pointer;font-weight:600;}
 .tab.is-active{background:#1f2937;color:#fff;}
 
-/* inputs: responsive width, never force overflow */
+/* inputs */
 .input{
   background:#0b1220; color:#e5e7eb; border:1px solid #243041; border-radius:10px;
-  padding:10px 12px; outline:none;
-  min-width: 140px;
-  width: clamp(160px, 24vw, 320px); /* grows on wide screens, shrinks on tight ones */
+  padding:10px 12px; outline:none; min-width:140px; width: clamp(160px, 24vw, 320px);
 }
 .input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
+
+/* compact inputs used inside cells */
+.input--compact{
+  padding:8px 10px; border-radius:8px; min-width:0; width:100%;
+}
 
 /* buttons */
 .btn{
@@ -81,48 +67,21 @@ html, body { width: 100%; margin:0; overflow-x:hidden; }
 .btn.btn--primary:hover{ filter:brightness(1.05); }
 .btn.btn--primary:active{ transform: translateY(0.5px); }
 
-/* stage chips row can wrap */
 .chipbar{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 
 /* ---------- MOBILE/TABLET ---------- */
 @media (max-width: 1024px){
-  .with-ham .toolbar,
-  .with-ham .titlebar,
-  .with-ham .page-head { padding-left:0; }
-
-  .toolbar{
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    text-align: center;
-  }
-
-  .titlebox{
-    min-width: 0; width: 100%;
-    align-items: center; text-align: center;
-  }
-
-  .split-toolbar{
-    justify-content:center;
-    width: 100%;
-  }
-
-  .split-toolbar .input{
-    width: min(520px, 100%) !important;
-    min-width: 0;
-  }
+  .with-ham .toolbar, .with-ham .titlebar, .with-ham .page-head { padding-left:0; }
+  .toolbar{ flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+  .titlebox{ min-width: 0; width: 100%; align-items: center; text-align: center; }
+  .split-toolbar{ justify-content:center; width: 100%; }
+  .split-toolbar .input{ width: min(520px, 100%) !important; min-width: 0; }
 }
 
 /* table: ONLY this scrolls horizontally */
 .table-wrap{
-  position:relative;
-  overflow-x:auto;     /* horizontal scroll lives here */
-  overflow-y:hidden;
-  -webkit-overflow-scrolling:touch;
-  max-width:100%;
+  position:relative; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; max-width:100%;
 }
-
-/* Optional: nicer horizontal scrollbar on WebKit */
 .table-wrap::-webkit-scrollbar{ height:12px; }
 .table-wrap::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
 .table-wrap::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
@@ -130,13 +89,11 @@ html, body { width: 100%; margin:0; overflow-x:hidden; }
 
 /* tiny phones tweak */
 @media (max-width:480px){
-  .with-ham .toolbar,
-  .with-ham .titlebar,
-  .with-ham .page-head { padding-left:0; }
+  .with-ham .toolbar, .with-ham .titlebar, .with-ham .page-head { padding-left:0; }
 }
 `;
 
-/* Stage chip visual theme (shared) */
+/* chip theme */
 const stageChipCss = `
 .chipbar{ display:flex; gap:6px; flex-wrap:wrap; }
 .chip{
@@ -146,12 +103,10 @@ const stageChipCss = `
 }
 .chip:hover{ filter:brightness(1.1); }
 .chip:active{ transform: translateY(0.5px); }
-.chip.chip--on{
-  background:#2563EB; color:#fff; border-color:transparent;
-}
+.chip.chip--on{ background:#2563EB; color:#fff; border-color:transparent; }
 `;
 
-/* Red-trash-can icon (strokes inherit currentColor) */
+/* trash icon */
 const TrashIcon = ({ size = 16 }) => (
   <svg className="icon" viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" focusable="false">
     <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -188,8 +143,9 @@ export default function CarListRegular() {
 
   const [showForm, setShowForm] = useState(false);
 
-  // row edit
-  const [editRow, setEditRow] = useState(null);
+  // ---------- EDITING (per-cell) ----------
+  // editTarget.field can be: "car" | "location" | "next" | "checklist" | "notes" | "stage"
+  const [editTarget, setEditTarget] = useState({ id: null, field: null });
   const [editData, setEditData] = useState({});
   const savingRef = useRef(false);
 
@@ -200,6 +156,8 @@ export default function CarListRegular() {
   // modals
   const [checklistModal, setChecklistModal] = useState({ open: false, car: null });
   const [nextModal, setNextModal] = useState({ open: false, car: null });
+  const openNextModal = (car) => setNextModal({ open: true, car });
+  const closeNextModal = () => setNextModal({ open: false, car: null });
 
   // profile modal
   const [profileOpen, setProfileOpen] = useState(false);
@@ -213,7 +171,6 @@ export default function CarListRegular() {
   const [stageFilter, setStageFilter] = useState(() => new Set(STAGES));
 
   // CSV upload
-
   const [uploading, setUploading] = useState(false);
   const fileInputRefRegular = useRef(null);
   const fileInputRefSplit = useRef(null);
@@ -239,7 +196,7 @@ export default function CarListRegular() {
   const refreshCars = useCallback(async () => {
     try {
       const res = await api.get("/cars", { headers: { "Cache-Control": "no-cache" } });
-      const data = (res.data?.data || []).map((c, idx) => ({ ...c, __idx: idx }));
+    const data = (res.data?.data || []).map((c, idx) => ({ ...c, __idx: idx }));
       setCars(data);
     } catch (err) {
       setErrMsg(err.response?.data?.message || err.message || "Error fetching cars");
@@ -292,77 +249,16 @@ export default function CarListRegular() {
     }
   };
 
-  const openChecklistModal = (car) => setChecklistModal({ open: true, car });
-  const closeChecklistModal = () => setChecklistModal({ open: false, car: null });
-  const saveChecklist = async (items) => {
-    if (!checklistModal.car) return;
-    try {
-      await api.put(
-        `/cars/${checklistModal.car._id}`,
-        { checklist: items },
-        { headers: { "Content-Type": "application/json" } }
-      );
-      await refreshCars();
-    } catch (e) {
-      alert(e.response?.data?.message || e.message || "Error saving checklist");
-    } finally {
-      closeChecklistModal();
-    }
-  };
-
-  const openNextModal = (car) => setNextModal({ open: true, car });
-  const closeNextModal = () => setNextModal({ open: false, car: null });
-  const saveNextLocations = async (items) => {
-    if (!nextModal.car) return;
-    try {
-      await api.put(
-        `/cars/${nextModal.car._id}`,
-        {
-          nextLocations: items,
-          nextLocation: items[items.length - 1] ?? "",
-        },
-        { headers: { "Content-Type": "application/json" } }
-      );
-      await refreshCars();
-    } catch (e) {
-      alert(e.response?.data?.message || e.message || "Error saving destinations");
-    } finally {
-      closeNextModal();
-    }
-  };
-
-  const setCurrentFromNext = async (loc) => {
-    if (!nextModal.car) return;
-    try {
-      const existing = Array.isArray(nextModal.car.nextLocations)
-        ? nextModal.car.nextLocations
-        : nextModal.car.nextLocation
-        ? [nextModal.car.nextLocation]
-        : [];
-      const remaining = existing.filter((s) => s !== loc);
-      await api.put(
-        `/cars/${nextModal.car._id}`,
-        {
-          location: loc,
-          nextLocations: remaining,
-          nextLocation: remaining[remaining.length - 1] ?? "",
-        },
-        { headers: { "Content-Type": "application/json" } }
-      );
-      await refreshCars();
-    } catch (e) {
-      alert(e.response?.data?.message || e.message || "Error setting current location");
-    }
-  };
-
-  const handleDoubleClick = (car, initialField = "make") => {
+  // ---------- Edit helpers ----------
+  const startEdit = (car, field, initialNameForCaret = null) => {
+    setEditTarget({ id: car._id, field });
+    // prime editData only with what we need
     const lastNext =
       Array.isArray(car.nextLocations) && car.nextLocations.length
         ? car.nextLocations[car.nextLocations.length - 1]
         : car.nextLocation ?? "";
 
-    setEditRow(car._id);
-    setEditData({
+    const base = {
       _id: car._id,
       make: car.make ?? "",
       model: car.model ?? "",
@@ -371,23 +267,24 @@ export default function CarListRegular() {
       year: car.year ?? "",
       description: car.description ?? "",
       notes: car.notes ?? "",
-      checklist: Array.isArray(car.checklist) ? car.checklist.join(", ") : "",
+      checklist: Array.isArray(car.checklist) ? car.checklist.join(", ") : (car.checklist ?? ""),
       location: car.location ?? "",
       nextLocation: lastNext || "",
       stage: car.stage ?? "In Works",
-    });
+    };
+    setEditData(base);
 
-    caretRef.current = { name: initialField, start: null, end: null };
+    caretRef.current = { name: initialNameForCaret, start: null, end: null };
+
+    // focus the first relevant element
     requestAnimationFrame(() => {
       const root = activeRef.current;
       if (!root) return;
-      const el =
-        root.querySelector(`[name="${CSS.escape(initialField)}"]`) ||
-        root.querySelector("input, textarea, select");
-      if (el) {
-        el.focus();
-        el.select?.();
-      }
+      const preferred =
+        initialNameForCaret &&
+        root.querySelector(`[name="${CSS.escape(initialNameForCaret)}"]`);
+      const el = preferred || root.querySelector("input, textarea, select");
+      if (el) { el.focus(); el.select?.(); }
     });
   };
 
@@ -420,33 +317,51 @@ export default function CarListRegular() {
   };
 
   const saveChanges = async () => {
-    if (!editRow || savingRef.current) return;
+    if (!editTarget.id || savingRef.current) return;
     savingRef.current = true;
     try {
-      const payload = {
-        make: (editData.make ?? "").trim(),
-        model: (editData.model ?? "").trim(),
-        badge: (editData.badge ?? "").trim(),
-        rego: (editData.rego ?? "").trim(),
-        year: editData.year === "" ? undefined : Number(editData.year),
-        description: (editData.description ?? "").trim(),
-        notes: (editData.notes ?? "").trim(),
-        checklist: (editData.checklist ?? "").trim(),
-        location: (editData.location ?? "").trim(),
-        nextLocation: (editData.nextLocation ?? "").trim(),
-        stage: (editData.stage ?? "In Works").trim(),
-      };
+      // Only send the fields for the current target
+      let payload = {};
+      switch (editTarget.field) {
+        case "car":
+          payload = {
+            make: (editData.make ?? "").trim(),
+            model: (editData.model ?? "").trim(),
+            badge: (editData.badge ?? "").trim(),
+            rego: (editData.rego ?? "").trim(),
+            year: editData.year === "" ? undefined : Number(editData.year),
+            description: (editData.description ?? "").trim(),
+          };
+          break;
+        case "location":
+          payload = { location: (editData.location ?? "").trim() };
+          break;
+        case "next":
+          payload = { nextLocation: (editData.nextLocation ?? "").trim() };
+          break;
+        case "checklist":
+          payload = { checklist: (editData.checklist ?? "").trim() };
+          break;
+        case "notes":
+          payload = { notes: (editData.notes ?? "").trim() };
+          break;
+        case "stage":
+          payload = { stage: (editData.stage ?? "In Works").trim() };
+          break;
+        default:
+          break;
+      }
 
-      const res = await api.put(`/cars/${editRow}`, payload, {
+      const res = await api.put(`/cars/${editTarget.id}`, payload, {
         headers: { "Content-Type": "application/json" },
       });
 
       if (res.data?.data) {
-        setCars((prev) => prev.map((c) => (c._id === editRow ? { ...res.data.data, __idx: c.__idx } : c)));
+        setCars((prev) => prev.map((c) => (c._id === editTarget.id ? { ...res.data.data, __idx: c.__idx } : c)));
       } else {
         await refreshCars();
       }
-      setEditRow(null);
+      setEditTarget({ id: null, field: null });
     } catch (err) {
       console.error("Update failed", err.response?.data || err.message);
       alert("Error updating car: " + (err.response?.data?.message || err.message));
@@ -456,20 +371,21 @@ export default function CarListRegular() {
     }
   };
 
+  // click outside to save
   useEffect(() => {
     const onDown = (e) => {
-      if (!editRow) return;
-      const rowEl = document.querySelector(`tr[data-id="${editRow}"]`);
+      if (!editTarget.id) return;
+      const rowEl = document.querySelector(`tr[data-id="${editTarget.id}"]`);
       if (!rowEl) return;
       if (!rowEl.contains(e.target)) saveChanges();
     };
-    if (editRow) document.addEventListener("mousedown", onDown);
+    if (editTarget.id) document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editRow, editData]);
+  }, [editTarget, editData]);
 
   useLayoutEffect(() => {
-    if (!editRow) return;
+    if (!editTarget.id) return;
     const { name, start, end } = caretRef.current || {};
     const root = activeRef.current;
     if (!root) return;
@@ -482,35 +398,22 @@ export default function CarListRegular() {
       const e = typeof end === "number" ? Math.min(end, v.length) : v.length;
       el.setSelectionRange(s, e);
     }
-  }, [editData, editRow]);
+  }, [editData, editTarget]);
 
   const filteredSorted = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = cars;
 
-    if (stageFilter.size > 0) {
-      list = list.filter((car) => stageFilter.has(car?.stage ?? ""));
-    } else {
-      list = [];
-    }
+    list = stageFilter.size > 0 ? list.filter((car) => stageFilter.has(car?.stage ?? "")) : [];
 
     if (q) {
       list = list.filter((car) => {
         const hay = [
-          car.make,
-          car.model,
-          car.badge,
-          car.rego,
-          car.year,
-          car.description,
-          car.location,
-          car.stage,
+          car.make, car.model, car.badge, car.rego, car.year, car.description,
+          car.location, car.stage,
           ...(Array.isArray(car.nextLocations) ? car.nextLocations : [car.nextLocation]),
           ...(Array.isArray(car.checklist) ? car.checklist : []),
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
+        ].filter(Boolean).join(" ").toLowerCase();
         return hay.includes(q);
       });
     }
@@ -525,37 +428,28 @@ export default function CarListRegular() {
           if (byMake !== 0) return byMake;
           return compareStr(a.model, b.model, dir);
         }
-        case "location":
-          return compareStr(a.location, b.location, dir);
-        case "next":
-          return compareStr(
-            Array.isArray(a.nextLocations) && a.nextLocations.length ? a.nextLocations.join(", ") : a.nextLocation,
-            Array.isArray(b.nextLocations) && b.nextLocations.length ? b.nextLocations.join(", ") : b.nextLocation,
-            dir
-          );
-        case "checklist":
-          return compareStr(
-            Array.isArray(a.checklist) ? a.checklist.join(", ") : a.checklist,
-            Array.isArray(b.checklist) ? b.checklist.join(", ") : b.checklist,
-            dir
-          );
-        case "notes":
-          return compareStr(a.notes, b.notes, dir);
-        case "stage":
-          return compareStr(a.stage, b.stage, dir);
-        case "year":
-          return compareNum(a.year, b.year, dir);
-        default:
-          return 0;
+        case "location": return compareStr(a.location, b.location, dir);
+        case "next": return compareStr(
+          Array.isArray(a.nextLocations) && a.nextLocations.length ? a.nextLocations.join(", ") : a.nextLocation,
+          Array.isArray(b.nextLocations) && b.nextLocations.length ? b.nextLocations.join(", ") : b.nextLocation,
+          dir
+        );
+        case "checklist": return compareStr(
+          Array.isArray(a.checklist) ? a.checklist.join(", ") : a.checklist,
+          Array.isArray(b.checklist) ? b.checklist.join(", ") : b.checklist,
+          dir
+        );
+        case "notes": return compareStr(a.notes, b.notes, dir);
+        case "stage": return compareStr(a.stage, b.stage, dir);
+        case "year": return compareNum(a.year, b.year, dir);
+        default: return 0;
       }
     };
-
     return list.slice().sort(cmp);
   }, [cars, query, sort, stageFilter]);
 
   const soldFirstList = useMemo(() => {
-    const sold = [];
-    const other = [];
+    const sold = [], other = [];
     for (const c of filteredSorted) (isSold(c) ? sold : other).push(c);
     return [...sold, ...other];
   }, [filteredSorted]);
@@ -573,48 +467,18 @@ export default function CarListRegular() {
   };
 
   const SortChevron = ({ dir }) => <span style={{ marginLeft: 6, opacity: 0.8 }}>{dir === "desc" ? "↓" : dir === "asc" ? "↑" : ""}</span>;
+  const clickSort = (key) => setSort((prev) => ({ key: prev.key === key && prev.dir ? key : key, dir: prev.key === key ? nextDir(prev.dir) : "desc" }));
 
-  const clickSort = (key) => {
-    setSort((prev) => {
-      const dir = prev.key === key ? nextDir(prev.dir) : "desc";
-      return { key: dir ? key : null, dir };
-    });
-  };
-
-  /* ---------- table header: mark first th sticky ---------- */
+  /* ---------- header ---------- */
   const Header = () => (
     <thead>
       <tr>
-        <th className="sticky-col">
-          <button className="thbtn" onClick={() => clickSort("car")}>
-            Car {sort.key === "car" && <SortChevron dir={sort.dir} />}
-          </button>
-        </th>
-        <th style={{ minWidth: 140 }}>
-          <button className="thbtn" onClick={() => clickSort("location")}>
-            Location {sort.key === "location" && <SortChevron dir={sort.dir} />}
-          </button>
-        </th>
-        <th style={{ minWidth: 280 }}>
-          <button className="thbtn" onClick={() => clickSort("next")}>
-            Next Loc {sort.key === "next" && <SortChevron dir={sort.dir} />}
-          </button>
-        </th>
-        <th style={{ minWidth: 440 }}>
-          <button className="thbtn" onClick={() => clickSort("checklist")}>
-            Checklist {sort.key === "checklist" && <SortChevron dir={sort.dir} />}
-          </button>
-        </th>
-        <th style={{ minWidth: 300 }}>
-          <button className="thbtn" onClick={() => clickSort("notes")}>
-            Notes {sort.key === "notes" && <SortChevron dir={sort.dir} />}
-          </button>
-        </th>
-        <th style={{ minWidth: 90 }}>
-          <button className="thbtn" onClick={() => clickSort("stage")}>
-            Stage {sort.key === "stage" && <SortChevron dir={sort.dir} />}
-          </button>
-        </th>
+        <th><button className="thbtn" onClick={() => clickSort("car")}>Car {sort.key === "car" && <SortChevron dir={sort.dir} />}</button></th>
+        <th style={{ minWidth: 140 }}><button className="thbtn" onClick={() => clickSort("location")}>Location {sort.key === "location" && <SortChevron dir={sort.dir} />}</button></th>
+        <th style={{ minWidth: 280 }}><button className="thbtn" onClick={() => clickSort("next")}>Next Loc {sort.key === "next" && <SortChevron dir={sort.dir} />}</button></th>
+        <th style={{ minWidth: 440 }}><button className="thbtn" onClick={() => clickSort("checklist")}>Checklist {sort.key === "checklist" && <SortChevron dir={sort.dir} />}</button></th>
+        <th style={{ minWidth: 300 }}><button className="thbtn" onClick={() => clickSort("notes")}>Notes {sort.key === "notes" && <SortChevron dir={sort.dir} />}</button></th>
+        <th style={{ minWidth: 90 }}><button className="thbtn" onClick={() => clickSort("stage")}>Stage {sort.key === "stage" && <SortChevron dir={sort.dir} />}</button></th>
         <th style={{ width: 90 }}>Act</th>
       </tr>
     </thead>
@@ -631,46 +495,66 @@ export default function CarListRegular() {
     return (
       <tbody>
         {list.length === 0 ? (
-          <tr>
-            <td colSpan={visibleCols} className="empty">
-              No cars found.
-            </td>
-          </tr>
+          <tr><td colSpan={visibleCols} className="empty">No cars found.</td></tr>
         ) : (
           list.map((car) => {
-            const isEditing = editRow === car._id;
+            const isEditingCar = editTarget.id === car._id && editTarget.field === "car";
+            const isEditingLoc = editTarget.id === car._id && editTarget.field === "location";
+            const isEditingNext = editTarget.id === car._id && editTarget.field === "next";
+            const isEditingChecklist = editTarget.id === car._id && editTarget.field === "checklist";
+            const isEditingNotes = editTarget.id === car._id && editTarget.field === "notes";
+            const isEditingStage = editTarget.id === car._id && editTarget.field === "stage";
+
             return (
               <tr
                 key={car._id}
                 data-id={car._id}
-                className={`row ${isEditing ? "row--editing" : ""} ${isSold(car) ? "row--sold" : ""}`}
-                ref={isEditing ? (el) => { activeRef.current = el; } : null}
+                className={`row ${isSold(car) ? "row--sold" : ""}`}
+                ref={(isEditingCar || isEditingLoc || isEditingNext || isEditingChecklist || isEditingNotes || isEditingStage) ? (el) => { activeRef.current = el; } : null}
               >
-                {/* STICKY first cell */}
-                <td className="sticky-col" onDoubleClick={() => !isEditing && handleDoubleClick(car, "make")}>
-                  {isEditing ? (
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "nowrap" }}>
-                      <input className="input input--compact" name="make" value={editData.make} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Make" style={{ width: 120 }} />
-                      <input className="input input--compact" name="model" value={editData.model} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Model" style={{ width: 140 }} />
-                      <input className="input input--compact" name="badge" value={editData.badge} maxLength={4} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Bdge" style={{ width: 60 }} />
-                      <input className="input input--compact" name="rego" value={editData.rego} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="REGO" style={{ width: 100, textTransform: "uppercase" }} />
-                      <input className="input input--compact" name="year" value={editData.year} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Year" style={{ width: 70 }} />
-                      <input className="input input--compact" name="description" value={editData.description} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Description" style={{ flex: 1, minWidth: 140 }} />
+                {/* CAR cell */}
+                <td
+                  onDoubleClick={() => !isEditingCar && startEdit(car, "car", "make")}
+                  className={isEditingCar ? "is-editing" : ""}
+                >
+                  {isEditingCar ? (
+                    <div className="edit-cell-group">
+                      <input className="input input--compact" name="make" value={editData.make} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Make" />
+                      <input className="input input--compact" name="model" value={editData.model} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Model" />
+                      <div className="edit-inline">
+                        <input className="input input--compact" name="badge" value={editData.badge} maxLength={4} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Badge" />
+                        <input className="input input--compact" name="year" value={editData.year} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Year" />
+                      </div>
+                      <input className="input input--compact" name="description" value={editData.description} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Description" />
+                      <input className="input input--compact" name="rego" value={editData.rego} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="REGO" style={{ textTransform: "uppercase" }} />
+                      <div className="edit-actions">
+                        <button className="btn btn--primary" onClick={saveChanges}>Save</button>
+                        <button className="btn" onClick={() => setEditTarget({ id: null, field: null })}>Cancel</button>
+                      </div>
                     </div>
                   ) : (
                     <Cell>{carString(car) || "-"}</Cell>
                   )}
                 </td>
 
-                <td onDoubleClick={() => !isEditing && handleDoubleClick(car, "location")}>
-                  {isEditing ? (
-                    <input className="input input--compact" name="location" value={editData.location} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} />
+                {/* LOCATION */}
+                <td onDoubleClick={() => !isEditingLoc && startEdit(car, "location", "location")} className={isEditingLoc ? "is-editing" : ""}>
+                  {isEditingLoc ? (
+                    <div className="edit-cell">
+                      <input className="input input--compact" name="location" value={editData.location} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} />
+                      <div className="edit-actions">
+                        <button className="btn btn--primary" onClick={saveChanges}>Save</button>
+                      </div>
+                    </div>
                   ) : (
                     <Cell>{car.location || "-"}</Cell>
                   )}
                 </td>
 
-                <td onDoubleClick={() => !isEditing && openNextModal(car)}>
+                {/* NEXT (opens modal on normal double-tap; allow inline too if you want) */}
+                <td
+                  onDoubleClick={() => openNextModal(car)}
+                >
                   <Cell>
                     {Array.isArray(car.nextLocations) && car.nextLocations.length
                       ? car.nextLocations.join(", ")
@@ -678,45 +562,59 @@ export default function CarListRegular() {
                   </Cell>
                 </td>
 
-                <td onDoubleClick={() => !isEditing && openChecklistModal(car)} title={Array.isArray(car.checklist) ? car.checklist.join(", ") : ""}>
-                  {isEditing ? (
-                    <input className="input input--compact" name="checklist" value={editData.checklist} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Tyres, Service, Detail" />
+                {/* CHECKLIST */}
+                <td onDoubleClick={() => !isEditingChecklist && startEdit(car, "checklist", "checklist")} className={isEditingChecklist ? "is-editing" : ""}>
+                  {isEditingChecklist ? (
+                    <div className="edit-cell">
+                      <input className="input input--compact" name="checklist" value={editData.checklist} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Tyres, Service, Detail" />
+                      <div className="edit-actions">
+                        <button className="btn btn--primary" onClick={saveChanges}>Save</button>
+                      </div>
+                    </div>
                   ) : (
-                    <Cell>{car.checklist && car.checklist.length > 0 ? car.checklist.join(", ") : "-"}</Cell>
+                    <Cell title={Array.isArray(car.checklist) ? car.checklist.join(", ") : ""}>
+                      {car.checklist && car.checklist.length > 0 ? car.checklist.join(", ") : "-"}
+                    </Cell>
                   )}
                 </td>
 
-                <td onDoubleClick={() => !isEditing && handleDoubleClick(car, "notes")}>
-                  {isEditing ? (
-                    <input className="input input--compact" name="notes" value={editData.notes} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Short notes" />
+                {/* NOTES */}
+                <td onDoubleClick={() => !isEditingNotes && startEdit(car, "notes", "notes")} className={isEditingNotes ? "is-editing" : ""}>
+                  {isEditingNotes ? (
+                    <div className="edit-cell">
+                      <input className="input input--compact" name="notes" value={editData.notes} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Short notes" />
+                      <div className="edit-actions">
+                        <button className="btn btn--primary" onClick={saveChanges}>Save</button>
+                      </div>
+                    </div>
                   ) : (
                     <Cell>{car.notes || "-"}</Cell>
                   )}
                 </td>
 
-                <td onDoubleClick={() => !isEditing && handleDoubleClick(car, "stage")}>
-                  {isEditing ? (
-                    <select className="input input--compact" name="stage" value={editData.stage} onChange={handleChange} onClick={rememberCaret}>
-                      {STAGES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
+                {/* STAGE */}
+                <td onDoubleClick={() => !isEditingStage && startEdit(car, "stage", "stage")} className={isEditingStage ? "is-editing" : ""}>
+                  {isEditingStage ? (
+                    <div className="edit-cell">
+                      <select className="input input--compact" name="stage" value={editData.stage} onChange={handleChange} onClick={rememberCaret}>
+                        {STAGES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                      </select>
+                      <div className="edit-actions">
+                        <button className="btn btn--primary" onClick={saveChanges}>Save</button>
+                      </div>
+                    </div>
                   ) : (
                     <Cell>{car.stage || "-"}</Cell>
                   )}
                 </td>
 
+                {/* ACTIONS */}
                 <td>
                   <div className="actions">
                     <button
                       className="btn btn--kebab btn--xs"
                       title="Open car profile"
-                      onClick={() => {
-                        setSelectedCar(car);
-                        setProfileOpen(true);
-                      }}
+                      onClick={() => { setSelectedCar(car); setProfileOpen(true); }}
                     >
                       ⋯
                     </button>
@@ -733,7 +631,7 @@ export default function CarListRegular() {
     );
   };
 
-  /* ---------- Table: adds sticky-col styles + wider first column ---------- */
+  /* ---------- Table ---------- */
   const Table = ({ list }) => (
     <div className="table-wrap">
       <style>{`
@@ -741,7 +639,6 @@ export default function CarListRegular() {
         .car-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0; min-width:1200px;}
         .car-table th,.car-table td{padding:6px 10px;vertical-align:middle;}
 
-        /* --- column widths (make Car nice & wide) --- */
         .car-table col.col-car{width:420px;}
         .car-table col.col-loc{width:140px;}
         .car-table col.col-next{width:280px;}
@@ -754,24 +651,12 @@ export default function CarListRegular() {
         .thbtn{all:unset;cursor:pointer;color:#cbd5e1;padding:4px 6px;border-radius:6px;}
         .thbtn:hover{background:#1f2937;}
 
-        /* --- sticky first column (DESKTOP) --- */
-        .car-table th.sticky-col,
-        .car-table td.sticky-col{
-          position: sticky;
-          left: 0;
-          background: #0F172A;        /* match panel background */
-        }
-        /* bump z-index so it always floats above scrolled content */
-        .car-table th.sticky-col{ z-index: 3; }
-        .car-table td.sticky-col{ z-index: 2; }
-
-        .car-table th.sticky-col::after,
-        .car-table td.sticky-col::after{
-          content:"";
-          position:absolute; top:0; right:-1px; bottom:0; width:1px;
-          background:#243041;
-          box-shadow: 6px 0 8px rgba(0,0,0,.25);
-        }
+        /* edit mode visuals: contained, no overlap */
+        td.is-editing{ background:#0c1a2e; box-shadow: inset 0 0 0 1px #2b3b54; border-radius:8px; }
+        .edit-cell{ display:flex; align-items:center; gap:8px; }
+        .edit-cell-group{ display:flex; flex-direction:column; gap:8px; }
+        .edit-inline{ display:flex; gap:8px; }
+        .edit-actions{ display:flex; gap:8px; margin-top:4px; }
 
         .btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
         .btn--danger{ background:#DC2626; color:#fff; }
@@ -787,26 +672,11 @@ export default function CarListRegular() {
           background: var(--sold-bg);
           box-shadow: inset 0 0 0 1px var(--sold-border);
         }
-        .car-table tr.row--sold:hover td{
-          background: var(--sold-bg-hover);
-        }
+        .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
 
-        /* ---------- iOS/Small-screen fix ----------
-           Safari on iPhone has bugs with sticky table cells inside
-           horizontally scrolling containers. We disable sticky on
-           narrow screens so the first column behaves like a normal
-           column and is visible when you scroll. */
+        /* iOS sticky bug avoided: no sticky used now */
         @media (max-width: 820px){
-          .car-table th.sticky-col,
-          .car-table td.sticky-col{
-            position: static;   /* disable sticky */
-            left: auto;
-            z-index: auto;
-          }
-          .car-table th.sticky-col::after,
-          .car-table td.sticky-col::after{
-            display:none;
-          }
+          /* nothing special needed; table scrolls normally */
         }
       `}</style>
 
@@ -841,9 +711,7 @@ export default function CarListRegular() {
 
           <div className="split-toolbar">
             <div className="tabbar">
-              <button className="tab" onClick={() => setView("regular")}>
-                Regular
-              </button>
+              <button className="tab" onClick={() => setView("regular")}>Regular</button>
               <button className="tab is-active">Split</button>
             </div>
 
@@ -870,56 +738,29 @@ export default function CarListRegular() {
               })}
             </div>
 
-            <input
-              className="input"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search cars…"
-            />
-            <button className="btn btn--primary" onClick={() => setShowForm(true)}>
-              + Add New Car
-            </button>
+            <input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search cars…" />
+            <button className="btn btn--primary" onClick={() => setShowForm(true)}>+ Add New Car</button>
 
             <button className="btn btn--muted" onClick={triggerCsvSplit} disabled={uploading}>
               {uploading ? "Uploading…" : "Upload CSV"}
             </button>
-            <input
-              ref={fileInputRefSplit}
-              type="file"
-              accept=".csv,text/csv"
-              style={{ display: "none" }}
-              onChange={handleCsvChosen}
-            />
+            <input ref={fileInputRefSplit} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={handleCsvChosen} />
 
-            <button className="btn btn--muted" onClick={() => setPasteOpen(true)}>
-              Paste Online List
-            </button>
+            <button className="btn btn--muted" onClick={() => setPasteOpen(true)}>Paste Online List</button>
           </div>
         </div>
 
         <CarListSplit embedded listOverride={soldFirstList} sortState={sort} />
 
         <style>{stageChipCss}</style>
-
         {showForm && <CarFormModal show={showForm} onClose={() => setShowForm(false)} onSave={handleSave} />}
 
         {pasteOpen && (
           <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,.5)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1000,
-            }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
             onClick={() => setPasteOpen(false)}
           >
-            <div
-              style={{ background: "#0b1220", border: "1px solid #243041", borderRadius: 12, width: "min(900px, 92vw)" }}
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div style={{ background: "#0b1220", border: "1px solid #243041", borderRadius: 12, width: "min(900px, 92vw)" }} onClick={(e) => e.stopPropagation()}>
               <div style={{ padding: 14, borderBottom: "1px solid #243041" }}>
                 <h3 style={{ margin: 0 }}>Paste Autogate List</h3>
                 <p style={{ margin: "4px 0 0", color: "#9CA3AF", fontSize: 13 }}>
@@ -927,20 +768,10 @@ export default function CarListRegular() {
                 </p>
               </div>
               <div style={{ padding: 14 }}>
-                <textarea
-                  className="input"
-                  style={{ width: "100%", minHeight: 280, resize: "vertical" }}
-                  placeholder="Paste the whole Autogate block here…"
-                  value={pasteText}
-                  onChange={(e) => setPasteText(e.target.value)}
-                />
+                <textarea className="input" style={{ width: "100%", minHeight: 280, resize: "vertical" }} placeholder="Paste the whole Autogate block here…" value={pasteText} onChange={(e) => setPasteText(e.target.value)} />
                 <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
-                  <button className="btn" onClick={() => setPasteOpen(false)}>
-                    Cancel
-                  </button>
-                  <button className="btn btn--primary" onClick={submitPaste}>
-                    Process
-                  </button>
+                  <button className="btn" onClick={() => setPasteOpen(false)}>Cancel</button>
+                  <button className="btn btn--primary" onClick={submitPaste}>Process</button>
                 </div>
               </div>
             </div>
@@ -974,9 +805,7 @@ export default function CarListRegular() {
         <div className="split-toolbar">
           <div className="tabbar">
             <button className="tab is-active">Regular</button>
-            <button className="tab" onClick={() => setView("split")}>
-              Split
-            </button>
+            <button className="tab" onClick={() => setView("split")}>Split</button>
           </div>
 
           <div className="chipbar">
@@ -1002,30 +831,15 @@ export default function CarListRegular() {
             })}
           </div>
 
-          <input
-            className="input"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search cars…"
-          />
-          <button className="btn btn--primary" onClick={() => setShowForm(true)}>
-            + Add New Car
-          </button>
+          <input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search cars…" />
+          <button className="btn btn--primary" onClick={() => setShowForm(true)}>+ Add New Car</button>
 
           <button className="btn btn--muted" onClick={triggerCsvRegular} disabled={uploading}>
             {uploading ? "Uploading…" : "Upload CSV"}
           </button>
-          <input
-            ref={fileInputRefRegular}
-            type="file"
-            accept=".csv,text/csv"
-            style={{ display: "none" }}
-            onChange={handleCsvChosen}
-          />
+          <input ref={fileInputRefRegular} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={handleCsvChosen} />
 
-          <button className="btn btn--muted" onClick={() => setPasteOpen(true)}>
-            Paste Online List
-          </button>
+          <button className="btn btn--muted" onClick={() => setPasteOpen(true)}>Paste Online List</button>
         </div>
       </div>
 
@@ -1035,28 +849,22 @@ export default function CarListRegular() {
 
       <Table list={soldFirstList} />
 
-      {showForm && (
-        <CarFormModal
-          show={showForm}
-          onClose={() => setShowForm(false)}
-          onSave={handleSave}
-        />
-      )}
+      {showForm && <CarFormModal show={showForm} onClose={() => setShowForm(false)} onSave={handleSave} />}
 
-      {profileOpen && (
-        <CarProfileModal
-          open={profileOpen}
-          car={selectedCar}
-          onClose={() => setProfileOpen(false)}
-        />
-      )}
+      {profileOpen && <CarProfileModal open={profileOpen} car={selectedCar} onClose={() => setProfileOpen(false)} />}
 
       {checklistModal.open && (
         <ChecklistFormModal
           open
           items={checklistModal.car?.checklist ?? []}
-          onSave={saveChecklist}
-          onClose={closeChecklistModal}
+          onSave={async (items) => {
+            try {
+              await api.put(`/cars/${checklistModal.car._id}`, { checklist: items }, { headers: { "Content-Type": "application/json" } });
+              await refreshCars();
+            } catch (e) { alert(e.response?.data?.message || e.message || "Error saving checklist"); }
+            finally { setChecklistModal({ open: false, car: null }); }
+          }}
+          onClose={() => setChecklistModal({ open: false, car: null })}
         />
       )}
 
@@ -1070,32 +878,44 @@ export default function CarListRegular() {
               ? [nextModal.car.nextLocation]
               : []
           }
-          onSave={saveNextLocations}
-          onSetCurrent={setCurrentFromNext}
+          onSave={async (items) => {
+            try {
+              await api.put(
+                `/cars/${nextModal.car._id}`,
+                { nextLocations: items, nextLocation: items[items.length - 1] ?? "" },
+                { headers: { "Content-Type": "application/json" } }
+              );
+              await refreshCars();
+            } catch (e) { alert(e.response?.data?.message || e.message || "Error saving destinations"); }
+            finally { setNextModal({ open: false, car: null }); }
+          }}
+          onSetCurrent={async (loc) => {
+            try {
+              const existing = Array.isArray(nextModal.car.nextLocations)
+                ? nextModal.car.nextLocations
+                : nextModal.car.nextLocation
+                ? [nextModal.car.nextLocation]
+                : [];
+              const remaining = existing.filter((s) => s !== loc);
+              await api.put(
+                `/cars/${nextModal.car._id}`,
+                { location: loc, nextLocations: remaining, nextLocation: remaining[remaining.length - 1] ?? "" },
+                { headers: { "Content-Type": "application/json" } }
+              );
+              await refreshCars();
+            } catch (e) { alert(e.response?.data?.message || e.message || "Error setting current location"); }
+          }}
           onClose={closeNextModal}
         />
       )}
 
       {pasteOpen && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
           onClick={() => setPasteOpen(false)}
         >
           <div
-            style={{
-              background: "#0b1220",
-              border: "1px solid #243041",
-              borderRadius: 12,
-              width: "min(900px, 92vw)",
-            }}
+            style={{ background: "#0b1220", border: "1px solid #243041", borderRadius: 12, width: "min(900px, 92vw)" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ padding: 14, borderBottom: "1px solid #243041" }}>
@@ -1105,20 +925,10 @@ export default function CarListRegular() {
               </p>
             </div>
             <div style={{ padding: 14 }}>
-              <textarea
-                className="input"
-                style={{ width: "100%", minHeight: 280, resize: "vertical" }}
-                placeholder="Paste the whole Autogate block here…"
-                value={pasteText}
-                onChange={(e) => setPasteText(e.target.value)}
-              />
+              <textarea className="input" style={{ width: "100%", minHeight: 280, resize: "vertical" }} placeholder="Paste the whole Autogate block here…" value={pasteText} onChange={(e) => setPasteText(e.target.value)} />
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
-                <button className="btn" onClick={() => setPasteOpen(false)}>
-                  Cancel
-                </button>
-                <button className="btn btn--primary" onClick={submitPaste}>
-                  Process
-                </button>
+                <button className="btn" onClick={() => setPasteOpen(false)}>Cancel</button>
+                <button className="btn btn--primary" onClick={submitPaste}>Process</button>
               </div>
             </div>
           </div>
