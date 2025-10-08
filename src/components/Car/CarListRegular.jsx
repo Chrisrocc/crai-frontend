@@ -213,6 +213,7 @@ export default function CarListRegular() {
   const [stageFilter, setStageFilter] = useState(() => new Set(STAGES));
 
   // CSV upload
+
   const [uploading, setUploading] = useState(false);
   const fileInputRefRegular = useRef(null);
   const fileInputRefSplit = useRef(null);
@@ -580,10 +581,11 @@ export default function CarListRegular() {
     });
   };
 
+  /* ---------- table header: mark first th sticky ---------- */
   const Header = () => (
     <thead>
       <tr>
-        <th>
+        <th className="sticky-col">
           <button className="thbtn" onClick={() => clickSort("car")}>
             Car {sort.key === "car" && <SortChevron dir={sort.dir} />}
           </button>
@@ -644,7 +646,8 @@ export default function CarListRegular() {
                 className={`row ${isEditing ? "row--editing" : ""} ${isSold(car) ? "row--sold" : ""}`}
                 ref={isEditing ? (el) => { activeRef.current = el; } : null}
               >
-                <td onDoubleClick={() => !isEditing && handleDoubleClick(car, "make")}>
+                {/* STICKY first cell */}
+                <td className="sticky-col" onDoubleClick={() => !isEditing && handleDoubleClick(car, "make")}>
                   {isEditing ? (
                     <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "nowrap" }}>
                       <input className="input input--compact" name="make" value={editData.make} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Make" style={{ width: 120 }} />
@@ -730,22 +733,43 @@ export default function CarListRegular() {
     );
   };
 
+  /* ---------- Table: adds sticky-col styles + wider first column ---------- */
   const Table = ({ list }) => (
     <div className="table-wrap">
       <style>{`
         .table-wrap{position:relative; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;}
         .car-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0; min-width:1200px;}
         .car-table th,.car-table td{padding:6px 10px;vertical-align:middle;}
-        .car-table col.col-car{width:auto;}
+
+        /* --- column widths (make Car nice & wide) --- */
+        .car-table col.col-car{width:420px;}
         .car-table col.col-loc{width:140px;}
         .car-table col.col-next{width:280px;}
         .car-table col.col-chk{width:440px;}
         .car-table col.col-notes{width:300px;}
         .car-table col.col-stage{width:90px;}
         .car-table col.col-act{width:90px;}
+
         .car-table .cell{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
         .thbtn{all:unset;cursor:pointer;color:#cbd5e1;padding:4px 6px;border-radius:6px;}
         .thbtn:hover{background:#1f2937;}
+
+        /* --- make the first column always visible --- */
+        .car-table th.sticky-col,
+        .car-table td.sticky-col{
+          position: sticky;
+          left: 0;
+          background: #0F172A;        /* same as panel */
+          z-index: 2;                  /* above scrolled content */
+        }
+        .car-table td.sticky-col{ z-index: 1; }
+        .car-table th.sticky-col::after,
+        .car-table td.sticky-col::after{
+          content:"";
+          position:absolute; top:0; right:-1px; bottom:0; width:1px;
+          background:#243041;
+          box-shadow: 6px 0 8px rgba(0,0,0,.25);
+        }
 
         .btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
         .btn--danger{ background:#DC2626; color:#fff; }
@@ -907,7 +931,6 @@ export default function CarListRegular() {
   }
 
   // REGULAR view
-    // REGULAR view
   if (loading)
     return (
       <div className="page-pad with-ham">
