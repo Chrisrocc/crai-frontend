@@ -160,9 +160,8 @@ export default function CarListRegular() {
   const activeRef = useRef(null);
   const caretRef = useRef({ name: null, start: null, end: null });
 
-  // Stage dropdown auto-open on touch/iOS
-  const stageSelectRef = useRef(null);
-  const [stageAutoOpen, setStageAutoOpen] = useState(false);
+  // track if Stage changed to decide whether to save on blur/outside click
+  const stageDirtyRef = useRef(false);
 
   // modals
   const [checklistModal, setChecklistModal] = useState({ open: false, car: null });
@@ -265,7 +264,7 @@ export default function CarListRegular() {
   // ---------- Edit helpers ----------
   const startEdit = (car, field, initialNameForCaret = null) => {
     setEditTarget({ id: car._id, field });
-    // prime editData only with what we need
+
     const lastNext =
       Array.isArray(car.nextLocations) && car.nextLocations.length
         ? car.nextLocations[car.nextLocations.length - 1]
@@ -287,12 +286,16 @@ export default function CarListRegular() {
     };
     setEditData(base);
 
-    // if editing stage, request auto-open of native picker (helps iOS)
-    if (field === "stage") setStageAutoOpen(true);
+    // For stage, don't auto-focus to avoid table jump on iOS
+    if (field === "stage") {
+      stageDirtyRef.current = false;
+      caretRef.current = { name: null, start: null, end: null };
+      return;
+    }
 
     caretRef.current = { name: initialNameForCaret, start: null, end: null };
 
-    // focus the first relevant element
+    // focus the first relevant element (non-stage fields)
     requestAnimationFrame(() => {
       const root = activeRef.current;
       if (!root) return;
@@ -336,7 +339,6 @@ export default function CarListRegular() {
     if (!editTarget.id || savingRef.current) return;
     savingRef.current = true;
     try {
-      // Only send the fields for the current target
       let payload = {};
       switch (editTarget.field) {
         case "car":
@@ -382,26 +384,38 @@ export default function CarListRegular() {
       console.error("Update failed", err.response?.data || err.message);
       alert("Error updating car: " + (err.response?.data?.message || err.message));
       await refreshCars();
+      setEditTarget({ id: null, field: null });
     } finally {
       savingRef.current = false;
     }
   };
 
-  // click outside to save
+  // click outside to save (for any field, including Stage)
   useEffect(() => {
     const onDown = (e) => {
       if (!editTarget.id) return;
       const rowEl = document.querySelector(`tr[data-id="${editTarget.id}"]`);
       if (!rowEl) return;
-      if (!rowEl.contains(e.target)) saveChanges();
+      if (!rowEl.contains(e.target)) {
+        if (editTarget.field === "stage" && !stageDirtyRef.current) {
+          // no change → just exit
+          setEditTarget({ id: null, field: null });
+        } else {
+          saveChanges();
+        }
+      }
     };
     if (editTarget.id) document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    if (editTarget.id) document.addEventListener("touchstart", onDown, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editTarget, editData]);
 
   useLayoutEffect(() => {
-    if (!editTarget.id) return;
+    if (!editTarget.id || editTarget.field === "stage") return; // skip stage to avoid scroll jump
     const { name, start, end } = caretRef.current || {};
     const root = activeRef.current;
     if (!root) return;
@@ -415,34 +429,6 @@ export default function CarListRegular() {
       el.setSelectionRange(s, e);
     }
   }, [editData, editTarget]);
-
-  // Auto-open the Stage native picker when Stage just entered edit mode (helps iOS)
-  useEffect(() => {
-    if (editTarget.field !== "stage" || !editTarget.id || !stageAutoOpen) return;
-    const el = stageSelectRef.current;
-    if (!el) return;
-
-    const tryShowPicker = (node) => {
-      if (node && typeof node.showPicker === "function") {
-        try {
-          node.showPicker();
-        } catch {
-          return; // swallow error so block isn't empty (fixes eslint no-empty)
-        }
-      }
-    };
-
-    // Attempt immediately, then again after focus/microtask
-    tryShowPicker(el);
-    el.focus();
-    setTimeout(() => {
-      tryShowPicker(el);
-      el.focus();
-    }, 0);
-
-    setStageAutoOpen(false);
-  }, [editTarget, stageAutoOpen]);
-
 
   const filteredSorted = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -628,28 +614,31 @@ export default function CarListRegular() {
                   )}
                 </td>
 
-                {/* STAGE (tap-friendly, auto-open on mobile, auto-save, no button) */}
+                {/* STAGE (tap-friendly; select then save on blur/outside click) */}
                 <td
-                  onClick={!isEditingStage ? () => startEdit(car, "stage", "stage") : undefined}
-                  onDoubleClick={!isEditingStage ? () => startEdit(car, "stage", "stage") : undefined}
+                  onDoubleClick={() => !isEditingStage && startEdit(car, "stage", "stage")}
                   className={isEditingStage ? "is-editing" : ""}
                 >
                   {isEditingStage ? (
                     <div className="edit-cell">
                       <select
-                        ref={stageSelectRef}
                         className="input input--compact input--select-lg"
                         name="stage"
                         value={editData.stage}
-                        // Prevent parent handlers from interfering
+                        onChange={(e) => {
+                          setEditData((p) => ({ ...p, stage: e.target.value }));
+                          stageDirtyRef.current = true;
+                        }}
+                        onBlur={() => {
+                          if (stageDirtyRef.current) {
+                            saveChanges(); // will also exit edit mode
+                          } else {
+                            setEditTarget({ id: null, field: null }); // no change
+                          }
+                        }}
                         onClick={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
                         onTouchStart={(e) => e.stopPropagation()}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEditData((p) => ({ ...p, stage: val }));
-                          setTimeout(saveChanges, 0); // auto-save
-                        }}
                       >
                         {STAGES.map((s) => (
                           <option key={s} value={s}>{s}</option>
@@ -861,7 +850,7 @@ export default function CarListRegular() {
             <button className="tab" onClick={() => setView("split")}>Split</button>
           </div>
 
-        <div className="chipbar">
+          <div className="chipbar">
             {STAGES.map((s) => {
               const on = stageFilter.has(s);
               return (
