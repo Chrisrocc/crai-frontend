@@ -313,3 +313,43 @@ col.col-act{ width:100px; }
 .hide-xl{}
 .hide-lg{}
 .hide-md{}
+
+/* ===== Mobile header + button compaction (no desktop changes) ===== */
+@media (max-width: 820px){
+  /* tighten page padding a touch */
+  .page-pad{ padding: 12px 12px 8px; }
+
+  /* header stack */
+  .title{ margin-bottom: 2px; }
+  .subtitle{ margin-top: 0; margin-bottom: 8px; }
+
+  /* top toolbar row */
+  .toolbar{ gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+
+  /* Regular / Split toggle (your tabbar) */
+  .tabbar{ padding: 4px; gap: 4px; border-radius: 10px; transform: scale(.96); transform-origin: left top; }
+  .tab{ padding: 6px 10px; border-radius: 8px; font-size: 13px; }
+
+  /* (If you have a chip row / stage filters in the header, these help; harmless if absent) */
+  .stage-chips, .chip-row{ gap: 8px; margin: 6px 0 8px; }
+
+  /* search input row (harmless if different class) */
+  .search-input, .searchbar{ margin: 6px 0 8px; }
+
+  /* action buttons row: + Add New Car / Upload CSV / Paste Online List */
+  .inventory-actions, .actions-row, .btn-row{ gap: 8px; margin: 8px 0 6px; }
+  .inventory-actions .btn, .actions-row .btn, .btn-row .btn{
+    padding: 8px 10px; border-radius: 8px; font-size: 13px;
+  }
+
+  /* table compaction (keeps your mobile table tight) */
+  .car-table thead th,
+  .car-table tbody td{ padding: 6px 8px; }
+  .car-table{ font-size: var(--fz-compact); }
+
+  /* row action buttons inside the table */
+  .actions{ gap: 6px; }
+  .btn--xs{ padding: 2px 6px; font-size: 12px; }
+  .btn--kebab{ width: 28px; padding: 2px 0; font-size: 16px; }
+  .icon-btn{ width: 28px; height: 28px; }
+}

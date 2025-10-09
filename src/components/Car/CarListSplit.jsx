@@ -566,7 +566,7 @@ function Table({
 const cssFix = `
 .page-pad{ padding:12px; }
 
-/* DESKTOP: two-column split unchanged */
+/* DESKTOP (unchanged): two-column split */
 .split-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
 
 /* table wrapper */
@@ -628,22 +628,30 @@ td.is-editing{ background:#0c1a2e; box-shadow: inset 0 0 0 1px #2b3b54; border-r
 /* empty */
 .empty{ text-align:center; color:#9CA3AF; padding:10px; }
 
-/* ---------------- MOBILE tweaks ---------------- */
+/* ------------- MOBILE tightening ------------- */
 @media (max-width: 1100px){
-  /* render single table (handled in JSX); this keeps desktop layout intact */
+  /* render a single table in JSX; this just ensures layout isn't split */
   .split-grid{ display:block; }
 
-  /* Tighter buttons & spacing */
-  .car-table--mobile th,.car-table--mobile td{ padding:6px 8px; }
-  .actions{ gap:4px; }
-  .btn--xs{ font-size:11px; padding:2px 6px; }
-  .btn--icon{ width:28px; height:26px; padding:4px; }
-  .btn{ border-radius:8px; }
+  /* overall padding tighter */
+  .page-pad{ padding:8px 8px 6px; }
 
-  /* Slightly denser inputs when editing on mobile */
+  /* table: denser */
+  .car-table--mobile thead th{ font-size:11px; }
+  .car-table--mobile th,.car-table--mobile td{ padding:5px 6px; }
+
+  /* smaller buttons & gaps */
+  .actions{ gap:4px; }
+  .btn{ border-radius:8px; }
+  .btn--xs{ font-size:11px; padding:2px 6px; }
+  .btn--icon{ width:26px; height:24px; padding:3px; }
+  .btn--kebab{ padding:2px 6px; }
+
+  /* denser edit controls */
   .input{ padding:6px 8px; border-radius:8px; }
-  .input--select-lg{ min-height:38px; font-size:14px; }
+  .input--select-lg{ min-height:36px; font-size:14px; }
   .edit-cell, .edit-inline{ gap:6px; }
-  .edit-actions{ gap:6px; }
+  .edit-actions{ gap:6px; margin-top:2px; }
 }
 `;
+
