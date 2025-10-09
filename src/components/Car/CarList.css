@@ -395,3 +395,49 @@ col.col-act{ width:100px; }
 .chip:active{ transform: translateY(0.5px); }
 .chip.chip--on{ background:#2563EB; color:#fff; border-color:transparent; }
 .input--select-lg{ min-height:44px; font-size:16px; }
+
+/* ========= SUPER COMPACT MOBILE TOOLBAR (Split & Regular) ========= */
+@media (max-width: 820px){
+  .toolbar,
+  .toolbar.header-row{
+    gap: 6px !important;
+    row-gap: 6px !important;
+    column-gap: 6px !important;
+    margin: 6px 0 !important;
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+  }
+
+  .title{ font-size: 22px !important; margin: 0 0 0 !important; }
+  .subtitle{ font-size: 12px !important; margin: 2px 0 6px !important; }
+
+  .tabbar{ padding: 3px 4px !important; gap: 4px !important; border-radius: 10px !important; }
+  .tab{ padding: 5px 9px !important; font-size: 12.5px !important; }
+
+  .chip-row{ gap: 6px !important; margin: 2px 0 4px !important; }
+  .chip{ padding: 6px 10px !important; }
+
+  .searchbar, .search-input{
+    margin: 2px 0 !important;
+    min-height: 36px !important;
+    width: 100% !important;
+  }
+
+  .btn-row, .inventory-actions, .actions-row{
+    gap: 6px !important;
+    margin: 2px 0 0 !important;
+  }
+
+  .btn{
+    padding: 7px 10px !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* Even tighter for small phones */
+@media (max-width: 480px){
+  .page-pad{ padding: 10px 10px 6px !important; }
+  .tab{ padding: 5px 8px !important; }
+  .chip{ padding: 5px 9px !important; }
+}
