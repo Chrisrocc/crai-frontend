@@ -222,10 +222,9 @@ col.col-act{ width:100px; }
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59,130,246,.25);
 }
-
 .input--compact{ padding: 6px 8px; border-radius: 7px; font-size: 12px; }
 
-/* Editor shells */
+/* Editors */
 .editor-wrap{
   box-sizing:border-box;
   width:100%;
@@ -292,7 +291,9 @@ col.col-act{ width:100px; }
 }
 .tab.is-active{ background:#1f2937; color:#fff; }
 
-/* Responsive */
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
 @media (max-width: 1100px){
   .title{ font-size: 22px; }
 }
@@ -300,64 +301,76 @@ col.col-act{ width:100px; }
   .title{ font-size: 21px; }
   .car-table{ min-width: 920px; }
 }
-@media (max-width: 820px){
-  .title{ font-size: 20px; }
-  .btn{ padding: 9px 12px; }
-  .split-panels{ grid-template-columns: 1fr; }
-  .car-table{ font-size: var(--fz-compact); }
-  .car-table thead th,
-  .car-table tbody td{ padding: var(--padY-compact) var(--padX-compact); }
-}
 
-/* no-op legacy helpers */
-.hide-xl{}
-.hide-lg{}
-.hide-md{}
-
-/* ===== Mobile header + button compaction (no desktop changes) ===== */
+/* ---------- COMPACT MOBILE/TABLET (one tight header row) ---------- */
 @media (max-width: 820px){
-  /* tighten page padding a touch */
   .page-pad{ padding: 12px 12px 8px; }
 
-  /* header stack */
-  .title{ margin-bottom: 2px; }
-  .subtitle{ margin-top: 0; margin-bottom: 8px; }
+  /* compact title line */
+  .title{ font-size: 22px; margin: 0; }
+  .subtitle{ font-size: 12px; margin: 2px 0 6px; }
 
-  /* top toolbar row */
-  .toolbar{ gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-
-  /* Regular / Split toggle (your tabbar) */
-  .tabbar{ padding: 4px; gap: 4px; border-radius: 10px; transform: scale(.96); transform-origin: left top; }
-  .tab{ padding: 6px 10px; border-radius: 8px; font-size: 13px; }
-
-  /* (If you have a chip row / stage filters in the header, these help; harmless if absent) */
-  .stage-chips, .chip-row{ gap: 8px; margin: 6px 0 8px; }
-
-  /* search input row (harmless if different class) */
-  .search-input, .searchbar{ margin: 6px 0 8px; }
-
-  /* action buttons row: + Add New Car / Upload CSV / Paste Online List */
-  .inventory-actions, .actions-row, .btn-row{ gap: 8px; margin: 8px 0 6px; }
-  .inventory-actions .btn, .actions-row .btn, .btn-row .btn{
-    padding: 8px 10px; border-radius: 8px; font-size: 13px;
+  /* header toolbars: keep everything on one row, tiny gaps */
+  .toolbar,
+  .toolbar.header-row,
+  .header-row,
+  .inventory-header{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-wrap:wrap;
+    gap:6px;
+    row-gap:6px;
+    column-gap:6px;
+    margin:6px 0;
   }
 
-  /* table compaction (keeps your mobile table tight) */
-  .car-table thead th,
-  .car-table tbody td{ padding: 6px 8px; }
+  .tabbar{ padding:3px 4px; gap:4px; border-radius:10px; transform:scale(.96); transform-origin:center; }
+  .tab{ padding:5px 9px; font-size:12.5px; border-radius:8px; }
+
+  .chip-row, .stage-chips{ display:flex; gap:6px; margin:2px 0 4px; }
+  .chip{ padding:6px 10px; }
+
+  .searchbar, .search-input{
+    margin:2px 0;
+    min-height:36px;
+    width:100%;
+  }
+
+  .btn-row, .inventory-actions, .actions-row{
+    display:flex;
+    gap:6px;
+    margin:2px 0 0;
+    flex-wrap:wrap;
+  }
+
+  .btn{
+    padding:7px 10px;
+    border-radius:8px;
+    font-size:13px;
+  }
+
+  /* tables: single column split, tighter cells */
+  .split-panels{ grid-template-columns:1fr; gap:12px; }
   .car-table{ font-size: var(--fz-compact); }
+  .car-table thead th, .car-table tbody td{ padding: var(--padY-compact) var(--padX-compact); }
 
-  /* row action buttons inside the table */
-  .actions{ gap: 6px; }
-  .btn--xs{ padding: 2px 6px; font-size: 12px; }
-  .btn--kebab{ width: 28px; padding: 2px 0; font-size: 16px; }
-  .icon-btn{ width: 28px; height: 28px; }
+  /* row action buttons */
+  .actions{ gap:6px; }
+  .btn--xs{ padding:2px 6px; font-size:12px; }
+  .btn--kebab{ width:28px; padding:2px 0; font-size:16px; }
+  .icon-btn{ width:28px; height:28px; }
 }
-/* ====== COMPACT HEADER STACK (desktop + mobile) ====== */
 
-/* Desktop: put header controls on one tight row; minimal vertical gaps */
+/* ---------- EXTRA TIGHT for small phones ---------- */
+@media (max-width: 480px){
+  .page-pad{ padding: 10px 10px 6px; }
+  .tab{ padding:5px 8px; }
+  .chip{ padding:5px 9px; }
+}
+
+/* ---------- Compact header stack for desktop too (keeps things neat) ---------- */
 @media (min-width: 981px){
-  /* if your header wrapper exists, tighten it */
   .toolbar, .header-row, .inventory-header{
     display:flex;
     align-items:center;
@@ -365,26 +378,24 @@ col.col-act{ width:100px; }
     margin-bottom:8px !important;
     flex-wrap:wrap;
   }
-
-  /* title/subtitle spacing */
   .title{ margin: 0 10px 2px 0 !important; }
   .subtitle{ margin: 0 12px 0 0 !important; }
 
-  /* search bar hugs the row, grows to fill */
   .search-input, .searchbar{
     margin:0 !important;
     flex:1 1 520px;
     min-width:320px;
   }
 
-  /* view toggle + chips + action buttons compact */
   .tabbar{ margin:0 !important; padding:4px 6px !important; gap:4px; }
   .tab{ padding:6px 10px !important; border-radius:8px; }
 
   .stage-chips, .chip-row{ margin:0 !important; gap:8px !important; }
-  .inventory-actions, .actions-row, .btn-row{ margin:0 !important; gap:8px !important; }
+  .inventory-actions, .btn-row{ margin:0 !important; gap:8px !important; }
   .inventory-actions .btn, .btn-row .btn{ padding:8px 10px !important; border-radius:8px !important; font-size:13px !important; }
 }
+
+/* ---------- Chips + select (shared) ---------- */
 .chip-row{ display:flex; gap:6px; flex-wrap:wrap; }
 .chip{
   border:1px solid #243041; border-radius:999px; padding:8px 12px; cursor:pointer;
@@ -395,49 +406,39 @@ col.col-act{ width:100px; }
 .chip:active{ transform: translateY(0.5px); }
 .chip.chip--on{ background:#2563EB; color:#fff; border-color:transparent; }
 .input--select-lg{ min-height:44px; font-size:16px; }
-
-/* ========= SUPER COMPACT MOBILE TOOLBAR (Split & Regular) ========= */
+/* ===== KILL ALL EXTRA VERTICAL SPACE ON MOBILE HEADER ===== */
 @media (max-width: 820px){
+  /* compact the whole header row */
   .toolbar,
-  .toolbar.header-row{
-    gap: 6px !important;
-    row-gap: 6px !important;
-    column-gap: 6px !important;
-    margin: 6px 0 !important;
-    justify-content: center !important;
-    flex-wrap: wrap !important;
+  .toolbar.header-row,
+  .header-row,
+  .inventory-header,
+  .split-toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    align-items:center;
+    gap:4px !important;
+    row-gap:4px !important;
+    column-gap:4px !important;
+    margin:4px 0 !important;
   }
 
-  .title{ font-size: 22px !important; margin: 0 0 0 !important; }
-  .subtitle{ font-size: 12px !important; margin: 2px 0 6px !important; }
+  /* remove margins from all children inside the header */
+  .toolbar > *,
+  .header-row > *,
+  .inventory-header > *,
+  .split-toolbar > * { margin:0 !important; }
 
-  .tabbar{ padding: 3px 4px !important; gap: 4px !important; border-radius: 10px !important; }
-  .tab{ padding: 5px 9px !important; font-size: 12.5px !important; }
+  /* zero out common elements */
+  .titlebox, .titlebox > *, .tabbar, .chip-row, .stage-chips,
+  .searchbar, .search-input, .btn-row, .inventory-actions { margin:0 !important; }
 
-  .chip-row{ gap: 6px !important; margin: 2px 0 4px !important; }
-  .chip{ padding: 6px 10px !important; }
-
-  .searchbar, .search-input{
-    margin: 2px 0 !important;
-    min-height: 36px !important;
-    width: 100% !important;
-  }
-
-  .btn-row, .inventory-actions, .actions-row{
-    gap: 6px !important;
-    margin: 2px 0 0 !important;
-  }
-
-  .btn{
-    padding: 7px 10px !important;
-    border-radius: 8px !important;
-    font-size: 13px !important;
-  }
-}
-
-/* Even tighter for small phones */
-@media (max-width: 480px){
-  .page-pad{ padding: 10px 10px 6px !important; }
-  .tab{ padding: 5px 8px !important; }
-  .chip{ padding: 5px 9px !important; }
+  /* tighten sizes */
+  .tabbar{ padding:2px 3px !important; }
+  .tab{ padding:5px 8px !important; font-size:12.5px !important; }
+  .chip-row{ gap:6px !important; }
+  .chip{ padding:5px 9px !important; }
+  .searchbar, .search-input{ min-height:34px !important; width:100% !important; }
+  .btn-row .btn, .inventory-actions .btn{ padding:7px 10px !important; border-radius:8px !important; font-size:13px !important; }
 }
