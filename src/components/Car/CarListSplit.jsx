@@ -45,10 +45,20 @@ function useIsMobile(breakpoint = 1100) {
   return isMobile;
 }
 
-export default function CarListSplit({ listOverride }) {
+export default function CarListSplit({
+  listOverride,
+  onToggleView,           // optional callback to switch to "regular" view
+  onAddCar,               // optional: click handler for + Add New Car
+  onUploadCsv,            // optional
+  onPasteOnlineList,      // optional
+}) {
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState(null);
+
+  // header UI state
+  const [stageFilter, setStageFilter] = useState(null); // null = all
+  const [search, setSearch] = useState("");
 
   // per-cell editing
   const [editTarget, setEditTarget] = useState({ id: null, field: null });
@@ -93,6 +103,40 @@ export default function CarListSplit({ listOverride }) {
       setErrMsg(err.response?.data?.message || err.message || "Error fetching cars");
     }
   };
+
+  // filter + order (sold first, then others) + search
+  const filteredOrdered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const byStage = stageFilter ? (c) => String(c.stage || "").toLowerCase() === stageFilter.toLowerCase() : () => true;
+    const bySearch = q
+      ? (c) =>
+          [
+            c.make,
+            c.model,
+            c.badge,
+            c.year,
+            c.description,
+            c.rego,
+            c.location,
+            c.nextLocation,
+            Array.isArray(c.nextLocations) ? c.nextLocations.join(" ") : "",
+            Array.isArray(c.checklist) ? c.checklist.join(" ") : "",
+            c.notes,
+            c.stage,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(q)
+      : () => true;
+
+    const list = cars.filter((c) => byStage(c) && bySearch(c));
+    const sold = [], other = [];
+    for (const c of list) (isSold(c) ? sold : other).push(c);
+    return [...sold, ...other];
+  }, [cars, stageFilter, search]);
+
+  const mid = Math.ceil(filteredOrdered.length / 2);
 
   const startEdit = (car, field, focusName = null) => {
     setEditTarget({ id: car._id, field });
@@ -242,15 +286,6 @@ export default function CarListSplit({ listOverride }) {
     }
   };
 
-  // order: sold first
-  const ordered = useMemo(() => {
-    const sold = [], other = [];
-    for (const c of cars) (isSold(c) ? sold : other).push(c);
-    return [...sold, ...other];
-  }, [cars]);
-
-  const mid = Math.ceil(ordered.length / 2);
-
   if (loading) {
     return (
       <div className="page-pad">
@@ -260,17 +295,84 @@ export default function CarListSplit({ listOverride }) {
     );
   }
 
+  const total = cars.length;
+
   return (
     <div className="page-pad">
       <style>{cssFix}</style>
 
+      {/* ---------- SINGLE-LINE HEADER (compact like screenshot #2) ---------- */}
+      <div className="inventory-header">
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 260 }}>
+          <div>
+            <div className="title">Car Inventory</div>
+            <div className="subtitle">{total} cars</div>
+          </div>
+
+          {/* View toggle */}
+          <div className="tabbar" role="tablist" aria-label="View">
+            <button
+              className="tab"
+              role="tab"
+              aria-selected="false"
+              onClick={() => onToggleView?.("regular")}
+              title="Regular view"
+            >
+              Regular
+            </button>
+            <button className="tab is-active" role="tab" aria-selected="true" title="Split view">
+              Split
+            </button>
+          </div>
+
+          {/* Stage filter chips */}
+          <div className="chip-row" style={{ display: "inline-flex", gap: 10 }}>
+            {STAGES.map((s) => {
+              const active = stageFilter === s;
+              return (
+                <button
+                  key={s}
+                  className="btn"
+                  style={{
+                    padding: "8px 12px",
+                    background: active ? "var(--blue)" : "#2a3547",
+                    borderRadius: 999,
+                    fontSize: 13,
+                  }}
+                  onClick={() => setStageFilter((cur) => (cur === s ? null : s))}
+                >
+                  {s}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Search (grows) */}
+        <div className="searchbar" style={{ flex: "1 1 520px", minWidth: 320 }}>
+          <input
+            className="input"
+            placeholder="Search cars…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="btn-row" style={{ display: "inline-flex", gap: 10, whiteSpace: "nowrap" }}>
+          <button className="btn btn--primary" onClick={() => onAddCar?.()}>+ Add New Car</button>
+          <button className="btn btn--muted" onClick={() => onUploadCsv?.()}>Upload CSV</button>
+          <button className="btn btn--muted" onClick={() => onPasteOnlineList?.()}>Paste Online List</button>
+        </div>
+      </div>
+
       {errMsg && <div className="alert alert--error">{errMsg}</div>}
 
+      {/* ---------- TABLES ---------- */}
       {isMobile ? (
-        /* MOBILE: ONE table -> no double ups */
         <div className="table-wrap">
           <Table
-            list={ordered}
+            list={filteredOrdered}
             editTarget={editTarget}
             setEditTarget={setEditTarget}
             editData={editData}
@@ -289,10 +391,9 @@ export default function CarListSplit({ listOverride }) {
           />
         </div>
       ) : (
-        /* DESKTOP: unchanged split */
         <div className="split-grid">
           <Table
-            list={ordered.slice(0, mid)}
+            list={filteredOrdered.slice(0, mid)}
             editTarget={editTarget}
             setEditTarget={setEditTarget}
             editData={editData}
@@ -309,7 +410,7 @@ export default function CarListSplit({ listOverride }) {
             handleDelete={handleDelete}
           />
           <Table
-            list={ordered.slice(mid)}
+            list={filteredOrdered.slice(mid)}
             editTarget={editTarget}
             setEditTarget={setEditTarget}
             editData={editData}
@@ -328,7 +429,7 @@ export default function CarListSplit({ listOverride }) {
         </div>
       )}
 
-      {/* Modals */}
+      {/* ---------- Modals ---------- */}
       {profileOpen && (
         <CarProfileModal open={profileOpen} car={selectedCar} onClose={() => setProfileOpen(false)} />
       )}
@@ -340,9 +441,11 @@ export default function CarListSplit({ listOverride }) {
           onSave={async (items) => {
             if (!checklistModal.car) return;
             try {
-              await api.put(`/cars/${checklistModal.car._id}`, { checklist: items }, {
-                headers: { "Content-Type": "application/json" },
-              });
+              await api.put(
+                `/cars/${checklistModal.car._id}`,     // ← fixed: removed the stray ]
+                { checklist: items },
+                { headers: { "Content-Type": "application/json" } }
+              );
               await refreshCars();
             } catch (e) {
               alert(e.response?.data?.message || e.message || "Error saving checklist");
@@ -353,6 +456,7 @@ export default function CarListSplit({ listOverride }) {
           onClose={() => setChecklistModal({ open: false, car: null })}
         />
       )}
+
 
       {nextModal.open && (
         <NextLocationsFormModal
@@ -562,11 +666,11 @@ function Table({
   );
 }
 
-/* ---------- styles ---------- */
+/* ---------- styles (scroller skin + small helpers) ---------- */
 const cssFix = `
 .page-pad{ padding:12px; }
 
-/* DESKTOP (unchanged): two-column split */
+/* DESKTOP: two-column split unchanged */
 .split-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
 
 /* table wrapper */
@@ -628,30 +732,19 @@ td.is-editing{ background:#0c1a2e; box-shadow: inset 0 0 0 1px #2b3b54; border-r
 /* empty */
 .empty{ text-align:center; color:#9CA3AF; padding:10px; }
 
-/* ------------- MOBILE tightening ------------- */
+/* ---------------- MOBILE tweaks ---------------- */
 @media (max-width: 1100px){
-  /* render a single table in JSX; this just ensures layout isn't split */
   .split-grid{ display:block; }
 
-  /* overall padding tighter */
-  .page-pad{ padding:8px 8px 6px; }
-
-  /* table: denser */
-  .car-table--mobile thead th{ font-size:11px; }
-  .car-table--mobile th,.car-table--mobile td{ padding:5px 6px; }
-
-  /* smaller buttons & gaps */
+  .car-table--mobile th,.car-table--mobile td{ padding:6px 8px; }
   .actions{ gap:4px; }
-  .btn{ border-radius:8px; }
   .btn--xs{ font-size:11px; padding:2px 6px; }
-  .btn--icon{ width:26px; height:24px; padding:3px; }
-  .btn--kebab{ padding:2px 6px; }
+  .btn--icon{ width:28px; height:26px; padding:4px; }
+  .btn{ border-radius:8px; }
 
-  /* denser edit controls */
   .input{ padding:6px 8px; border-radius:8px; }
-  .input--select-lg{ min-height:36px; font-size:14px; }
+  .input--select-lg{ min-height:38px; font-size:14px; }
   .edit-cell, .edit-inline{ gap:6px; }
-  .edit-actions{ gap:6px; margin-top:2px; }
+  .edit-actions{ gap:6px; }
 }
 `;
-
