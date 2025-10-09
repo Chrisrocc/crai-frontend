@@ -385,3 +385,13 @@ col.col-act{ width:100px; }
   .inventory-actions, .actions-row, .btn-row{ margin:0 !important; gap:8px !important; }
   .inventory-actions .btn, .btn-row .btn{ padding:8px 10px !important; border-radius:8px !important; font-size:13px !important; }
 }
+.chip-row{ display:flex; gap:6px; flex-wrap:wrap; }
+.chip{
+  border:1px solid #243041; border-radius:999px; padding:8px 12px; cursor:pointer;
+  background:#0b1220; color:#cbd5e1; font-weight:600;
+  transition:filter .1s ease, transform .02s ease, background .15s ease, color .15s ease;
+}
+.chip:hover{ filter:brightness(1.1); }
+.chip:active{ transform: translateY(0.5px); }
+.chip.chip--on{ background:#2563EB; color:#fff; border-color:transparent; }
+.input--select-lg{ min-height:44px; font-size:16px; }
