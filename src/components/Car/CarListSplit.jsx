@@ -321,7 +321,7 @@ export default function CarListSplit({ embedded = false, listOverride }) {
           <p className="subtitle" style={{ margin: 0 }}>{cars.length} cars</p>
 
           {/* stage chips */}
-          <div className="chip-row" style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: "auto" }}>
+          <div className="chip-row" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {STAGES.map((s) => {
               const on = stageFilter.has(s);
               return (
