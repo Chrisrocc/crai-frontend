@@ -278,7 +278,6 @@ export default function CarListSplit({ embedded = false, listOverride }) {
   const filtered = useMemo(() => {
     let list = cars;
     if (!embedded) {
-      // stage filter & search only in standalone mode
       list = stageFilter.size > 0 ? list.filter((c) => stageFilter.has(c?.stage ?? "")) : [];
       const q = query.trim().toLowerCase();
       if (q) {
@@ -296,7 +295,6 @@ export default function CarListSplit({ embedded = false, listOverride }) {
         });
       }
     }
-    // sold to top, then split into two columns
     const sold = [], other = [];
     for (const c of list) (isSold(c) ? sold : other).push(c);
     const ordered = [...sold, ...other];
@@ -305,22 +303,17 @@ export default function CarListSplit({ embedded = false, listOverride }) {
   }, [cars, query, stageFilter, embedded]);
 
   if (loading) {
-    return (
-      <div className="page-pad">
-        Loading…
-      </div>
-    );
+    return <div className="page-pad">Loading…</div>;
   }
 
   return (
     <div className="page-pad">
-      {/* ---------- Header (hidden when embedded) ---------- */}
+      {/* Header (hidden when embedded) */}
       {!embedded && (
         <div className="toolbar header-row">
           <h1 className="title" style={{ margin: 0 }}>Car Inventory</h1>
           <p className="subtitle" style={{ margin: 0 }}>{cars.length} cars</p>
 
-          {/* stage chips */}
           <div className="chip-row" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {STAGES.map((s) => {
               const on = stageFilter.has(s);
@@ -344,7 +337,6 @@ export default function CarListSplit({ embedded = false, listOverride }) {
             })}
           </div>
 
-          {/* search grows */}
           <input
             className="input searchbar"
             placeholder="Search cars…"
@@ -353,7 +345,6 @@ export default function CarListSplit({ embedded = false, listOverride }) {
             style={{ flex: "1 1 420px", minWidth: 240 }}
           />
 
-          {/* actions */}
           <div className="btn-row" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="btn btn--primary" onClick={() => setShowForm(true)}>+ Add New Car</button>
             <button className="btn btn--muted" onClick={triggerCsv} disabled={uploading}>
@@ -373,7 +364,7 @@ export default function CarListSplit({ embedded = false, listOverride }) {
 
       {errMsg && <div className="alert alert--error">{errMsg}</div>}
 
-      {/* ---------- Two tables side by side ---------- */}
+      {/* Two tables side by side */}
       <div className="split-panels">
         <Table
           list={filtered[0]}
@@ -385,12 +376,10 @@ export default function CarListSplit({ embedded = false, listOverride }) {
         />
       </div>
 
-      {/* ---------- Modals ---------- */}
+      {/* Modals */}
       {showForm && <CarFormModal show={showForm} onClose={() => setShowForm(false)} onSave={refreshCars} />}
 
-      {profileOpen && (
-        <CarProfileModal open={profileOpen} car={selectedCar} onClose={() => setProfileOpen(false)} />
-      )}
+      {profileOpen && <CarProfileModal open={profileOpen} car={selectedCar} onClose={() => setProfileOpen(false)} />}
 
       {checklistModal.open && (
         <ChecklistFormModal
@@ -416,8 +405,11 @@ export default function CarListSplit({ embedded = false, listOverride }) {
       {nextModal.open && (
         <NextLocationsFormModal
           open
-          items={Array.isArray(nextModal.car?.nextLocations) ? nextModal.car.nextLocations
-            : (nextModal.car?.nextLocation ? [nextModal.car.nextLocation] : [])}
+          items={
+            Array.isArray(nextModal.car?.nextLocations)
+              ? nextModal.car.nextLocations
+              : (nextModal.car?.nextLocation ? [nextModal.car.nextLocation] : [])
+          }
           onSave={async (items) => {
             if (!nextModal.car) return;
             try {
@@ -499,6 +491,46 @@ function Table({
 }) {
   return (
     <div className="table-wrap">
+      {/* Ensure the first column (Car) is visible and wide enough; horizontal scroll on mobile */}
+      <style>{`
+        .table-wrap{position:relative; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;}
+        .car-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0; min-width:1200px;}
+        .car-table th,.car-table td{padding:6px 10px;vertical-align:middle;}
+
+        .car-table col.col-car{width:420px !important;}
+        .car-table col.col-loc{width:140px;}
+        .car-table col.col-next{width:280px;}
+        .car-table col.col-chk{width:440px;}
+        .car-table col.col-notes{width:300px;}
+        .car-table col.col-stage{width:90px;}
+        .car-table col.col-act{width:90px;}
+
+        thead th:first-child, tbody td:first-child{ display:table-cell !important; }
+        .car-table .cell{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+
+        td.is-editing{ background:#0c1a2e; box-shadow: inset 0 0 0 1px #2b3b54; border-radius:8px; }
+        .edit-cell{ display:flex; align-items:center; gap:8px; }
+        .edit-cell-group{ display:flex; flex-direction:column; gap:8px; }
+        .edit-inline{ display:flex; gap:8px; }
+        .edit-actions{ display:flex; gap:8px; margin-top:4px; }
+
+        .btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
+        .btn--danger{ background:#DC2626; color:#fff; }
+        .btn--xs{ font-size:12px; padding:4px 8px; }
+        .btn--icon{ padding:6px; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; }
+
+        :root{
+          --sold-bg: rgba(14, 165, 233, 0.12);
+          --sold-bg-hover: rgba(14, 165, 233, 0.18);
+          --sold-border: rgba(14, 165, 233, 0.35);
+        }
+        .car-table tr.row--sold td{
+          background: var(--sold-bg);
+          box-shadow: inset 0 0 0 1px var(--sold-border);
+        }
+        .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
+      `}</style>
+
       <table className="car-table">
         <colgroup>
           <col className="col-car" />
