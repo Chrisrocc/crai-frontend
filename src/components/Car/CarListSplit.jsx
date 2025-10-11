@@ -218,7 +218,6 @@ export default function CarListSplit({ embedded = false, listOverride }) {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("touchstart", onDown);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editTarget, editData]);
 
   const handleDelete = async (carId) => {
@@ -310,17 +309,17 @@ export default function CarListSplit({ embedded = false, listOverride }) {
     <div className="page-pad compact-edge">
       {/* Local layout/compact styles */}
       <style>{`
-        /* Edge-to-edge feel just for this screen */
+        /* Reduce side padding only on this screen */
         .compact-edge{ padding-left:10px; padding-right:10px; }
         @media (min-width: 1400px){
           .compact-edge{ padding-left:8px; padding-right:8px; }
         }
 
-        /* Split grid – reclaim a bit of space from the center gap */
+        /* Split grid – bring panels closer */
         .split-panels{
           display:grid;
           grid-template-columns: 1fr;
-          gap:10px; /* was 12px */
+          gap:8px; /* was 12px */
         }
         @media (min-width: 1100px){
           .split-panels{ grid-template-columns: 1fr 1fr; }
@@ -353,25 +352,24 @@ export default function CarListSplit({ embedded = false, listOverride }) {
         .car-table th,.car-table td{ padding:6px 8px; vertical-align:middle; }
         .car-table thead th{ position:sticky; top:0; background:#0f1a2b; z-index:1; }
 
-        /* Slightly wider columns to fill the edge space (desktop) */
-        .car-table col.col-car{ width:360px; }   /* +20 */
-        .car-table col.col-loc{ width:108px; }   /* +8  */
-        .car-table col.col-next{ width:180px; }  /* +20 */
-        .car-table col.col-chk{ width:240px; }   /* +20 */
-        .car-table col.col-notes{ width:180px; } /* +20 */
-        .car-table col.col-stage{ width:86px; }
+        /* Column widths (unchanged) */
+        .car-table col.col-car{ width:340px; }
+        .car-table col.col-loc{ width:100px; }
+        .car-table col.col-next{ width:160px; }
+        .car-table col.col-chk{ width:220px; }
+        .car-table col.col-notes{ width:160px; }
+        .car-table col.col-stage{ width:84px; }
         .car-table col.col-act{ width:74px; }
 
-        /* Ultra-compact DESKTOP mode (≥1400px) – widen a tad more since we reclaimed padding */
         @media (min-width: 1400px){
           .car-table{ font-size:12px; }
           .car-table th,.car-table td{ padding:4px 6px; }
-          .car-table col.col-car{ width:320px; }
-          .car-table col.col-loc{ width:100px; }
-          .car-table col.col-next{ width:170px; }
-          .car-table col.col-chk{ width:220px; }
-          .car-table col.col-notes{ width:170px; }
-          .car-table col.col-stage{ width:82px; }
+          .car-table col.col-car{ width:300px; }
+          .car-table col.col-loc{ width:88px; }
+          .car-table col.col-next{ width:140px; }
+          .car-table col.col-chk{ width:200px; }
+          .car-table col.col-notes{ width:150px; }
+          .car-table col.col-stage{ width:80px; }
           .car-table col.col-act{ width:70px; }
         }
 
@@ -405,7 +403,6 @@ export default function CarListSplit({ embedded = false, listOverride }) {
         }
         .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
 
-        /* Trim internal gaps in header controls so more space goes to tables */
         .chip-row{ gap:6px !important; }
         .btn-row{ gap:6px !important; }
       `}</style>
