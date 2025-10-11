@@ -305,108 +305,115 @@ export default function CarListSplit({ embedded = false, listOverride }) {
     return <div className="page-pad">Loading…</div>;
   }
 
+  // ---------- styles to tighten desktop edges only when embedded ----------
+  const EdgeCSS = () => (
+    <style>{`
+      /* Only apply when we are embedded inside the Regular Split page */
+      .embedded-wrap{ padding-left:4px; padding-right:4px; }
+      @media (max-width: 820px){
+        /* DO NOT change mobile spacing */
+        .embedded-wrap{ padding-left:0; padding-right:0; }
+      }
+
+      /* Split grid – bring panels a touch closer */
+      .split-panels{
+        display:grid;
+        grid-template-columns: 1fr;
+        gap:6px;
+      }
+      @media (min-width: 1100px){
+        .split-panels{ grid-template-columns: 1fr 1fr; }
+      }
+
+      .table-wrap{
+        position:relative;
+        overflow-x:auto;
+        overflow-y:hidden;
+        -webkit-overflow-scrolling:touch;
+        border:1px solid #1d2a3a;
+        border-radius:10px;
+        background:#0b1220;
+      }
+
+      .car-table{
+        width:100%;
+        table-layout:fixed;
+        border-collapse:separate;
+        border-spacing:0;
+        font-size:13px;
+        line-height:1.25;
+      }
+      .car-table th,.car-table td{ padding:6px 8px; vertical-align:middle; }
+      .car-table thead th{ position:sticky; top:0; background:#0f1a2b; z-index:1; }
+
+      /* Column widths (unchanged, just benefit from tighter outer padding) */
+      .car-table col.col-car{ width:340px; }
+      .car-table col.col-loc{ width:100px; }
+      .car-table col.col-next{ width:160px; }
+      .car-table col.col-chk{ width:220px; }
+      .car-table col.col-notes{ width:160px; }
+      .car-table col.col-stage{ width:84px; }
+      .car-table col.col-act{ width:74px; }
+
+      @media (min-width: 1400px){
+        .car-table{ font-size:12px; }
+        .car-table th,.car-table td{ padding:4px 6px; }
+        .car-table col.col-car{ width:300px; }
+        .car-table col.col-loc{ width:88px; }
+        .car-table col.col-next{ width:140px; }
+        .car-table col.col-chk{ width:200px; }
+        .car-table col.col-notes{ width:150px; }
+        .car-table col.col-stage{ width:80px; }
+        .car-table col.col-act{ width:70px; }
+      }
+
+      thead th:first-child, tbody td:first-child{ display:table-cell !important; }
+      .car-table .cell{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+
+      td.is-editing{ background:#0c1a2e; box-shadow: inset 0 0 0 1px #2b3b54; border-radius:8px; }
+      .edit-cell{ display:flex; align-items:center; gap:8px; }
+      .edit-cell-group{ display:flex; flex-direction:column; gap:6px; }
+      .edit-inline{ display:flex; gap:6px; }
+      .edit-actions{ display:flex; gap:6px; margin-top:2px; }
+      .input.input--compact{ padding:6px 8px; font-size:12px; line-height:1.2; }
+
+      .btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
+      .btn--xs{ font-size:12px; padding:4px 8px; }
+      .btn--icon{ padding:4px; width:28px; height:24px; display:inline-flex; align-items:center; justify-content:center; }
+      .btn--danger{ background:#DC2626; color:#fff; }
+      .btn--kebab{ background:#1f2a3e; color:#c9d3e3; }
+
+      :root{
+        --sold-bg: rgba(14, 165, 233, 0.12);
+        --sold-bg-hover: rgba(14, 165, 233, 0.18);
+        --sold-border: rgba(14, 165, 233, 0.35);
+      }
+      .car-table tr.row--sold td{
+        background: var(--sold-bg);
+        box-shadow: inset 0 0 0 1px var(--sold-border);
+      }
+      .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
+
+      .chip-row{ gap:6px !important; }
+      .btn-row{ gap:6px !important; }
+    `}</style>
+  );
+
+  const Root = ({ children }) =>
+    embedded ? (
+      <div className="embedded-wrap">
+        <EdgeCSS />
+        {children}
+      </div>
+    ) : (
+      <div className="page-pad">
+        <EdgeCSS />
+        {children}
+      </div>
+    );
+
   return (
-    <div className="page-pad compact-edge">
-      {/* Local layout/compact styles */}
-      <style>{`
-        /* Reduce side padding only on this screen */
-        .compact-edge{ padding-left:10px; padding-right:10px; }
-        @media (min-width: 1400px){
-          .compact-edge{ padding-left:8px; padding-right:8px; }
-        }
-
-        /* Split grid – bring panels closer */
-        .split-panels{
-          display:grid;
-          grid-template-columns: 1fr;
-          gap:8px; /* was 12px */
-        }
-        @media (min-width: 1100px){
-          .split-panels{ grid-template-columns: 1fr 1fr; }
-        }
-
-        /* Make toolbars compact */
-        .toolbar.header-row { gap:10px; }
-        .toolbar .btn, .toolbar .chip { transform: translateZ(0); }
-
-        /* Table wrapper ensures ONLY table scrolls horizontally */
-        .table-wrap{
-          position:relative;
-          overflow-x:auto;
-          overflow-y:hidden;
-          -webkit-overflow-scrolling:touch;
-          border:1px solid #1d2a3a;
-          border-radius:10px;
-          background:#0b1220;
-        }
-
-        /* Base density */
-        .car-table{
-          width:100%;
-          table-layout:fixed;
-          border-collapse:separate;
-          border-spacing:0;
-          font-size:13px;
-          line-height:1.25;
-        }
-        .car-table th,.car-table td{ padding:6px 8px; vertical-align:middle; }
-        .car-table thead th{ position:sticky; top:0; background:#0f1a2b; z-index:1; }
-
-        /* Column widths (unchanged) */
-        .car-table col.col-car{ width:340px; }
-        .car-table col.col-loc{ width:100px; }
-        .car-table col.col-next{ width:160px; }
-        .car-table col.col-chk{ width:220px; }
-        .car-table col.col-notes{ width:160px; }
-        .car-table col.col-stage{ width:84px; }
-        .car-table col.col-act{ width:74px; }
-
-        @media (min-width: 1400px){
-          .car-table{ font-size:12px; }
-          .car-table th,.car-table td{ padding:4px 6px; }
-          .car-table col.col-car{ width:300px; }
-          .car-table col.col-loc{ width:88px; }
-          .car-table col.col-next{ width:140px; }
-          .car-table col.col-chk{ width:200px; }
-          .car-table col.col-notes{ width:150px; }
-          .car-table col.col-stage{ width:80px; }
-          .car-table col.col-act{ width:70px; }
-        }
-
-        /* Keep first column visible and text ellipsized */
-        thead th:first-child, tbody td:first-child{ display:table-cell !important; }
-        .car-table .cell{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
-
-        /* Editing visuals */
-        td.is-editing{ background:#0c1a2e; box-shadow: inset 0 0 0 1px #2b3b54; border-radius:8px; }
-        .edit-cell{ display:flex; align-items:center; gap:8px; }
-        .edit-cell-group{ display:flex; flex-direction:column; gap:6px; }
-        .edit-inline{ display:flex; gap:6px; }
-        .edit-actions{ display:flex; gap:6px; margin-top:2px; }
-        .input.input--compact{ padding:6px 8px; font-size:12px; line-height:1.2; }
-
-        /* Buttons: smaller footprint */
-        .btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
-        .btn--xs{ font-size:12px; padding:4px 8px; }
-        .btn--icon{ padding:4px; width:28px; height:24px; display:inline-flex; align-items:center; justify-content:center; }
-        .btn--danger{ background:#DC2626; color:#fff; }
-        .btn--kebab{ background:#1f2a3e; color:#c9d3e3; }
-
-        :root{
-          --sold-bg: rgba(14, 165, 233, 0.12);
-          --sold-bg-hover: rgba(14, 165, 233, 0.18);
-          --sold-border: rgba(14, 165, 233, 0.35);
-        }
-        .car-table tr.row--sold td{
-          background: var(--sold-bg);
-          box-shadow: inset 0 0 0 1px var(--sold-border);
-        }
-        .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
-
-        .chip-row{ gap:6px !important; }
-        .btn-row{ gap:6px !important; }
-      `}</style>
-
+    <Root>
       {/* Header (hidden when embedded) */}
       {!embedded && (
         <div className="toolbar header-row">
@@ -566,7 +573,7 @@ export default function CarListSplit({ embedded = false, listOverride }) {
           </div>
         </div>
       )}
-    </div>
+    </Root>
   );
 }
 
