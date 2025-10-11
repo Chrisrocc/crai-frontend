@@ -3,7 +3,7 @@ import api from "../../lib/api";
 import CarPickerModal from "../CarPicker/CarPickerModal";
 import { standardizeDayTime, dayTimeHighlightClass } from "../utils/dateTime";
 
-/** Compact table with very small Car/Notes columns */
+/** Ultra-compact table: all columns narrowed */
 export default function CustomerAppointmentHome() {
   const [rows, setRows] = useState([]);
   const [cars, setCars] = useState([]);
@@ -102,7 +102,6 @@ export default function CustomerAppointmentHome() {
 
   const handleDelete=async(a)=>{if(!window.confirm("Delete this entry?"))return;await api.delete(`/customer-appointments/${a._id}`);await refresh();};
 
-  // avoid click-outside save while the car picker is open
   useEffect(()=>{const onDown=(e)=>{if(!editRow||carPicker.open)return;const rowEl=document.querySelector(`tr[data-id="${editRow}"]`);if(rowEl&&!rowEl.contains(e.target))saveChanges();};if(editRow)document.addEventListener("mousedown",onDown);return()=>document.removeEventListener("mousedown",onDown);},[editRow,editData,carPicker.open]);
 
   return (
@@ -137,9 +136,9 @@ export default function CustomerAppointmentHome() {
                     <td className="truncate-cell">{isEditing?<input name="notes" value={editData.notes} onChange={handleChange} className="cal-input"/>:(a.notes||"—")}</td>
                     <td>{a.isDelivery?"Delivery":"Appointment"}</td>
                     <td className="cal-actions">{isEditing?
-                      (<><button className="btn btn--primary btn--xs" onClick={saveChanges}>Save</button>
-                      <button className="btn btn--ghost btn--xs" onClick={()=>setEditRow(null)}>Cancel</button></>):
-                      (<button className="btn btn--danger btn--xs btn--icon" onClick={()=>handleDelete(a)}><TrashIcon/></button>)}</td>
+                      (<><button className="btn btn--primary btn--xxs" onClick={saveChanges}>Save</button>
+                      <button className="btn btn--ghost btn--xxs" onClick={()=>setEditRow(null)}>Cancel</button></>):
+                      (<button className="btn btn--danger btn--xxs btn--icon" onClick={()=>handleDelete(a)}><TrashIcon/></button>)}</td>
                   </tr>);
               })}
             </tbody>
@@ -150,10 +149,9 @@ export default function CustomerAppointmentHome() {
   );
 }
 
-function TrashIcon(){return(<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/><path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>);}
+function TrashIcon(){return(<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/><path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>);}
 
 const css = `
-/* container: table handles its own horizontal scroll */
 .dash-table .cal-table-clip{width:100%;overflow:hidden;border-radius:14px;}
 .dash-table .cal-table-scroll{
   border:1px solid #1F2937;border-radius:14px;background:#0F172A;
@@ -163,43 +161,43 @@ const css = `
 .dash-table .cal-table{
   width:100%;
   border-collapse:separate;border-spacing:0;table-layout:fixed;
-  min-width:720px;
+  min-width:780px; /* compact baseline */
 }
 
-/* VERY small Car/Notes columns via pixels */
-.col-name{width:18%;}
-.col-daytime{width:14%;}
-.col-car{width:140px;}     /* tightened a lot */
-.col-notes{width:150px;}   /* tightened a lot */
-.col-type{width:12%;}
-.col-actions{width:56px;}
+/* ALL columns smaller (fixed px prevents expansion) */
+.col-name{width:160px;}
+.col-daytime{width:120px;}
+.col-car{width:150px;}
+.col-notes{width:140px;}
+.col-type{width:110px;}
+.col-actions{width:52px;}
 
-/* compact typography */
-.dash-table th,.dash-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25;}
+/* compact typography/padding */
+.dash-table th,.dash-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
 .dash-table thead th{
   position:sticky;top:0;background:#0F172A;border-bottom:1px solid #1F2937;
-  text-align:left;font-size:11px;color:#9CA3AF;padding:7px 8px;
+  text-align:left;font-size:10.5px;color:#9CA3AF;padding:6px 7px;
 }
 .dash-table tbody td{
-  padding:7px 8px;border-bottom:1px solid #1F2937;font-size:12px;color:#E5E7EB;vertical-align:middle;
+  padding:6px 7px;border-bottom:1px solid #1F2937;font-size:11.5px;color:#E5E7EB;vertical-align:middle;
 }
 .dash-table tbody tr:hover{background:#0B1428;}
 .dash-table tbody tr:nth-child(odd){background:rgba(255,255,255,0.01);}
 
 .truncate-cell{ max-width:100%; }
 
-.cal-input{width:100%;padding:6px 8px;border-radius:8px;border:1px solid #243041;background:#0B1220;color:#E5E7EB;outline:none;font-size:12px;}
+.cal-input{width:100%;padding:5px 7px;border-radius:7px;border:1px solid #243041;background:#0B1220;color:#E5E7EB;outline:none;font-size:11.5px;}
 .cal-input:focus{border-color:#2E4B8F;box-shadow:0 0 0 2px rgba(37,99,235,.25);}
 
-.btn{border-radius:8px;padding:5px 8px;font-weight:600;cursor:pointer;border:1px solid transparent;}
+.btn{border-radius:7px;padding:4px 6px;font-weight:600;cursor:pointer;border:1px solid transparent;}
 .btn--primary{background:#2563EB;color:#fff;}
 .btn--ghost{background:#111827;color:#E5E7EB;border-color:#243041;}
 .btn--danger{background:#DC2626;color:#fff;}
-.btn--xs{font-size:11px;}
-.btn--icon{padding:4px;width:26px;height:24px;display:inline-flex;align-items:center;justify-content:center;}
+.btn--xxs{font-size:10.5px;}
+.btn--icon{padding:3px;width:24px;height:22px;display:inline-flex;align-items:center;justify-content:center;}
 .cal-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;white-space:nowrap;}
 
-.cal-empty{text-align:center;color:#9CA3AF;padding:14px;}
+.cal-empty{text-align:center;color:#9CA3AF;padding:12px;}
 
 /* scrollbar */
 .cal-table-scroll::-webkit-scrollbar{height:8px;}

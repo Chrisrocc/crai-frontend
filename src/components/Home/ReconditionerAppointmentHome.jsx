@@ -15,7 +15,6 @@ export default function ReconditionerAppointmentHome() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const savingRef = useRef(false);
 
-  // -------- fetch ----------
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -46,7 +45,6 @@ export default function ReconditionerAppointmentHome() {
     setRows(Array.isArray(r.data?.data) ? r.data.data : []);
   };
 
-  // -------- helpers ----------
   const isToday = (raw) => {
     const d = standardizeDayTime(raw).date;
     if (!d) return false;
@@ -184,7 +182,6 @@ export default function ReconditionerAppointmentHome() {
     }
   };
 
-  // click-outside save
   useEffect(() => {
     const onDown = (e) => {
       if (!editRow || pickerOpen) return;
@@ -273,9 +270,9 @@ export default function ReconditionerAppointmentHome() {
                             </span>
                           ))}
                           <div className="chipbox-actions">
-                            <button type="button" className="btn btn--ghost btn--xs" onClick={() => setPickerOpen(true)}>+ Add Car</button>
+                            <button type="button" className="btn btn--ghost btn--xxs" onClick={() => setPickerOpen(true)}>+ Add Car</button>
                             {editData.carIds.length > 0 && (
-                              <button type="button" className="btn btn--ghost btn--xs" onClick={() => setEditData((p) => ({ ...p, carIds: [] }))}>Clear</button>
+                              <button type="button" className="btn btn--ghost btn--xxs" onClick={() => setEditData((p) => ({ ...p, carIds: [] }))}>Clear</button>
                             )}
                           </div>
                           {Array.isArray(a.cars) && a.cars.some((x) => !x.car && x.carText) && (
@@ -291,7 +288,7 @@ export default function ReconditionerAppointmentHome() {
                     <td>{catName(a.category)}</td>
                     <td className="cal-actions" onDoubleClick={(e) => e.stopPropagation()}>
                       <button
-                        className="btn btn--danger btn--xs btn--icon"
+                        className="btn btn--danger btn--xxs btn--icon"
                         onClick={(e) => { e.stopPropagation(); handleDelete(a._id); }}
                         title="Delete"
                         aria-label="Delete appointment"
@@ -312,7 +309,7 @@ export default function ReconditionerAppointmentHome() {
 
 function TrashIcon() {
   return (
-    <svg className="icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+    <svg className="icon" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
       <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
@@ -322,7 +319,6 @@ function TrashIcon() {
 }
 
 const css = `
-/* container */
 .dash-table .cal-table-clip{ width:100%; overflow:hidden; border-radius:14px; }
 .dash-table .cal-table-scroll{
   border:1px solid #1F2937; border-radius:14px; background:#0F172A;
@@ -332,48 +328,45 @@ const css = `
 }
 .dash-table .cal-table{
   width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed;
-  min-width:940px;
+  min-width:980px; /* compact baseline */
 }
 
-/* VERY small Car/Notes columns via pixels */
-.col-name{width:16%;}
-.col-daytime{width:14%;}
-.col-car{width:190px;}     /* tightened a lot */
-.col-notes{width:160px;}   /* tightened a lot */
-.col-datecreated{width:10%;}
-.col-category{width:12%;}
-.col-actions{width:56px;}
+/* ALL columns smaller (fixed px prevents expansion) */
+.col-name{width:120px;}
+.col-daytime{width:120px;}
+.col-car{width:200px;}
+.col-notes{width:160px;}
+.col-datecreated{width:90px;}
+.col-category{width:110px;}
+.col-actions{width:52px;}
 
 /* compact type/padding */
-.dash-table th, .dash-table td{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25; }
+.dash-table th, .dash-table td{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2; }
 .dash-table thead th{
   position:sticky; top:0; z-index:1;
   background:#0F172A; border-bottom:1px solid #1F2937;
-  text-align:left; font-size:11px; color:#9CA3AF; padding:7px 8px;
+  text-align:left; font-size:10.5px; color:#9CA3AF; padding:6px 7px;
 }
 .dash-table tbody td{
-  padding:7px 8px; border-bottom:1px solid #1F2937;
-  font-size:12px; color:#E5E7EB; vertical-align:middle;
+  padding:6px 7px; border-bottom:1px solid #1F2937;
+  font-size:11.5px; color:#E5E7EB; vertical-align:middle;
 }
 .dash-table tbody tr:hover{ background:#0B1428; }
 .dash-table tbody tr:nth-child(odd){ background:rgba(255,255,255,0.01); }
 
 .truncate-cell{ max-width:100%; }
-.cal-empty{ text-align:center; color:#9CA3AF; padding:14px; }
+.cal-empty{ text-align:center; color:#9CA3AF; padding:12px; }
 
 /* inputs/buttons smaller */
-.cal-input{
-  width:100%; padding:6px 8px; border-radius:8px;
-  border:1px solid #243041; background:#0B1220; color:#E5E7EB; outline:none; font-size:12px;
-}
+.cal-input{ width:100%; padding:5px 7px; border-radius:7px; border:1px solid #243041; background:#0B1220; color:#E5E7EB; outline:none; font-size:11.5px; }
 .cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 2px rgba(37,99,235,.25); }
 
 .cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:6px; white-space:nowrap; }
-.btn{ border:1px solid transparent; border-radius:8px; padding:5px 8px; cursor:pointer; font-weight:600; }
+.btn{ border:1px solid transparent; border-radius:7px; padding:4px 6px; cursor:pointer; font-weight:600; }
 .btn--ghost{ background:#111827; color:#E5E7EB; border-color:#243041; }
 .btn--danger{ background:#DC2626; color:#fff; }
-.btn--xs{ font-size:11px; }
-.btn--icon{ padding:4px; width:26px; height:24px; display:inline-flex; align-items:center; justify-content:center; }
+.btn--xxs{ font-size:10.5px; }
+.btn--icon{ padding:3px; width:24px; height:22px; display:inline-flex; align-items:center; justify-content:center; }
 
 /* chips */
 .stack{ display:flex; flex-direction:column; gap:3px; }
