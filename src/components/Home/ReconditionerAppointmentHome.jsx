@@ -222,7 +222,6 @@ export default function ReconditionerAppointmentHome() {
         <div className="cal-table-scroll" role="region" aria-label="Reconditioner Appointments (Today & Tomorrow)">
           <table className="cal-table" role="grid">
             <colgroup>
-              {/* Tighter ratios */}
               <col className="col-name" />
               <col className="col-daytime" />
               <col className="col-car" />
@@ -252,12 +251,7 @@ export default function ReconditionerAppointmentHome() {
                 const isEditing = editRow === a._id;
                 const rowCls = dayTimeHighlightClass(a.dateTime);
                 return (
-                  <tr
-                    key={a._id}
-                    data-id={a._id}
-                    className={rowCls}
-                    onDoubleClick={() => enterEdit(a)}
-                  >
+                  <tr key={a._id} data-id={a._id} className={rowCls} onDoubleClick={() => enterEdit(a)}>
                     <td>{isEditing
                         ? <input name="name" value={editData.name} onChange={onChange} className="cal-input" autoFocus />
                         : (a.name || "—")}</td>
@@ -291,12 +285,7 @@ export default function ReconditionerAppointmentHome() {
                     <td>{fmtDateShort(a.createdAt)}</td>
                     <td>{catName(a.category)}</td>
                     <td className="cal-actions" onDoubleClick={(e) => e.stopPropagation()}>
-                      <button
-                        className="btn btn--danger btn--xs btn--icon"
-                        onClick={(e) => { e.stopPropagation(); handleDelete(a._id); }}
-                        title="Delete"
-                        aria-label="Delete appointment"
-                      >
+                      <button className="btn btn--danger btn--xs btn--icon" onClick={(e) => { e.stopPropagation(); handleDelete(a._id); }} title="Delete" aria-label="Delete appointment">
                         <TrashIcon />
                       </button>
                     </td>
@@ -333,16 +322,15 @@ const css = `
 }
 .dash-table .cal-table{
   width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed;
-  /* smaller baseline */
-  min-width:960px;
+  min-width:940px; /* was 960px */
 }
 
-/* tighter column widths */
-.col-name{width:14%;}
+/* tighter column widths (Car/Notes closer) */
+.col-name{width:13%;}
 .col-daytime{width:10%;}
-.col-car{width:28%;}
-.col-notes{width:22%;}
-.col-datecreated{width:8%;}
+.col-car{width:22%;}        /* was 28% */
+.col-notes{width:18%;}      /* was 22% */
+.col-datecreated{width:9%;}
 .col-category{width:12%;}
 .col-actions{width:6%;}
 
