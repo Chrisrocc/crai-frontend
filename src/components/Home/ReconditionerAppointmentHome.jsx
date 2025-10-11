@@ -251,7 +251,12 @@ export default function ReconditionerAppointmentHome() {
                 const isEditing = editRow === a._id;
                 const rowCls = dayTimeHighlightClass(a.dateTime);
                 return (
-                  <tr key={a._id} data-id={a._id} className={rowCls} onDoubleClick={() => enterEdit(a)}>
+                  <tr
+                    key={a._id}
+                    data-id={a._id}
+                    className={rowCls}
+                    onDoubleClick={() => enterEdit(a)}
+                  >
                     <td>{isEditing
                         ? <input name="name" value={editData.name} onChange={onChange} className="cal-input" autoFocus />
                         : (a.name || "—")}</td>
@@ -285,7 +290,12 @@ export default function ReconditionerAppointmentHome() {
                     <td>{fmtDateShort(a.createdAt)}</td>
                     <td>{catName(a.category)}</td>
                     <td className="cal-actions" onDoubleClick={(e) => e.stopPropagation()}>
-                      <button className="btn btn--danger btn--xs btn--icon" onClick={(e) => { e.stopPropagation(); handleDelete(a._id); }} title="Delete" aria-label="Delete appointment">
+                      <button
+                        className="btn btn--danger btn--xs btn--icon"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(a._id); }}
+                        title="Delete"
+                        aria-label="Delete appointment"
+                      >
                         <TrashIcon />
                       </button>
                     </td>
@@ -322,17 +332,17 @@ const css = `
 }
 .dash-table .cal-table{
   width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed;
-  min-width:940px; /* was 960px */
+  min-width:940px;
 }
 
-/* tighter column widths (Car/Notes closer) */
-.col-name{width:13%;}
-.col-daytime{width:10%;}
-.col-car{width:22%;}        /* was 28% */
-.col-notes{width:18%;}      /* was 22% */
-.col-datecreated{width:9%;}
+/* VERY small Car/Notes columns via pixels */
+.col-name{width:16%;}
+.col-daytime{width:14%;}
+.col-car{width:190px;}     /* tightened a lot */
+.col-notes{width:160px;}   /* tightened a lot */
+.col-datecreated{width:10%;}
 .col-category{width:12%;}
-.col-actions{width:6%;}
+.col-actions{width:56px;}
 
 /* compact type/padding */
 .dash-table th, .dash-table td{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25; }
