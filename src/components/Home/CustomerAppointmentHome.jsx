@@ -35,7 +35,9 @@ export default function CustomerAppointmentHome() {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const refresh = async () => {
@@ -46,23 +48,44 @@ export default function CustomerAppointmentHome() {
   const formatWhen = (raw) => {
     const { date, label } = standardizeDayTime(raw);
     if (!date) return label || (raw || "—");
-    const wd = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][date.getDay()];
-    const dd = String(date.getDate()).padStart(2,"0");
-    const mm = String(date.getMonth()+1).padStart(2,"0");
-    const hh = String(date.getHours()).padStart(2,"0");
-    const mi = String(date.getMinutes()).padStart(2,"0");
-    const hasTime = !(date.getHours()===0 && date.getMinutes()===0);
-    return hasTime?`${wd} ${dd}/${mm} ${hh}:${mi}`:`${wd} ${dd}/${mm}`;
+    const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getDay()];
+    const dd = String(date.getDate()).padStart(2, "0");
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const hh = String(date.getHours()).padStart(2, "0");
+    const mi = String(date.getMinutes()).padStart(2, "0");
+    const hasTime = !(date.getHours() === 0 && date.getMinutes() === 0);
+    return hasTime ? `${wd} ${dd}/${mm} ${hh}:${mi}` : `${wd} ${dd}/${mm}`;
   };
 
-  const isToday=(raw)=>{const{date}=standardizeDayTime(raw);if(!date)return false;const n=new Date();return date.getFullYear()===n.getFullYear()&&date.getMonth()===n.getMonth()&&date.getDate()===n.getDate();};
-  const isTomorrow=(raw)=>{const{date}=standardizeDayTime(raw);if(!date)return false;const n=new Date();const t=new Date(n.getFullYear(),n.getMonth(),n.getDate()+1);return date.getFullYear()===t.getFullYear()&&date.getMonth()===t.getMonth()&&date.getDate()===t.getDate();};
+  const isToday = (raw) => {
+    const { date } = standardizeDayTime(raw);
+    if (!date) return false;
+    const n = new Date();
+    return date.getFullYear() === n.getFullYear() && date.getMonth() === n.getMonth() && date.getDate() === n.getDate();
+  };
+  const isTomorrow = (raw) => {
+    const { date } = standardizeDayTime(raw);
+    if (!date) return false;
+    const n = new Date();
+    const t = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1);
+    return date.getFullYear() === t.getFullYear() && date.getMonth() === t.getMonth() && date.getDate() === t.getDate();
+  };
 
-  const filtered = useMemo(() => rows.filter(r => isToday(r.dateTime||r.dayTime) || isTomorrow(r.dateTime||r.dayTime)), [rows]);
-  const ordered = useMemo(() => filtered.slice().sort((a,b)=>{
-    const A=standardizeDayTime(a.dateTime||a.dayTime).date?.getTime()??Number.MAX_SAFE_INTEGER;
-    const B=standardizeDayTime(b.dateTime||b.dayTime).date?.getTime()??Number.MAX_SAFE_INTEGER;
-    return A-B;}),[filtered]);
+  const filtered = useMemo(
+    () => rows.filter((r) => isToday(r.dateTime || r.dayTime) || isTomorrow(r.dateTime || r.dayTime)),
+    [rows]
+  );
+  const ordered = useMemo(
+    () =>
+      filtered
+        .slice()
+        .sort((a, b) => {
+          const A = standardizeDayTime(a.dateTime || a.dayTime).date?.getTime() ?? Number.MAX_SAFE_INTEGER;
+          const B = standardizeDayTime(b.dateTime || b.dayTime).date?.getTime() ?? Number.MAX_SAFE_INTEGER;
+          return A - B;
+        }),
+    [filtered]
+  );
 
   const renderCarCell = (a) => {
     if (a.car) return `${a.car.rego} • ${a.car.make} ${a.car.model}`;
@@ -75,24 +98,94 @@ export default function CustomerAppointmentHome() {
     return c ? `${c.rego} • ${c.make} ${c.model}` : "";
   };
 
-  const enterEdit=(a)=>{setEditRow(a._id);setEditData({_id:a._id,name:a.name??"",dateTime:a.dateTime??"",notes:a.notes??"",car:a.car?._id||"",});};
-  const handleChange=(e)=>setEditData(p=>({...p,[e.target.name]:e.target.value}));
+  const enterEdit = (a) => {
+    setEditRow(a._id);
+    setEditData({
+      _id: a._id,
+      name: a.name ?? "",
+      dateTime: a.dateTime ?? "",
+      notes: a.notes ?? "",
+      car: a.car?._id || "",
+    });
+  };
+  const handleChange = (e) => setEditData((p) => ({ ...p, [e.target.name]: e.target.value }));
 
-  const openCarPicker=(a)=>{if(editRow!==a._id)enterEdit(a);setCarPicker({open:true,forId:a._id});};
-  const onCarPicked=(carOrNull)=>{setEditData(prev=>({...prev,car:carOrNull?._id||""}));setCarPicker({open:false,forId:null});};
+  const openCarPicker = (a) => {
+    if (editRow !== a._id) enterEdit(a);
+    setCarPicker({ open: true, forId: a._id });
+  };
+  const onCarPicked = (carOrNull) => {
+    setEditData((prev) => ({ ...prev, car: carOrNull?._id || "" }));
+    setCarPicker({ open: false, forId: null });
+  };
 
-  const saveChanges=async()=>{if(!editRow||savingRef.current)return;savingRef.current=true;try{
-    const payload={name:(editData.name??"").trim(),dateTime:(editData.dateTime??"").trim(),notes:editData.notes??""};
-    if(editData.car)payload.car=editData.car;payload.dayTime=payload.dateTime;
-    setRows(prev=>prev.map(a=>a._id===editRow?{...a,...payload,car:a.car}:a));
-    const res=await api.put(`/customer-appointments/${editRow}`,payload,{headers:{"Content-Type":"application/json"}});
-    if(res.data?.data){setRows(prev=>prev.map(a=>a._id===editRow?res.data.data:a));}else{await refresh();}
-    setEditRow(null);
-  }catch(e){alert("Error updating: "+(e.response?.data?.message||e.message));await refresh();}finally{savingRef.current=false;}};
+  const saveChanges = async () => {
+    if (!editRow || savingRef.current) return;
+    savingRef.current = true;
+    try {
+      const payload = {
+        name: (editData.name ?? "").trim(),
+        dateTime: (editData.dateTime ?? "").trim(),
+        notes: editData.notes ?? "",
+        // always send car; null clears the link
+        car: editData.car || null,
+      };
+      payload.dayTime = payload.dateTime;
 
-  const handleDelete=async(a)=>{if(!window.confirm("Delete this entry?"))return;await api.delete(`/customer-appointments/${a._id}`);await refresh();};
+      // optimistic UI — hydrate car object immediately
+      const chosen = cars.find((c) => c._id === editData.car) || null;
+      setRows((prev) =>
+        prev.map((a) =>
+          a._id === editRow
+            ? {
+                ...a,
+                name: payload.name,
+                dateTime: payload.dateTime,
+                notes: payload.notes,
+                car: chosen
+                  ? { _id: chosen._id, rego: chosen.rego, make: chosen.make, model: chosen.model }
+                  : null,
+                // if we linked a car, clear text label; if we cleared the car, keep any existing carText
+                carText: chosen ? "" : a.carText,
+              }
+            : a
+        )
+      );
 
-  useEffect(()=>{const onDown=(e)=>{if(!editRow)return;const rowEl=document.querySelector(`tr[data-id="${editRow}"]`);if(rowEl&&!rowEl.contains(e.target))saveChanges();};if(editRow)document.addEventListener("mousedown",onDown);return()=>document.removeEventListener("mousedown",onDown);},[editRow,editData]);
+      const res = await api.put(`/customer-appointments/${editRow}`, payload, {
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (res.data?.data) {
+        setRows((prev) => prev.map((a) => (a._id === editRow ? res.data.data : a)));
+      } else {
+        await refresh();
+      }
+      setEditRow(null);
+    } catch (e) {
+      alert("Error updating: " + (e.response?.data?.message || e.message));
+      await refresh();
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  const handleDelete = async (a) => {
+    if (!window.confirm("Delete this entry?")) return;
+    await api.delete(`/customer-appointments/${a._id}`);
+    await refresh();
+  };
+
+  // avoid click-outside save while the car picker is open
+  useEffect(() => {
+    const onDown = (e) => {
+      if (!editRow || carPicker.open) return;
+      const rowEl = document.querySelector(`tr[data-id="${editRow}"]`);
+      if (rowEl && !rowEl.contains(e.target)) saveChanges();
+    };
+    if (editRow) document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [editRow, editData, carPicker.open]); // include picker state
 
   return (
     <div className="dash-table">
@@ -100,7 +193,7 @@ export default function CustomerAppointmentHome() {
       <CarPickerModal
         show={carPicker.open}
         cars={cars}
-        onClose={()=>setCarPicker({open:false,forId:null})}
+        onClose={() => setCarPicker({ open: false, forId: null })}
         onSelect={onCarPicked}
       />
 
@@ -109,34 +202,92 @@ export default function CustomerAppointmentHome() {
         <div className="cal-table-scroll" role="region" aria-label="Customer Appointments (Today & Tomorrow)">
           <table className="cal-table" role="grid">
             <colgroup>
-              {/* Tighter ratios */}
-              <col className="col-name"/>
-              <col className="col-daytime"/>
-              <col className="col-car"/>
-              <col className="col-notes"/>
-              <col className="col-type"/>
-              <col className="col-actions"/>
+              <col className="col-name" />
+              <col className="col-daytime" />
+              <col className="col-car" />
+              <col className="col-notes" />
+              <col className="col-type" />
+              <col className="col-actions" />
             </colgroup>
-            <thead><tr><th>Name</th><th>Day/Time</th><th>Car</th><th>Notes</th><th>Type</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Day/Time</th>
+                <th>Car</th>
+                <th>Notes</th>
+                <th>Type</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
             <tbody>
-              {loading&&<tr><td colSpan="6" className="cal-empty">Loading…</td></tr>}
-              {!loading&&ordered.length===0&&<tr><td colSpan="6" className="cal-empty">No entries.</td></tr>}
-              {!loading&&ordered.map(a=>{
-                const isEditing=editRow===a._id;
-                const rowCls=dayTimeHighlightClass(a.dateTime||a.dayTime);
-                return(
-                  <tr key={a._id} data-id={a._id} className={rowCls} onDoubleClick={()=>enterEdit(a)}>
-                    <td>{isEditing?<input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus/>:(a.name||"—")}</td>
-                    <td>{isEditing?<input name="dateTime" value={editData.dateTime} onChange={handleChange} className="cal-input"/>:formatWhen(a.dateTime||a.dayTime||"")}</td>
-                    <td onDoubleClick={()=>openCarPicker(a)}>{isEditing?<input className="cal-input" value={carLabelFromId(editData.car)} readOnly/>:renderCarCell(a)}</td>
-                    <td className="truncate-cell">{isEditing?<input name="notes" value={editData.notes} onChange={handleChange} className="cal-input"/>:(a.notes||"—")}</td>
-                    <td>{a.isDelivery?"Delivery":"Appointment"}</td>
-                    <td className="cal-actions">{isEditing?
-                      (<><button className="btn btn--primary btn--xs" onClick={saveChanges}>Save</button>
-                      <button className="btn btn--ghost btn--xs" onClick={()=>setEditRow(null)}>Cancel</button></>):
-                      (<button className="btn btn--danger btn--xs btn--icon" onClick={()=>handleDelete(a)}><TrashIcon/></button>)}</td>
-                  </tr>);
-              })}
+              {loading && (
+                <tr>
+                  <td colSpan="6" className="cal-empty">
+                    Loading…
+                  </td>
+                </tr>
+              )}
+              {!loading && ordered.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="cal-empty">
+                    No entries.
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                ordered.map((a) => {
+                  const isEditing = editRow === a._id;
+                  const rowCls = dayTimeHighlightClass(a.dateTime || a.dayTime);
+                  return (
+                    <tr key={a._id} data-id={a._id} className={rowCls} onDoubleClick={() => enterEdit(a)}>
+                      <td>
+                        {isEditing ? (
+                          <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus />
+                        ) : (
+                          a.name || "—"
+                        )}
+                      </td>
+                      <td>
+                        {isEditing ? (
+                          <input name="dateTime" value={editData.dateTime} onChange={handleChange} className="cal-input" />
+                        ) : (
+                          formatWhen(a.dateTime || a.dayTime || "")
+                        )}
+                      </td>
+                      <td onDoubleClick={(e) => { e.stopPropagation(); openCarPicker(a); }}>
+                        {isEditing ? (
+                          <input className="cal-input" value={carLabelFromId(editData.car)} readOnly />
+                        ) : (
+                          renderCarCell(a)
+                        )}
+                      </td>
+                      <td className="truncate-cell">
+                        {isEditing ? (
+                          <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" />
+                        ) : (
+                          a.notes || "—"
+                        )}
+                      </td>
+                      <td>{a.isDelivery ? "Delivery" : "Appointment"}</td>
+                      <td className="cal-actions">
+                        {isEditing ? (
+                          <>
+                            <button className="btn btn--primary btn--xs" onClick={saveChanges}>
+                              Save
+                            </button>
+                            <button className="btn btn--ghost btn--xs" onClick={() => setEditRow(null)}>
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button className="btn btn--danger btn--xs btn--icon" onClick={() => handleDelete(a)}>
+                            <TrashIcon />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
@@ -145,7 +296,16 @@ export default function CustomerAppointmentHome() {
   );
 }
 
-function TrashIcon(){return(<svg viewBox="0 0 24 24" width="14" height="14"><path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/><path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>);}
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+      <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 const css = `
 /* container: table handles its own horizontal scroll */
@@ -158,7 +318,6 @@ const css = `
 .dash-table .cal-table{
   width:100%;
   border-collapse:separate;border-spacing:0;table-layout:fixed;
-  /* smaller baseline */
   min-width:760px;
 }
 

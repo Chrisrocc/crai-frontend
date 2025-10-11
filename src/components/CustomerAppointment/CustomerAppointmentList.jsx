@@ -1,4 +1,3 @@
-// src/components/CustomerAppointment/CustomerAppointmentList.jsx
 import { useEffect, useRef, useState } from "react";
 import api from "../../lib/api";
 import CustomerAppointmentFormModal from "./CustomerAppointmentFormModal";
@@ -75,14 +74,27 @@ export default function CustomerAppointmentList() {
         name: (editData.name ?? "").trim(),
         dateTime: (editData.dateTime ?? "").trim(),
         notes: editData.notes ?? "",
+        // IMPORTANT: always include car (null clears)
+        car: editData.car || null,
       };
-      if (editData.car) payload.car = editData.car; // car _id
-      payload.dayTime = payload.dateTime; // back-compat
+      payload.dayTime = payload.dateTime;
 
-      // optimistic
+      // optimistic — update the car object immediately
+      const chosen = cars.find((c) => c._id === editData.car) || null;
       setAppointments((prev) =>
         prev.map((a) =>
-          a._id === editRow ? { ...a, name: payload.name, dateTime: payload.dateTime, notes: payload.notes } : a
+          a._id === editRow
+            ? {
+                ...a,
+                name: payload.name,
+                dateTime: payload.dateTime,
+                notes: payload.notes,
+                car: chosen
+                  ? { _id: chosen._id, rego: chosen.rego, make: chosen.make, model: chosen.model }
+                  : null,
+                carText: chosen ? "" : a.carText,
+              }
+            : a
         )
       );
 
@@ -174,18 +186,17 @@ export default function CustomerAppointmentList() {
     setCarPicker({ open: false, forId: null });
   };
 
-  // Click-outside saves active row
+  // Click-outside saves active row — but NOT while the picker is open
   useEffect(() => {
     const onDown = (e) => {
-      if (!editRow) return;
+      if (!editRow || carPicker.open) return;
       const rowEl = document.querySelector(`tr[data-id="${editRow}"]`);
       if (!rowEl) return;
       if (!rowEl.contains(e.target)) saveChanges();
     };
     if (editRow) document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editRow, editData]);
+  }, [editRow, editData, carPicker.open]);
 
   if (loading) {
     return (
@@ -214,13 +225,12 @@ export default function CustomerAppointmentList() {
   const apptRows = appointments.filter((a) => !a.isDelivery);
   const deliveryRows = appointments.filter((a) => a.isDelivery);
 
-  // Helper for Day/Time display
   const renderDayTime = (raw) => {
     const { label } = standardizeDayTime(raw);
     return label || (raw || "—");
+    // (list view shows the label as-is)
   };
 
-  // Helper to assign highlight class to rows
   const rowClassFor = (raw) => dayTimeHighlightClass(raw);
 
   return (
@@ -234,25 +244,20 @@ export default function CustomerAppointmentList() {
           <h1>Appointments & Delivery</h1>
           <p className="cal-sub">Edit inline, move to Delivery, and keep everything up to date fast.</p>
         </div>
-        <button className="btn btn--primary" onClick={() => setShowForm(true)}>+ New Appointment</button>
+        <button className="btn btn--primary" onClick={() => setShowForm(true)}>
+          + New Appointment
+        </button>
       </header>
 
-      {error && <div className="cal-alert" role="alert">{error}</div>}
+      {error && (
+        <div className="cal-alert" role="alert">
+          {error}
+        </div>
+      )}
 
-      <CustomerAppointmentFormModal
-        show={showForm}
-        onClose={() => setShowForm(false)}
-        onSave={refreshAppointments}
-        cars={cars}
-      />
+      <CustomerAppointmentFormModal show={showForm} onClose={() => setShowForm(false)} onSave={refreshAppointments} cars={cars} />
 
-      {/* Car Picker modal (reusable) */}
-      <CarPickerModal
-        show={carPicker.open}
-        cars={cars}
-        onClose={() => setCarPicker({ open: false, forId: null })}
-        onSelect={onCarPicked}
-      />
+      <CarPickerModal show={carPicker.open} cars={cars} onClose={() => setCarPicker({ open: false, forId: null })} onSelect={onCarPicked} />
 
       <main className="cal-grid">
         {/* LEFT: Appointments */}
@@ -284,7 +289,11 @@ export default function CustomerAppointmentList() {
               </thead>
               <tbody>
                 {apptRows.length === 0 ? (
-                  <tr><td colSpan="6" className="cal-empty">No appointments found.</td></tr>
+                  <tr>
+                    <td colSpan="6" className="cal-empty">
+                      No appointments found.
+                    </td>
+                  </tr>
                 ) : (
                   apptRows.map((a) => {
                     const isEditing = editRow === a._id;
@@ -294,63 +303,55 @@ export default function CustomerAppointmentList() {
                         key={a._id}
                         data-id={a._id}
                         className={rowCls}
-                        onDoubleClick={(e) => { e.stopPropagation(); enterEdit(a); }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          enterEdit(a);
+                        }}
                       >
+                        <td>{isEditing ? <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus /> : a.name || "—"}</td>
                         <td>
                           {isEditing ? (
-                            <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus />
-                          ) : (a.name || "—")}
-                        </td>
-                        <td>
-                          {isEditing ? (
-                            <input
-                              name="dateTime"
-                              value={editData.dateTime}
-                              onChange={handleChange}
-                              className="cal-input"
-                              placeholder="e.g. Thu 10:00"
-                            />
+                            <input name="dateTime" value={editData.dateTime} onChange={handleChange} className="cal-input" placeholder="e.g. Thu 10:00" />
                           ) : (
                             renderDayTime(a.dateTime)
                           )}
                         </td>
-                        <td onDoubleClick={() => openCarPicker(a)} title="Double-click to pick a car">
+                        <td
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            openCarPicker(a);
+                          }}
+                          title="Double-click to pick a car"
+                        >
                           {isEditing ? (
                             <div className="car-edit">
                               <input className="cal-input" value={carLabelFromId(editData.car)} readOnly placeholder="No Car" />
-                              <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>Pick</button>
+                              <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>
+                                Pick
+                              </button>
                             </div>
                           ) : (
                             renderCarCell(a)
                           )}
                         </td>
-                        <td>
-                          {isEditing ? (
-                            <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" />
-                          ) : (a.notes || "—")}
-                        </td>
+                        <td>{isEditing ? <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" /> : a.notes || "—"}</td>
                         <td>{fmtDateShort(a.dateCreated)}</td>
                         <td className="cal-actions">
                           {isEditing ? (
                             <>
-                              <button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
-                              <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>Cancel</button>
+                              <button className="btn btn--primary btn--sm" onClick={saveChanges}>
+                                Save
+                              </button>
+                              <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>
+                                Cancel
+                              </button>
                             </>
                           ) : (
                             <>
-                              <button
-                                className="btn btn--primary btn--sm"
-                                onClick={() => moveToDelivery(a)}
-                                title="Move to Delivery (sets time to TBC)"
-                              >
+                              <button className="btn btn--primary btn--sm" onClick={() => moveToDelivery(a)} title="Move to Delivery (sets time to TBC)">
                                 Delivery
                               </button>
-                              <button
-                                className="btn btn--danger btn--sm btn--icon"
-                                onClick={() => handleDelete(a._id)}
-                                title="Delete"
-                                aria-label="Delete appointment"
-                              >
+                              <button className="btn btn--danger btn--sm btn--icon" onClick={() => handleDelete(a._id)} title="Delete" aria-label="Delete appointment">
                                 <TrashIconSmall />
                               </button>
                             </>
@@ -394,7 +395,11 @@ export default function CustomerAppointmentList() {
               </thead>
               <tbody>
                 {deliveryRows.length === 0 ? (
-                  <tr><td colSpan="6" className="cal-empty">No deliveries.</td></tr>
+                  <tr>
+                    <td colSpan="6" className="cal-empty">
+                      No deliveries.
+                    </td>
+                  </tr>
                 ) : (
                   deliveryRows.map((a) => {
                     const isEditing = editRow === a._id;
@@ -404,63 +409,55 @@ export default function CustomerAppointmentList() {
                         key={a._id}
                         data-id={a._id}
                         className={rowCls}
-                        onDoubleClick={(e) => { e.stopPropagation(); enterEdit(a); }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          enterEdit(a);
+                        }}
                       >
+                        <td>{isEditing ? <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus /> : a.name || "—"}</td>
                         <td>
                           {isEditing ? (
-                            <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus />
-                          ) : (a.name || "—")}
-                        </td>
-                        <td>
-                          {isEditing ? (
-                            <input
-                              name="dateTime"
-                              value={editData.dateTime}
-                              onChange={handleChange}
-                              className="cal-input"
-                              placeholder="TBC or set a time"
-                            />
+                            <input name="dateTime" value={editData.dateTime} onChange={handleChange} className="cal-input" placeholder="TBC or set a time" />
                           ) : (
                             renderDayTime(a.dateTime)
                           )}
                         </td>
-                        <td onDoubleClick={() => openCarPicker(a)} title="Double-click to pick a car">
+                        <td
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            openCarPicker(a);
+                          }}
+                          title="Double-click to pick a car"
+                        >
                           {isEditing ? (
                             <div className="car-edit">
                               <input className="cal-input" value={carLabelFromId(editData.car)} readOnly placeholder="No Car" />
-                              <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>Pick</button>
+                              <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>
+                                Pick
+                              </button>
                             </div>
                           ) : (
                             renderCarCell(a)
                           )}
                         </td>
-                        <td>
-                          {isEditing ? (
-                            <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" />
-                          ) : (a.notes || "—")}
-                        </td>
+                        <td>{isEditing ? <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" /> : a.notes || "—"}</td>
                         <td>{fmtDateShort(a.dateCreated)}</td>
                         <td className="cal-actions">
                           {isEditing ? (
                             <>
-                              <button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
-                              <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>Cancel</button>
+                              <button className="btn btn--primary btn--sm" onClick={saveChanges}>
+                                Save
+                              </button>
+                              <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>
+                                Cancel
+                              </button>
                             </>
                           ) : (
                             <>
-                              <button
-                                className="btn btn--ghost btn--sm"
-                                onClick={() => undoDelivery(a)}
-                                title="Send back to Appointments with original time"
-                              >
+                              <button className="btn btn--ghost btn--sm" onClick={() => undoDelivery(a)} title="Send back to Appointments with original time">
                                 Undo
                               </button>
-                              <button
-                                className="btn btn--danger btn--sm btn--icon"
-                                onClick={() => handleDelete(a._id)}
-                                title="Delete"
-                                aria-label="Delete delivery"
-                              >
+                              <button className="btn btn--danger btn--sm btn--icon" onClick={() => handleDelete(a._id)} title="Delete" aria-label="Delete delivery">
                                 <TrashIconSmall />
                               </button>
                             </>
@@ -490,7 +487,7 @@ function TrashIconSmall() {
   );
 }
 
-/* ---------- Styles (desktop fits; mobile scrolls) ---------- */
+/* ---------- Styles (unchanged from your version) ---------- */
 const css = `
 :root { color-scheme: dark; }
 html, body, #root { background: #0B1220; }
@@ -513,7 +510,6 @@ html, body, #root { background: #0B1220; }
   font-family: Inter, system-ui, -apple-system, Segoe UI, Arial;
 }
 
-/* keep header clear of fixed hamburger */
 .with-ham .cal-head { padding-left: 56px; }
 @media (max-width: 480px){ .with-ham .cal-head { padding-left: 48px; } }
 
@@ -540,10 +536,8 @@ html, body, #root { background: #0B1220; }
 .cal-panel-head h2 { margin:0 0 2px; font-size:18px; }
 .cal-panel-head .cal-sub { margin:0; }
 
-/* Table container */
 .cal-table-scroll { position:relative; border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow:hidden; box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25); }
 
-/* Desktop widths */
 @media (min-width: 1024px){
   .cal-table { width:100%; table-layout:fixed; }
   .cal-table thead th, .cal-table tbody td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -560,35 +554,24 @@ html, body, #root { background: #0B1220; }
   .cal-table col.col-notes { width: 36%; }
 }
 
-/* Mobile/tablet */
 @media (max-width: 1023px){
   .cal-table-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
   .cal-table { table-layout:auto; min-width:720px; }
   .cal-table thead th, .cal-table tbody td { white-space:nowrap; }
 }
 
-/* Table base */
 .cal-table { border-collapse:separate; border-spacing:0; }
 .cal-table thead th { position:sticky; top:0; z-index:1; background:var(--panel); border-bottom:1px solid var(--line); text-align:left; font-size:12px; color:var(--muted); padding:12px 12px; }
 .cal-table tbody td { padding:12px 12px; border-bottom:1px solid var(--line); font-size:14px; color:var(--text); vertical-align:middle; }
 .cal-table tbody tr:hover { background:#0B1428; }
 .cal-table tbody tr:nth-child(odd) td { background:rgba(255,255,255,0.01); }
 
-/* Highlight rows */
-.cal-table tbody tr.is-today td {
-  background: #0f2a12 !important;
-  box-shadow: inset 0 0 0 1px #1e3a23;
-}
-.cal-table tbody tr.is-tomorrow td {
-  background: #2a210f !important;
-  box-shadow: inset 0 0 0 1px #3a2e1e;
-}
+.cal-table tbody tr.is-today td { background: #0f2a12 !important; box-shadow: inset 0 0 0 1px #1e3a23; }
+.cal-table tbody tr.is-tomorrow td { background: #2a210f !important; box-shadow: inset 0 0 0 1px #3a2e1e; }
 
-/* Inputs */
 .cal-input { width:100%; padding:8px 10px; border-radius:10px; border:1px solid #243041; background:#0B1220; color:#E5E7EB; outline:none; transition:border-color .2s, box-shadow .2s; }
 .cal-input:focus { border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,0.25); }
 
-/* Actions & inline car editor */
 .cal-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
 .car-edit { display:flex; align-items:center; gap:8px; }
 `;
