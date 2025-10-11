@@ -15,7 +15,7 @@ export default function ReconditionerAppointmentHome() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const savingRef = useRef(false);
 
-  // initial load
+  // -------- fetch ----------
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -46,6 +46,7 @@ export default function ReconditionerAppointmentHome() {
     setRows(Array.isArray(r.data?.data) ? r.data.data : []);
   };
 
+  // -------- helpers ----------
   const isToday = (raw) => {
     const d = standardizeDayTime(raw).date;
     if (!d) return false;
@@ -74,7 +75,6 @@ export default function ReconditionerAppointmentHome() {
 
   const fmtDateShort = (d) =>
     d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
-
   const formatWhen = (raw) => {
     const { date, label } = standardizeDayTime(raw);
     if (!date) return label || (raw || "—");
@@ -113,11 +113,12 @@ export default function ReconditionerAppointmentHome() {
     return c ? `${c.rego} • ${c.make} ${c.model}` : "";
   };
 
+  // -------- inline edit ----------
   const enterEdit = (a) => {
     let common = "";
     if (Array.isArray(a.cars) && a.cars.length) {
       const list = a.cars.map((c) => c?.notes || "").filter(Boolean);
-      if (list.length) common = list.every((n) => n === list[0]) ? list[0] : list[0];
+      if (list.length) common = list[0];
     }
     setEditRow(a._id);
     setEditData({
@@ -127,7 +128,6 @@ export default function ReconditionerAppointmentHome() {
       notesAll: common,
     });
   };
-
   const onChange = (e) => setEditData((p) => ({ ...p, [e.target.name]: e.target.value }));
   const addCarId = (id) => id && setEditData((p) => (p.carIds.includes(id) ? p : { ...p, carIds: [...p.carIds, id] }));
   const removeCarId = (id) => setEditData((p) => ({ ...p, carIds: p.carIds.filter((x) => x !== id) }));
@@ -151,6 +151,7 @@ export default function ReconditionerAppointmentHome() {
         cars: [...preservedText, ...identified],
       };
 
+      // optimistic UI
       setRows((prev) =>
         prev.map((a) =>
           a._id === editRow
@@ -186,6 +187,7 @@ export default function ReconditionerAppointmentHome() {
     }
   };
 
+  // click-outside save
   useEffect(() => {
     const onDown = (e) => {
       if (!editRow || pickerOpen) return;
@@ -207,8 +209,9 @@ export default function ReconditionerAppointmentHome() {
   };
 
   return (
-    <div className="ra-home">
+    <div className="dash-table">
       <style>{css}</style>
+
       <CarPickerModal
         show={pickerOpen}
         cars={cars}
@@ -217,9 +220,10 @@ export default function ReconditionerAppointmentHome() {
       />
 
       {err && <div className="cal-alert">{err}</div>}
+
       <div className="cal-table-clip">
-        <div className="cal-table-scroll">
-          <table className="cal-table">
+        <div className="cal-table-scroll" role="region" aria-label="Reconditioner Appointments (Today & Tomorrow)">
+          <table className="cal-table" role="grid">
             <colgroup>
               <col className="col-name" />
               <col className="col-daytime" />
@@ -250,9 +254,22 @@ export default function ReconditionerAppointmentHome() {
                 const isEditing = editRow === a._id;
                 const rowCls = dayTimeHighlightClass(a.dateTime);
                 return (
-                  <tr key={a._id} data-id={a._id} className={rowCls} onDoubleClick={() => enterEdit(a)}>
-                    <td>{isEditing ? <input name="name" value={editData.name} onChange={onChange} className="cal-input" autoFocus /> : (a.name || "—")}</td>
-                    <td>{isEditing ? <input name="dateTime" value={editData.dateTime} onChange={onChange} className="cal-input" /> : formatWhen(a.dateTime)}</td>
+                  <tr
+                    key={a._id}
+                    data-id={a._id}
+                    className={rowCls}
+                    onDoubleClick={() => enterEdit(a)}
+                  >
+                    <td>
+                      {isEditing
+                        ? <input name="name" value={editData.name} onChange={onChange} className="cal-input" autoFocus />
+                        : (a.name || "—")}
+                    </td>
+                    <td>
+                      {isEditing
+                        ? <input name="dateTime" value={editData.dateTime} onChange={onChange} className="cal-input" />
+                        : formatWhen(a.dateTime)}
+                    </td>
                     <td>
                       {isEditing ? (
                         <div className="chipbox">
@@ -260,23 +277,37 @@ export default function ReconditionerAppointmentHome() {
                           {editData.carIds.map((id) => (
                             <span key={id} className="chip">
                               {carLabelFromId(id)}
-                              <button className="chip-x" onClick={() => removeCarId(id)}>×</button>
+                              <button className="chip-x" onClick={() => removeCarId(id)} aria-label="Remove">×</button>
                             </span>
                           ))}
                           <div className="chipbox-actions">
-                            <button className="btn btn--ghost btn--sm" onClick={() => setPickerOpen(true)}>+ Add Car</button>
+                            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setPickerOpen(true)}>+ Add Car</button>
                             {editData.carIds.length > 0 && (
-                              <button className="btn btn--ghost btn--sm" onClick={() => setEditData((p) => ({ ...p, carIds: [] }))}>Clear</button>
+                              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditData((p) => ({ ...p, carIds: [] }))}>Clear</button>
                             )}
                           </div>
+                          {Array.isArray(a.cars) && a.cars.some((x) => !x.car && x.carText) && (
+                            <div className="hint">Text-only vehicles will be preserved.</div>
+                          )}
                         </div>
                       ) : carsStack(a)}
                     </td>
-                    <td>{isEditing ? <input name="notesAll" value={editData.notesAll} onChange={onChange} className="cal-input" /> : notesStack(a)}</td>
+                    <td>
+                      {isEditing
+                        ? <input name="notesAll" value={editData.notesAll} onChange={onChange} className="cal-input" />
+                        : notesStack(a)}
+                    </td>
                     <td>{fmtDateShort(a.createdAt)}</td>
                     <td>{catName(a.category)}</td>
-                    <td className="cal-actions">
-                      <button className="btn btn--danger btn--sm btn--icon" onClick={() => handleDelete(a._id)}><TrashIcon /></button>
+                    <td className="cal-actions" onDoubleClick={(e) => e.stopPropagation()}>
+                      <button
+                        className="btn btn--danger btn--sm btn--icon"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(a._id); }}
+                        title="Delete"
+                        aria-label="Delete appointment"
+                      >
+                        <TrashIcon />
+                      </button>
                     </td>
                   </tr>
                 );
@@ -291,7 +322,7 @@ export default function ReconditionerAppointmentHome() {
 
 function TrashIcon() {
   return (
-    <svg className="icon" viewBox="0 0 24 24" width="16" height="16">
+    <svg className="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
       <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
@@ -301,53 +332,41 @@ function TrashIcon() {
 }
 
 const css = `
-:root { color-scheme: dark; }
-* { box-sizing:border-box; }
-
-.ra-home { width:100%; min-width:0; }
-
-.cal-table-clip{ width:100%; overflow:hidden; border-radius:14px; }
-.cal-table-scroll{
+/* Shared dashboard table baseline (same as Customer) */
+.dash-table .cal-table-clip{ width:100%; overflow:hidden; border-radius:14px; }
+.dash-table .cal-table-scroll{
   border:1px solid #1F2937;
   border-radius:14px;
   background:#0F172A;
-  overflow-x:auto;
-  overflow-y:hidden;
+  overflow-x:auto; overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
+  max-width:100%;
 }
-
-.cal-table{
+.dash-table .cal-table{
   width:100%;
-  border-collapse:separate;
-  border-spacing:0;
-  table-layout:fixed;
-  min-width:1200px;
+  border-collapse:separate; border-spacing:0; table-layout:fixed;
+  min-width:1250px; /* EXACTLY matches Customer for identical scroll width */
 }
 
-.cal-table thead th{
+.dash-table th, .dash-table td{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dash-table thead th{
   position:sticky; top:0; z-index:1;
   background:#0F172A;
   border-bottom:1px solid #1F2937;
   text-align:left; font-size:12px; color:#9CA3AF;
   padding:12px;
 }
-.cal-table tbody td{
+.dash-table tbody td{
   padding:12px; border-bottom:1px solid #1F2937;
   font-size:14px; color:#E5E7EB; vertical-align:middle;
 }
-.cal-table tbody tr:hover{ background:#0B1428; }
-.cal-table tbody tr:nth-child(odd){ background:rgba(255,255,255,0.01); }
+.dash-table tbody tr:hover{ background:#0B1428; }
+.dash-table tbody tr:nth-child(odd){ background:rgba(255,255,255,0.01); }
 
-.stack{ display:flex; flex-direction:column; gap:4px; }
-.chipbox{ display:flex; flex-direction:column; gap:8px; }
-.chip{
-  display:inline-flex; align-items:center; gap:6px;
-  background:#111827; border:1px solid #243041;
-  padding:6px 8px; border-radius:12px; margin:0 8px 8px 0;
-}
-.chip-x{ background:transparent; border:none; color:#9CA3AF; cursor:pointer; font-size:14px; }
+.cal-empty{ text-align:center; color:#9CA3AF; padding:20px; }
 
+/* simple inputs/buttons (match Customer) */
 .cal-input{
   width:100%; padding:8px 10px; border-radius:10px;
   border:1px solid #243041; background:#0B1220; color:#E5E7EB;
@@ -362,8 +381,19 @@ const css = `
 .btn--sm{ font-size:12px; }
 .btn--icon{ padding:6px; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; }
 
-.cal-empty{ text-align:center; color:#9CA3AF; padding:20px; }
-.cal-table-scroll::-webkit-scrollbar{ height:12px; }
-.cal-table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
-.cal-table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
+/* chips */
+.stack{ display:flex; flex-direction:column; gap:4px; }
+.chipbox{ display:flex; flex-direction:column; gap:8px; }
+.chipbox-actions{ display:flex; gap:8px; }
+.chip{
+  display:inline-flex; align-items:center; gap:6px;
+  background:#111827; border:1px solid #243041;
+  padding:6px 8px; border-radius:12px; margin:0 8px 8px 0;
+}
+.chip-x{ background:transparent; border:none; color:#9CA3AF; cursor:pointer; font-size:14px; line-height:1; }
+.muted{ color:#9CA3AF; }
+.hint{ color:#9CA3AF; font-size:12px; }
+
+/* keep the page itself from scrolling horizontally */
+:root, html, body { overflow-x: hidden; }
 `;

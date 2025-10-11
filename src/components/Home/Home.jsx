@@ -39,11 +39,10 @@ const css = `
 :root { color-scheme: dark; }
 html, body, #root { background:#0B1220; }
 * { box-sizing:border-box; }
-
 html, body { overflow-x:hidden; }
 
 .home-wrap{
-  --bg:#0B1220; --text:#E5E7EB; --muted:#9CA3AF; --line:#1F2937;
+  --bg:#0B1220; --text:#E5E7EB; --muted:#9CA3AF;
   color:var(--text); background:var(--bg);
   min-height:100vh; padding:20px;
   font-family:Inter, system-ui, -apple-system, Segoe UI, Arial;
