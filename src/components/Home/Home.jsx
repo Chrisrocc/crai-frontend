@@ -1,4 +1,4 @@
-// src/components/Home/Home.jsx
+import { Link } from "react-router-dom";
 import HamburgerMenu from "../utils/HamburgerMenu";
 import CustomerAppointmentsHome from "./CustomerAppointmentHome";
 import ReconditionerAppointmentHome from "./ReconditionerAppointmentHome";
@@ -9,7 +9,6 @@ export default function Home() {
       <style>{css}</style>
       <HamburgerMenu />
 
-      {/* Page header */}
       <header className="home-head">
         <div className="titles">
           <h1>Dashboard</h1>
@@ -17,15 +16,18 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Two panels: Customer/Delivery + Reconditioner */}
       <main className="home-grid">
         <section className="home-panel">
-          <h2 className="panel-title">Customer Appointments & Delivery</h2>
+          <h2 className="panel-title">
+            <Link to="/customer-appointment-list">Customer Appointments & Delivery</Link>
+          </h2>
           <CustomerAppointmentsHome />
         </section>
 
         <section className="home-panel">
-          <h2 className="panel-title">Reconditioner Appointments</h2>
+          <h2 className="panel-title">
+            <Link to="/reconditioner-appointment-list">Reconditioner Appointments</Link>
+          </h2>
           <ReconditionerAppointmentHome />
         </section>
       </main>
@@ -38,7 +40,6 @@ const css = `
 html, body, #root { background:#0B1220; }
 * { box-sizing:border-box; }
 
-/* Prevent the PAGE from getting a horizontal scrollbar */
 html, body { overflow-x:hidden; }
 
 .home-wrap{
@@ -48,7 +49,6 @@ html, body { overflow-x:hidden; }
   font-family:Inter, system-ui, -apple-system, Segoe UI, Arial;
 }
 
-/* keep header clear of fixed hamburger */
 .with-ham .home-head{ padding-left:56px; }
 @media (max-width:480px){ .with-ham .home-head{ padding-left:48px; } }
 
@@ -60,13 +60,21 @@ html, body { overflow-x:hidden; }
   display:grid; gap:16px;
   grid-template-columns:minmax(0,1fr) minmax(0,1fr);
 }
-@media (max-width: 1024px){
+@media (max-width:1024px){
   .home-grid{ grid-template-columns:1fr; }
 }
 
 .home-panel{ min-width:0; }
 .panel-title{
   margin:0 0 8px;
-  font-size:16px; color:#cbd5e1; font-weight:600;
+  font-size:16px; font-weight:600;
+}
+.panel-title a{
+  color:#cbd5e1;
+  text-decoration:none;
+  transition:color .2s;
+}
+.panel-title a:hover{
+  color:#93c5fd;
 }
 `;

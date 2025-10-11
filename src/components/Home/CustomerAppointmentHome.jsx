@@ -1,6 +1,3 @@
-// src/components/Home/CustomerAppointmentHome.jsx
-// Uses central API client (src/lib/api.js) so it respects VITE_API_URL).
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../../lib/api";
 import CarPickerModal from "../CarPicker/CarPickerModal";
@@ -11,16 +8,11 @@ export default function CustomerAppointmentsHome() {
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
-
-  // inline edit
   const [editRow, setEditRow] = useState(null);
   const [editData, setEditData] = useState({});
   const savingRef = useRef(false);
-
-  // car picker
   const [carPicker, setCarPicker] = useState({ open: false, forId: null });
 
-  // -------- fetch ----------
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -41,9 +33,7 @@ export default function CustomerAppointmentsHome() {
         if (alive) setLoading(false);
       }
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, []);
 
   const refresh = async () => {
@@ -51,7 +41,6 @@ export default function CustomerAppointmentsHome() {
     setRows(Array.isArray(res.data?.data) ? res.data.data : []);
   };
 
-  // -------- helpers ----------
   const formatWhen = (raw) => {
     const { date, label } = standardizeDayTime(raw);
     if (!date) return label || (raw || "—");
@@ -83,7 +72,6 @@ export default function CustomerAppointmentsHome() {
     () => rows.filter((r) => isToday(r.dateTime || r.dayTime) || isTomorrow(r.dateTime || r.dayTime)),
     [rows]
   );
-
   const ordered = useMemo(() => {
     return filtered.slice().sort((a, b) => {
       const A = standardizeDayTime(a.dateTime || a.dayTime).date?.getTime() ?? Number.MAX_SAFE_INTEGER;
@@ -103,7 +91,6 @@ export default function CustomerAppointmentsHome() {
     return c ? `${c.rego} • ${c.make} ${c.model}` : "";
   };
 
-  // -------- edit ----------
   const enterEdit = (a) => {
     setEditRow(a._id);
     setEditData({
@@ -136,14 +123,10 @@ export default function CustomerAppointmentsHome() {
       };
       if (editData.car) payload.car = editData.car;
       payload.dayTime = payload.dateTime;
-
-      // optimistic
       setRows((prev) => prev.map((a) => (a._id === editRow ? { ...a, ...payload, car: a.car } : a)));
-
       const res = await api.put(`/customer-appointments/${editRow}`, payload, {
         headers: { "Content-Type": "application/json" },
       });
-
       if (res.data?.data) {
         setRows((prev) => prev.map((a) => (a._id === editRow ? res.data.data : a)));
       } else {
@@ -164,35 +147,6 @@ export default function CustomerAppointmentsHome() {
     await refresh();
   };
 
-  const moveToDelivery = async (a) => {
-    if (savingRef.current) return;
-    savingRef.current = true;
-    try {
-      const payload = { isDelivery: true, originalDateTime: a.dateTime || "", dateTime: "TBC" };
-      await api.put(`/customer-appointments/${a._id}`, payload, { headers: { "Content-Type": "application/json" } });
-      await refresh();
-    } catch (e) {
-      alert("Error moving to Delivery: " + (e.response?.data?.message || e.message));
-    } finally {
-      savingRef.current = false;
-    }
-  };
-
-  const undoDelivery = async (a) => {
-    if (savingRef.current) return;
-    savingRef.current = true;
-    try {
-      const payload = { isDelivery: false, dateTime: a.originalDateTime || "", originalDateTime: "" };
-      await api.put(`/customer-appointments/${a._id}`, payload, { headers: { "Content-Type": "application/json" } });
-      await refresh();
-    } catch (e) {
-      alert("Error undoing Delivery: " + (e.response?.data?.message || e.message));
-    } finally {
-      savingRef.current = false;
-    }
-  };
-
-  // click outside saves
   useEffect(() => {
     const onDown = (e) => {
       if (!editRow) return;
@@ -201,13 +155,11 @@ export default function CustomerAppointmentsHome() {
     };
     if (editRow) document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editRow, editData]);
 
   return (
     <div className="cal-home-wrap">
       <style>{css}</style>
-
       <CarPickerModal
         show={carPicker.open}
         cars={cars}
@@ -215,14 +167,10 @@ export default function CustomerAppointmentsHome() {
         onSelect={onCarPicked}
       />
 
-      {/* Removed the "Today & Tomorrow" heading + subtitle */}
-
-      {err && <div className="cal-alert" role="alert">{err}</div>}
-
-      {/* Scrollable table (same wrapper as Recon) */}
+      {err && <div className="cal-alert">{err}</div>}
       <div className="cal-table-clip">
-        <div className="cal-table-scroll" role="region" aria-label="Appointments and Deliveries">
-          <table className="cal-table" role="grid">
+        <div className="cal-table-scroll">
+          <table className="cal-table">
             <colgroup>
               <col className="col-name" />
               <col className="col-daytime" />
@@ -231,7 +179,6 @@ export default function CustomerAppointmentsHome() {
               <col className="col-type" />
               <col className="col-actions" />
             </colgroup>
-
             <thead>
               <tr>
                 <th>Name</th>
@@ -242,87 +189,19 @@ export default function CustomerAppointmentsHome() {
                 <th>Actions</th>
               </tr>
             </thead>
-
             <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan="6" className="cal-empty">Loading…</td>
-                </tr>
-              )}
-
-              {!loading && ordered.length === 0 && (
-                <tr>
-                  <td colSpan="6" className="cal-empty">No entries for today or tomorrow.</td>
-                </tr>
-              )}
-
+              {loading && <tr><td colSpan="6" className="cal-empty">Loading…</td></tr>}
+              {!loading && ordered.length === 0 && <tr><td colSpan="6" className="cal-empty">No entries.</td></tr>}
               {!loading && ordered.map((a) => {
                 const isEditing = editRow === a._id;
                 const rowCls = dayTimeHighlightClass(a.dateTime || a.dayTime);
                 return (
-                  <tr
-                    key={a._id}
-                    data-id={a._id}
-                    className={rowCls}
-                    onDoubleClick={(e) => { e.stopPropagation(); enterEdit(a); }}
-                  >
-                    <td>
-                      {isEditing ? (
-                        <input
-                          name="name"
-                          value={editData.name}
-                          onChange={handleChange}
-                          className="cal-input"
-                          autoFocus
-                        />
-                      ) : (a.name || "—")}
-                    </td>
-
-                    <td>
-                      {isEditing ? (
-                        <input
-                          name="dateTime"
-                          value={editData.dateTime}
-                          onChange={handleChange}
-                          className="cal-input"
-                          placeholder="e.g. Wed 09:00"
-                        />
-                      ) : (
-                        formatWhen(a.dateTime || a.dayTime || "")
-                      )}
-                    </td>
-
-                    <td onDoubleClick={() => openCarPicker(a)} title="Double-click to pick a car">
-                      {isEditing ? (
-                        <div className="car-edit">
-                          <input
-                            className="cal-input"
-                            value={carLabelFromId(editData.car)}
-                            readOnly
-                            placeholder="No Car"
-                          />
-                          <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>
-                            Pick
-                          </button>
-                        </div>
-                      ) : (
-                        renderCarCell(a)
-                      )}
-                    </td>
-
-                    <td>
-                      {isEditing ? (
-                        <input
-                          name="notes"
-                          value={editData.notes}
-                          onChange={handleChange}
-                          className="cal-input"
-                        />
-                      ) : (a.notes || "—")}
-                    </td>
-
+                  <tr key={a._id} data-id={a._id} className={rowCls} onDoubleClick={() => enterEdit(a)}>
+                    <td>{isEditing ? <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus /> : (a.name || "—")}</td>
+                    <td>{isEditing ? <input name="dateTime" value={editData.dateTime} onChange={handleChange} className="cal-input" /> : formatWhen(a.dateTime || a.dayTime || "")}</td>
+                    <td onDoubleClick={() => openCarPicker(a)}>{isEditing ? <input className="cal-input" value={carLabelFromId(editData.car)} readOnly /> : renderCarCell(a)}</td>
+                    <td>{isEditing ? <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" /> : (a.notes || "—")}</td>
                     <td>{a.isDelivery ? "Delivery" : "Appointment"}</td>
-
                     <td className="cal-actions">
                       {isEditing ? (
                         <>
@@ -330,21 +209,7 @@ export default function CustomerAppointmentsHome() {
                           <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>Cancel</button>
                         </>
                       ) : (
-                        <>
-                          {a.isDelivery ? (
-                            <button className="btn btn--ghost btn--sm" onClick={() => undoDelivery(a)}>Undo</button>
-                          ) : (
-                            <button className="btn btn--primary btn--sm" onClick={() => moveToDelivery(a)}>Delivery</button>
-                          )}
-                          <button
-                            className="btn btn--danger btn--sm btn--icon"
-                            onClick={() => handleDelete(a)}
-                            title="Delete"
-                            aria-label="Delete"
-                          >
-                            <TrashIcon />
-                          </button>
-                        </>
+                        <button className="btn btn--danger btn--sm btn--icon" onClick={() => handleDelete(a)} title="Delete"><TrashIcon /></button>
                       )}
                     </td>
                   </tr>
@@ -360,7 +225,7 @@ export default function CustomerAppointmentsHome() {
 
 function TrashIcon() {
   return (
-    <svg className="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+    <svg className="icon" viewBox="0 0 24 24" width="16" height="16">
       <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
@@ -369,132 +234,66 @@ function TrashIcon() {
   );
 }
 
-/* CSS NOTE:
-   To ensure it's wider than before, set `.cal-table { min-width: 1400px; }`
-   in this file's CSS block AND in ReconditionerAppointmentHome.jsx so both match.
-*/
-
-
-/* ---------- Styles (desktop fits; mobile scrolls inside the panel) ---------- */
-/* ---------- Styles (desktop fits; mobile scrolls inside the panel) ---------- */
-/* ---------- Styles (desktop & mobile: fixed table, no overlaps) ---------- */
-/* ---------- Styles (both desktop & mobile: same width as Recon; wider scroll) ---------- */
-/* ---------- Styles (both desktop & mobile: same width as Recon; wider scroll) ---------- */
 const css = `
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
 
 .cal-home-wrap {
-  --bg: #0B1220;
-  --panel: #0F172A;
-  --muted: #9CA3AF;
-  --text: #E5E7EB;
-  --line: #1F2937;
-  --primary: #2563EB;
-  --danger: #DC2626;
-  --ghost: #111827;
-  --ring: #2E4B8F;
-  color: var(--text);
-  background: var(--bg);
-  padding: 16px;
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Arial;
+  --panel:#0F172A; --text:#E5E7EB; --muted:#9CA3AF; --line:#1F2937;
+  background:#0B1220; color:var(--text);
+  padding:16px;
+  font-family:Inter, system-ui, -apple-system, Segoe UI, Arial;
 }
 
-.cal-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
-.cal-head h1 { margin:0 0 2px; font-size:20px; letter-spacing:0.2px; }
-.cal-sub { margin:0; color:var(--muted); font-size:12px; }
-.cal-head-titles { display:flex; flex-direction:column; gap:4px; }
-.cal-alert { background:#3B0D0D; border:1px solid #7F1D1D; color:#FECACA; padding:10px 12px; border-radius:12px; margin-bottom:12px; }
-
-/* NEW: clip wrapper (same as recon) */
 .cal-table-clip{ width:100%; overflow:hidden; border-radius:14px; }
-
-/* scroller (now 1:1 with recon) */
-.cal-table-scroll {
-  position:relative;
+.cal-table-scroll{
   border:1px solid var(--line);
   border-radius:14px;
   background:var(--panel);
-  overflow-x:auto;
-  overflow-y:hidden;
+  overflow-x:auto; overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
-  padding-bottom:0;              /* match recon */
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
-  max-width:100%;
 }
-
-/* fixed table at ALL sizes */
-.cal-table {
+.cal-table{
   width:100%;
   border-collapse:separate;
   border-spacing:0;
   table-layout:fixed;
-  min-width:1200px;              /* SAME as recon -> identical scroll width */
+  min-width:1200px;
 }
 
-/* column widths (bigger) */
-.cal-table col.col-name    { width: 20%; }
-.cal-table col.col-daytime { width: 20%; }
-.cal-table col.col-car     { width: 28%; }
-.cal-table col.col-notes   { width: 20%; }
-.cal-table col.col-type    { width: 7%;  }
-.cal-table col.col-actions { width: 190px; }
-
-/* clamp text to columns */
-.cal-table thead th,
-.cal-table tbody td {
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-
-/* header */
 .cal-table thead th{
   position:sticky; top:0; z-index:1;
   background:var(--panel);
   border-bottom:1px solid var(--line);
-  text-align:left; font-size:12px; color:var(--muted);
-  padding:12px 12px;
+  text-align:left;
+  font-size:12px; color:var(--muted);
+  padding:12px;
 }
-
-/* rows */
 .cal-table tbody td{
-  padding:12px 12px; border-bottom:1px solid var(--line);
-  font-size:14px; color:var(--text); vertical-align:middle;
+  padding:12px; border-bottom:1px solid var(--line);
+  font-size:14px; color:var(--text);
 }
-.cal-table tbody tr:hover td { background:#0B1428; }
-.cal-table tbody tr:nth-child(odd) td { background:rgba(255,255,255,0.01); }
+.cal-table tbody tr:hover td{ background:#0B1428; }
+.cal-table tbody tr:nth-child(odd) td{ background:rgba(255,255,255,0.01); }
 
-/* highlights */
-.cal-table tbody tr.is-today td{
-  background:#0f2a12 !important;
-  box-shadow: inset 0 0 0 1px #1e3a23;
+.cal-input{
+  width:100%; padding:8px 10px; border-radius:10px;
+  border:1px solid #243041; background:#0B1220; color:#E5E7EB;
+  outline:none; transition:border-color .2s, box-shadow .2s;
 }
-.cal-table tbody tr.is-tomorrow td{
-  background:#2a210f !important;
-  box-shadow: inset 0 0 0 1px #3a2e1e;
-}
-
-/* inputs & actions */
-.cal-input{ width:100%; padding:8px 10px; border-radius:10px; border:1px solid #243041; background:#0B1220; color:#E5E7EB; outline:none; transition:border-color .2s, box-shadow .2s; }
-.cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,0.25); }
+.cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
 
 .cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
-.cal-actions > * { flex:0 0 auto; }
-
 .btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
-.btn--primary{ background:var(--primary); color:#fff; }
-.btn--ghost{ background:var(--ghost); color:var(--text); border-color:#243041; }
-.btn--danger{ background:var(--danger); color:#fff; }
+.btn--primary{ background:#2563EB; color:#fff; }
+.btn--ghost{ background:#111827; color:#E5E7EB; border-color:#243041; }
+.btn--danger{ background:#DC2626; color:#fff; }
 .btn--sm{ font-size:12px; }
 .btn--icon{ padding:6px; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; }
 
-.car-edit{ display:flex; align-items:center; gap:8px; }
 .cal-empty{ text-align:center; color:var(--muted); padding:16px 10px; }
-
-/* scrollbar */
 .cal-table-scroll::-webkit-scrollbar{ height:12px; }
-.cal-table-scroll::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
 .cal-table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
 .cal-table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
 `;
