@@ -308,6 +308,102 @@ export default function CarListSplit({ embedded = false, listOverride }) {
 
   return (
     <div className="page-pad">
+      {/* Local layout/compact styles */}
+      <style>{`
+        /* Split grid – no page-level horizontal scrollbar */
+        .split-panels{
+          display:grid;
+          grid-template-columns: 1fr;
+          gap:12px;
+        }
+        @media (min-width: 1100px){
+          .split-panels{ grid-template-columns: 1fr 1fr; }
+        }
+
+        /* Make toolbars compact */
+        .toolbar.header-row { gap:10px; }
+        .toolbar .btn, .toolbar .chip { transform: translateZ(0); }
+
+        /* Table wrapper ensures ONLY table scrolls horizontally */
+        .table-wrap{
+          position:relative;
+          overflow-x:auto;
+          overflow-y:hidden;
+          -webkit-overflow-scrolling:touch;
+          border:1px solid #1d2a3a;
+          border-radius:10px;
+          background:#0b1220;
+        }
+
+        /* Base density */
+        .car-table{
+          width:100%;
+          table-layout:fixed;
+          border-collapse:separate;
+          border-spacing:0;
+          font-size:13px;
+          line-height:1.25;
+        }
+        .car-table th,.car-table td{ padding:6px 8px; vertical-align:middle; }
+        .car-table thead th{ position:sticky; top:0; background:#0f1a2b; z-index:1; }
+
+        /* Default (fits most laptops); columns use conservative widths */
+        .car-table col.col-car{ width:340px; }
+        .car-table col.col-loc{ width:100px; }
+        .car-table col.col-next{ width:160px; }
+        .car-table col.col-chk{ width:220px; }
+        .car-table col.col-notes{ width:160px; }
+        .car-table col.col-stage{ width:84px; }
+        .car-table col.col-act{ width:74px; }
+
+        /* Ultra-compact DESKTOP mode (≥1400px) – squeeze both tables to show all cols */
+        @media (min-width: 1400px){
+          .car-table{ font-size:12px; }
+          .car-table th,.car-table td{ padding:4px 6px; }
+          .car-table col.col-car{ width:300px; }
+          .car-table col.col-loc{ width:88px; }
+          .car-table col.col-next{ width:140px; }
+          .car-table col.col-chk{ width:200px; }
+          .car-table col.col-notes{ width:150px; }
+          .car-table col.col-stage{ width:80px; }
+          .car-table col.col-act{ width:70px; }
+        }
+
+        /* Keep first column visible and text ellipsized */
+        thead th:first-child, tbody td:first-child{ display:table-cell !important; }
+        .car-table .cell{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+
+        /* Editing visuals */
+        td.is-editing{ background:#0c1a2e; box-shadow: inset 0 0 0 1px #2b3b54; border-radius:8px; }
+        .edit-cell{ display:flex; align-items:center; gap:8px; }
+        .edit-cell-group{ display:flex; flex-direction:column; gap:6px; }
+        .edit-inline{ display:flex; gap:6px; }
+        .edit-actions{ display:flex; gap:6px; margin-top:2px; }
+        .input.input--compact{ padding:6px 8px; font-size:12px; line-height:1.2; }
+
+        /* Buttons: smaller footprint */
+        .btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
+        .btn--xs{ font-size:12px; padding:4px 8px; }
+        .btn--icon{ padding:4px; width:28px; height:24px; display:inline-flex; align-items:center; justify-content:center; }
+        .btn--danger{ background:#DC2626; color:#fff; }
+        .btn--kebab{ background:#1f2a3e; color:#c9d3e3; }
+
+        :root{
+          --sold-bg: rgba(14, 165, 233, 0.12);
+          --sold-bg-hover: rgba(14, 165, 233, 0.18);
+          --sold-border: rgba(14, 165, 233, 0.35);
+        }
+        .car-table tr.row--sold td{
+          background: var(--sold-bg);
+          box-shadow: inset 0 0 0 1px var(--sold-border);
+        }
+        .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
+
+        /* Trim internal gaps in header controls so more space goes to tables */
+        .chip-row{ gap:6px !important; }
+        .btn-row{ gap:6px !important; }
+      `}</style>
+
       {/* Header (hidden when embedded) */}
       {!embedded && (
         <div className="toolbar header-row">
@@ -342,7 +438,7 @@ export default function CarListSplit({ embedded = false, listOverride }) {
             placeholder="Search cars…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            style={{ flex: "1 1 420px", minWidth: 240 }}
+            style={{ flex: "1 1 360px", minWidth: 220 }}
           />
 
           <div className="btn-row" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -491,46 +587,6 @@ function Table({
 }) {
   return (
     <div className="table-wrap">
-      {/* Ensure the first column (Car) is visible and wide enough; horizontal scroll on mobile */}
-      <style>{`
-        .table-wrap{position:relative; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;}
-        .car-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0; min-width:1200px;}
-        .car-table th,.car-table td{padding:6px 10px;vertical-align:middle;}
-
-        .car-table col.col-car{width:420px !important;}
-        .car-table col.col-loc{width:140px;}
-        .car-table col.col-next{width:280px;}
-        .car-table col.col-chk{width:440px;}
-        .car-table col.col-notes{width:300px;}
-        .car-table col.col-stage{width:90px;}
-        .car-table col.col-act{width:90px;}
-
-        thead th:first-child, tbody td:first-child{ display:table-cell !important; }
-        .car-table .cell{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
-
-        td.is-editing{ background:#0c1a2e; box-shadow: inset 0 0 0 1px #2b3b54; border-radius:8px; }
-        .edit-cell{ display:flex; align-items:center; gap:8px; }
-        .edit-cell-group{ display:flex; flex-direction:column; gap:8px; }
-        .edit-inline{ display:flex; gap:8px; }
-        .edit-actions{ display:flex; gap:8px; margin-top:4px; }
-
-        .btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
-        .btn--danger{ background:#DC2626; color:#fff; }
-        .btn--xs{ font-size:12px; padding:4px 8px; }
-        .btn--icon{ padding:6px; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; }
-
-        :root{
-          --sold-bg: rgba(14, 165, 233, 0.12);
-          --sold-bg-hover: rgba(14, 165, 233, 0.18);
-          --sold-border: rgba(14, 165, 233, 0.35);
-        }
-        .car-table tr.row--sold td{
-          background: var(--sold-bg);
-          box-shadow: inset 0 0 0 1px var(--sold-border);
-        }
-        .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
-      `}</style>
-
       <table className="car-table">
         <colgroup>
           <col className="col-car" />
@@ -581,7 +637,7 @@ function Table({
                         </div>
                       </div>
                     ) : (
-                      <span className="cell">{carString(car) || "-"}</span>
+                      <span className="cell" title={carString(car)}>{carString(car) || "-"}</span>
                     )}
                   </td>
 
@@ -593,13 +649,17 @@ function Table({
                         <div className="edit-actions"><button className="btn btn--primary" onClick={saveChanges}>Save</button></div>
                       </div>
                     ) : (
-                      <span className="cell">{car.location || "-"}</span>
+                      <span className="cell" title={car.location || ""}>{car.location || "-"}</span>
                     )}
                   </td>
 
                   {/* NEXT (modal) */}
                   <td onDoubleClick={() => setNextModal({ open: true, car })}>
-                    <span className="cell">
+                    <span className="cell" title={
+                      Array.isArray(car.nextLocations) && car.nextLocations.length
+                        ? car.nextLocations.join(", ")
+                        : (car.nextLocation || "")
+                    }>
                       {Array.isArray(car.nextLocations) && car.nextLocations.length
                         ? car.nextLocations.join(", ")
                         : car.nextLocation || "-"}
@@ -621,7 +681,7 @@ function Table({
                         <div className="edit-actions"><button className="btn btn--primary" onClick={saveChanges}>Save</button></div>
                       </div>
                     ) : (
-                      <span className="cell">{car.notes || "-"}</span>
+                      <span className="cell" title={car.notes || ""}>{car.notes || "-"}</span>
                     )}
                   </td>
 
@@ -652,7 +712,7 @@ function Table({
 
                   {/* ACTIONS */}
                   <td>
-                    <div className="actions">
+                    <div className="actions" style={{ display: "flex", gap: 6 }}>
                       <button
                         className="btn btn--kebab btn--xs"
                         title="Open car profile"
