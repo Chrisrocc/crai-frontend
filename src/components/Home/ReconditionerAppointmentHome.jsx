@@ -222,7 +222,7 @@ export default function ReconditionerAppointmentHome() {
         <div className="cal-table-scroll" role="region" aria-label="Reconditioner Appointments (Today & Tomorrow)">
           <table className="cal-table" role="grid">
             <colgroup>
-              {/* Name | Date/Time | Car(s) | Notes | Created | Category | Actions */}
+              {/* Tighter ratios */}
               <col className="col-name" />
               <col className="col-daytime" />
               <col className="col-car" />
@@ -258,8 +258,12 @@ export default function ReconditionerAppointmentHome() {
                     className={rowCls}
                     onDoubleClick={() => enterEdit(a)}
                   >
-                    <td>{isEditing ? <input name="name" value={editData.name} onChange={onChange} className="cal-input" autoFocus /> : (a.name || "—")}</td>
-                    <td>{isEditing ? <input name="dateTime" value={editData.dateTime} onChange={onChange} className="cal-input" /> : formatWhen(a.dateTime)}</td>
+                    <td>{isEditing
+                        ? <input name="name" value={editData.name} onChange={onChange} className="cal-input" autoFocus />
+                        : (a.name || "—")}</td>
+                    <td>{isEditing
+                        ? <input name="dateTime" value={editData.dateTime} onChange={onChange} className="cal-input" />
+                        : formatWhen(a.dateTime)}</td>
                     <td>{isEditing ? (
                         <div className="chipbox">
                           {editData.carIds.length === 0 && <div className="muted">No cars selected.</div>}
@@ -270,9 +274,9 @@ export default function ReconditionerAppointmentHome() {
                             </span>
                           ))}
                           <div className="chipbox-actions">
-                            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setPickerOpen(true)}>+ Add Car</button>
+                            <button type="button" className="btn btn--ghost btn--xs" onClick={() => setPickerOpen(true)}>+ Add Car</button>
                             {editData.carIds.length > 0 && (
-                              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditData((p) => ({ ...p, carIds: [] }))}>Clear</button>
+                              <button type="button" className="btn btn--ghost btn--xs" onClick={() => setEditData((p) => ({ ...p, carIds: [] }))}>Clear</button>
                             )}
                           </div>
                           {Array.isArray(a.cars) && a.cars.some((x) => !x.car && x.carText) && (
@@ -281,12 +285,14 @@ export default function ReconditionerAppointmentHome() {
                         </div>
                       ) : carsStack(a)}
                     </td>
-                    <td className="truncate-cell">{isEditing ? <input name="notesAll" value={editData.notesAll} onChange={onChange} className="cal-input" /> : notesStack(a)}</td>
+                    <td className="truncate-cell">{isEditing
+                        ? <input name="notesAll" value={editData.notesAll} onChange={onChange} className="cal-input" />
+                        : notesStack(a)}</td>
                     <td>{fmtDateShort(a.createdAt)}</td>
                     <td>{catName(a.category)}</td>
                     <td className="cal-actions" onDoubleClick={(e) => e.stopPropagation()}>
                       <button
-                        className="btn btn--danger btn--sm btn--icon"
+                        className="btn btn--danger btn--xs btn--icon"
                         onClick={(e) => { e.stopPropagation(); handleDelete(a._id); }}
                         title="Delete"
                         aria-label="Delete appointment"
@@ -307,7 +313,7 @@ export default function ReconditionerAppointmentHome() {
 
 function TrashIcon() {
   return (
-    <svg className="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+    <svg className="icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
       <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
@@ -317,7 +323,7 @@ function TrashIcon() {
 }
 
 const css = `
-/* Shared container */
+/* container */
 .dash-table .cal-table-clip{ width:100%; overflow:hidden; border-radius:14px; }
 .dash-table .cal-table-scroll{
   border:1px solid #1F2937; border-radius:14px; background:#0F172A;
@@ -326,70 +332,65 @@ const css = `
   max-width:100%;
 }
 .dash-table .cal-table{
-  width:100%;
-  border-collapse:separate; border-spacing:0; table-layout:fixed;
-  min-width:1100px;
+  width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed;
+  /* smaller baseline */
+  min-width:960px;
 }
 
-/* compact column widths */
-.col-name{width:16%;}
-.col-daytime{width:12%;}
-.col-car{width:30%;}
-.col-notes{width:24%;}
-.col-datecreated{width:10%;}
+/* tighter column widths */
+.col-name{width:14%;}
+.col-daytime{width:10%;}
+.col-car{width:28%;}
+.col-notes{width:22%;}
+.col-datecreated{width:8%;}
 .col-category{width:12%;}
 .col-actions{width:6%;}
 
-.dash-table th, .dash-table td{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* compact type/padding */
+.dash-table th, .dash-table td{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25; }
 .dash-table thead th{
   position:sticky; top:0; z-index:1;
   background:#0F172A; border-bottom:1px solid #1F2937;
-  text-align:left; font-size:12px; color:#9CA3AF; padding:10px;
+  text-align:left; font-size:11px; color:#9CA3AF; padding:7px 8px;
 }
 .dash-table tbody td{
-  padding:10px; border-bottom:1px solid #1F2937;
-  font-size:13px; color:#E5E7EB; vertical-align:middle;
+  padding:7px 8px; border-bottom:1px solid #1F2937;
+  font-size:12px; color:#E5E7EB; vertical-align:middle;
 }
 .dash-table tbody tr:hover{ background:#0B1428; }
 .dash-table tbody tr:nth-child(odd){ background:rgba(255,255,255,0.01); }
 
 .truncate-cell{ max-width:100%; }
+.cal-empty{ text-align:center; color:#9CA3AF; padding:14px; }
 
-.cal-empty{ text-align:center; color:#9CA3AF; padding:18px; }
-
-/* inputs/buttons to match Customer */
+/* inputs/buttons smaller */
 .cal-input{
-  width:100%; padding:7px 9px; border-radius:10px;
-  border:1px solid #243041; background:#0B1220; color:#E5E7EB;
-  outline:none; transition:border-color .2s, box-shadow .2s;
+  width:100%; padding:6px 8px; border-radius:8px;
+  border:1px solid #243041; background:#0B1220; color:#E5E7EB; outline:none; font-size:12px;
 }
-.cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
+.cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 2px rgba(37,99,235,.25); }
 
-.cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
-.btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
+.cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:6px; white-space:nowrap; }
+.btn{ border:1px solid transparent; border-radius:8px; padding:5px 8px; cursor:pointer; font-weight:600; }
 .btn--ghost{ background:#111827; color:#E5E7EB; border-color:#243041; }
 .btn--danger{ background:#DC2626; color:#fff; }
-.btn--sm{ font-size:12px; }
-.btn--icon{ padding:6px; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; }
+.btn--xs{ font-size:11px; }
+.btn--icon{ padding:4px; width:26px; height:24px; display:inline-flex; align-items:center; justify-content:center; }
 
 /* chips */
-.stack{ display:flex; flex-direction:column; gap:4px; }
-.chipbox{ display:flex; flex-direction:column; gap:8px; }
-.chipbox-actions{ display:flex; gap:8px; }
-.chip{
-  display:inline-flex; align-items:center; gap:6px;
-  background:#111827; border:1px solid #243041;
-  padding:6px 8px; border-radius:12px; margin:0 8px 8px 0;
-}
-.chip-x{ background:transparent; border:none; color:#9CA3AF; cursor:pointer; font-size:14px; line-height:1; }
+.stack{ display:flex; flex-direction:column; gap:3px; }
+.chipbox{ display:flex; flex-direction:column; gap:6px; }
+.chipbox-actions{ display:flex; gap:6px; }
+.chip{ display:inline-flex; align-items:center; gap:6px; background:#111827; border:1px solid #243041; padding:5px 7px; border-radius:10px; margin:0 6px 6px 0; }
+.chip-x{ background:transparent; border:none; color:#9CA3AF; cursor:pointer; font-size:13px; line-height:1; }
 .muted{ color:#9CA3AF; }
-.hint{ color:#9CA3AF; font-size:12px; }
+.hint{ color:#9CA3AF; font-size:11px; }
 
 /* scrollbars */
-.cal-table-scroll::-webkit-scrollbar{height:10px;}
+.cal-table-scroll::-webkit-scrollbar{height:8px;}
 .cal-table-scroll::-webkit-scrollbar-thumb{background:#59637C;border:2px solid #0B1220;border-radius:10px;}
 .cal-table-scroll:hover::-webkit-scrollbar-thumb{background:#7B88A6;}
 
-/* keep the page itself from scrolling horizontally */
+/* keep page itself from scrolling horizontally */
 :root, html, body { overflow-x: hidden; }
 `;

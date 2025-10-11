@@ -39,7 +39,6 @@ const css = `
 :root { color-scheme: dark; }
 html, body, #root { background:#0B1220; }
 * { box-sizing:border-box; }
-/* prevent page-level horizontal scroll; let tables handle their own */
 html, body { overflow-x:hidden; }
 
 .home-wrap{
@@ -70,9 +69,7 @@ html, body { overflow-x:hidden; }
   font-size:16px; font-weight:600;
 }
 .panel-title a{
-  color:#cbd5e1;
-  text-decoration:none;
-  transition:color .2s;
+  color:#cbd5e1; text-decoration:none; transition:color .2s;
 }
 .panel-title a:hover{ color:#93c5fd; }
 `;
