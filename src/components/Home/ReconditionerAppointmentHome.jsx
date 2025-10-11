@@ -61,10 +61,7 @@ export default function ReconditionerAppointmentHome() {
     return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
   };
 
-  const filtered = useMemo(
-    () => rows.filter((r) => isToday(r.dateTime) || isTomorrow(r.dateTime)),
-    [rows]
-  );
+  const filtered = useMemo(() => rows.filter((r) => isToday(r.dateTime) || isTomorrow(r.dateTime)), [rows]);
   const ordered = useMemo(() => {
     return filtered.slice().sort((a, b) => {
       const A = standardizeDayTime(a.dateTime).date?.getTime() ?? Number.MAX_SAFE_INTEGER;
@@ -225,6 +222,7 @@ export default function ReconditionerAppointmentHome() {
         <div className="cal-table-scroll" role="region" aria-label="Reconditioner Appointments (Today & Tomorrow)">
           <table className="cal-table" role="grid">
             <colgroup>
+              {/* Name | Date/Time | Car(s) | Notes | Created | Category | Actions */}
               <col className="col-name" />
               <col className="col-daytime" />
               <col className="col-car" />
@@ -260,18 +258,9 @@ export default function ReconditionerAppointmentHome() {
                     className={rowCls}
                     onDoubleClick={() => enterEdit(a)}
                   >
-                    <td>
-                      {isEditing
-                        ? <input name="name" value={editData.name} onChange={onChange} className="cal-input" autoFocus />
-                        : (a.name || "—")}
-                    </td>
-                    <td>
-                      {isEditing
-                        ? <input name="dateTime" value={editData.dateTime} onChange={onChange} className="cal-input" />
-                        : formatWhen(a.dateTime)}
-                    </td>
-                    <td>
-                      {isEditing ? (
+                    <td>{isEditing ? <input name="name" value={editData.name} onChange={onChange} className="cal-input" autoFocus /> : (a.name || "—")}</td>
+                    <td>{isEditing ? <input name="dateTime" value={editData.dateTime} onChange={onChange} className="cal-input" /> : formatWhen(a.dateTime)}</td>
+                    <td>{isEditing ? (
                         <div className="chipbox">
                           {editData.carIds.length === 0 && <div className="muted">No cars selected.</div>}
                           {editData.carIds.map((id) => (
@@ -292,11 +281,7 @@ export default function ReconditionerAppointmentHome() {
                         </div>
                       ) : carsStack(a)}
                     </td>
-                    <td>
-                      {isEditing
-                        ? <input name="notesAll" value={editData.notesAll} onChange={onChange} className="cal-input" />
-                        : notesStack(a)}
-                    </td>
+                    <td className="truncate-cell">{isEditing ? <input name="notesAll" value={editData.notesAll} onChange={onChange} className="cal-input" /> : notesStack(a)}</td>
                     <td>{fmtDateShort(a.createdAt)}</td>
                     <td>{catName(a.category)}</td>
                     <td className="cal-actions" onDoubleClick={(e) => e.stopPropagation()}>
@@ -332,43 +317,49 @@ function TrashIcon() {
 }
 
 const css = `
-/* Shared dashboard table baseline (same as Customer) */
+/* Shared container */
 .dash-table .cal-table-clip{ width:100%; overflow:hidden; border-radius:14px; }
 .dash-table .cal-table-scroll{
-  border:1px solid #1F2937;
-  border-radius:14px;
-  background:#0F172A;
-  overflow-x:auto; overflow-y:hidden;
-  -webkit-overflow-scrolling:touch;
+  border:1px solid #1F2937; border-radius:14px; background:#0F172A;
+  overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
   max-width:100%;
 }
 .dash-table .cal-table{
   width:100%;
   border-collapse:separate; border-spacing:0; table-layout:fixed;
-  min-width:1250px; /* EXACTLY matches Customer for identical scroll width */
+  min-width:1100px;
 }
+
+/* compact column widths */
+.col-name{width:16%;}
+.col-daytime{width:12%;}
+.col-car{width:30%;}
+.col-notes{width:24%;}
+.col-datecreated{width:10%;}
+.col-category{width:12%;}
+.col-actions{width:6%;}
 
 .dash-table th, .dash-table td{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .dash-table thead th{
   position:sticky; top:0; z-index:1;
-  background:#0F172A;
-  border-bottom:1px solid #1F2937;
-  text-align:left; font-size:12px; color:#9CA3AF;
-  padding:12px;
+  background:#0F172A; border-bottom:1px solid #1F2937;
+  text-align:left; font-size:12px; color:#9CA3AF; padding:10px;
 }
 .dash-table tbody td{
-  padding:12px; border-bottom:1px solid #1F2937;
-  font-size:14px; color:#E5E7EB; vertical-align:middle;
+  padding:10px; border-bottom:1px solid #1F2937;
+  font-size:13px; color:#E5E7EB; vertical-align:middle;
 }
 .dash-table tbody tr:hover{ background:#0B1428; }
 .dash-table tbody tr:nth-child(odd){ background:rgba(255,255,255,0.01); }
 
-.cal-empty{ text-align:center; color:#9CA3AF; padding:20px; }
+.truncate-cell{ max-width:100%; }
 
-/* simple inputs/buttons (match Customer) */
+.cal-empty{ text-align:center; color:#9CA3AF; padding:18px; }
+
+/* inputs/buttons to match Customer */
 .cal-input{
-  width:100%; padding:8px 10px; border-radius:10px;
+  width:100%; padding:7px 9px; border-radius:10px;
   border:1px solid #243041; background:#0B1220; color:#E5E7EB;
   outline:none; transition:border-color .2s, box-shadow .2s;
 }
@@ -393,6 +384,11 @@ const css = `
 .chip-x{ background:transparent; border:none; color:#9CA3AF; cursor:pointer; font-size:14px; line-height:1; }
 .muted{ color:#9CA3AF; }
 .hint{ color:#9CA3AF; font-size:12px; }
+
+/* scrollbars */
+.cal-table-scroll::-webkit-scrollbar{height:10px;}
+.cal-table-scroll::-webkit-scrollbar-thumb{background:#59637C;border:2px solid #0B1220;border-radius:10px;}
+.cal-table-scroll:hover::-webkit-scrollbar-thumb{background:#7B88A6;}
 
 /* keep the page itself from scrolling horizontally */
 :root, html, body { overflow-x: hidden; }

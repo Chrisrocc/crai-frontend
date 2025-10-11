@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import HamburgerMenu from "../utils/HamburgerMenu";
-import CustomerAppointmentsHome from "./CustomerAppointmentHome";
+import CustomerAppointmentHome from "./CustomerAppointmentHome";
 import ReconditionerAppointmentHome from "./ReconditionerAppointmentHome";
 
 export default function Home() {
@@ -21,7 +21,7 @@ export default function Home() {
           <h2 className="panel-title">
             <Link to="/customer-appointment-list">Customer Appointments & Delivery</Link>
           </h2>
-          <CustomerAppointmentsHome />
+          <CustomerAppointmentHome />
         </section>
 
         <section className="home-panel">
@@ -39,6 +39,7 @@ const css = `
 :root { color-scheme: dark; }
 html, body, #root { background:#0B1220; }
 * { box-sizing:border-box; }
+/* prevent page-level horizontal scroll; let tables handle their own */
 html, body { overflow-x:hidden; }
 
 .home-wrap{
@@ -73,7 +74,5 @@ html, body { overflow-x:hidden; }
   text-decoration:none;
   transition:color .2s;
 }
-.panel-title a:hover{
-  color:#93c5fd;
-}
+.panel-title a:hover{ color:#93c5fd; }
 `;

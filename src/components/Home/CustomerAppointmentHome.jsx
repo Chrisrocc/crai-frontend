@@ -3,7 +3,8 @@ import api from "../../lib/api";
 import CarPickerModal from "../CarPicker/CarPickerModal";
 import { standardizeDayTime, dayTimeHighlightClass } from "../utils/dateTime";
 
-export default function CustomerAppointmentsHome() {
+/** Compact table: tighter columns, fixed widths, scroll only inside table */
+export default function CustomerAppointmentHome() {
   const [rows, setRows] = useState([]);
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -105,10 +106,16 @@ export default function CustomerAppointmentsHome() {
 
       {err && <div className="cal-alert">{err}</div>}
       <div className="cal-table-clip">
-        <div className="cal-table-scroll">
-          <table className="cal-table">
+        <div className="cal-table-scroll" role="region" aria-label="Customer Appointments (Today & Tomorrow)">
+          <table className="cal-table" role="grid">
             <colgroup>
-              <col className="col-name"/><col className="col-daytime"/><col className="col-car"/><col className="col-notes"/><col className="col-type"/><col className="col-actions"/>
+              {/* Name | Day/Time | Car | Notes | Type | Actions */}
+              <col className="col-name"/>
+              <col className="col-daytime"/>
+              <col className="col-car"/>
+              <col className="col-notes"/>
+              <col className="col-type"/>
+              <col className="col-actions"/>
             </colgroup>
             <thead><tr><th>Name</th><th>Day/Time</th><th>Car</th><th>Notes</th><th>Type</th><th>Actions</th></tr></thead>
             <tbody>
@@ -122,7 +129,7 @@ export default function CustomerAppointmentsHome() {
                     <td>{isEditing?<input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus/>:(a.name||"—")}</td>
                     <td>{isEditing?<input name="dateTime" value={editData.dateTime} onChange={handleChange} className="cal-input"/>:formatWhen(a.dateTime||a.dayTime||"")}</td>
                     <td onDoubleClick={()=>openCarPicker(a)}>{isEditing?<input className="cal-input" value={carLabelFromId(editData.car)} readOnly/>:renderCarCell(a)}</td>
-                    <td>{isEditing?<input name="notes" value={editData.notes} onChange={handleChange} className="cal-input"/>:(a.notes||"—")}</td>
+                    <td className="truncate-cell">{isEditing?<input name="notes" value={editData.notes} onChange={handleChange} className="cal-input"/>:(a.notes||"—")}</td>
                     <td>{a.isDelivery?"Delivery":"Appointment"}</td>
                     <td className="cal-actions">{isEditing?
                       (<><button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
@@ -141,25 +148,60 @@ export default function CustomerAppointmentsHome() {
 function TrashIcon(){return(<svg viewBox="0 0 24 24" width="16" height="16"><path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/><path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>);}
 
 const css = `
+/* container: table handles its own horizontal scroll */
 .dash-table .cal-table-clip{width:100%;overflow:hidden;border-radius:14px;}
-.dash-table .cal-table-scroll{border:1px solid #1F2937;border-radius:14px;background:#0F172A;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;box-shadow:inset 0 1px 0 rgba(255,255,255,0.02),0 10px 30px rgba(0,0,0,0.25);}
-.dash-table .cal-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;min-width:1250px;}
+.dash-table .cal-table-scroll{
+  border:1px solid #1F2937;border-radius:14px;background:#0F172A;
+  overflow-x:auto; overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.02),0 10px 30px rgba(0,0,0,0.25);
+}
+.dash-table .cal-table{
+  width:100%;
+  border-collapse:separate;border-spacing:0;table-layout:fixed;
+  /* tighter minimum; rely on colgroup widths to control layout */
+  min-width:900px;
+}
+
+/* column widths (compact) */
+.col-name{width:18%;}
+.col-daytime{width:12%;}
+.col-car{width:24%;}
+.col-notes{width:28%;}
+.col-type{width:12%;}
+.col-actions{width:6%;}
+
 .dash-table th,.dash-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.dash-table th{position:sticky;top:0;background:#0F172A;border-bottom:1px solid #1F2937;text-align:left;font-size:12px;color:#9CA3AF;padding:12px;}
-.dash-table td{padding:12px;border-bottom:1px solid #1F2937;font-size:14px;color:#E5E7EB;}
-.dash-table tr:hover{background:#0B1428;}
-.dash-table tr:nth-child(odd){background:rgba(255,255,255,0.01);}
-.cal-input{width:100%;padding:8px 10px;border-radius:10px;border:1px solid #243041;background:#0B1220;color:#E5E7EB;outline:none;}
+.dash-table thead th{
+  position:sticky;top:0;background:#0F172A;border-bottom:1px solid #1F2937;
+  text-align:left;font-size:12px;color:#9CA3AF;padding:10px;
+}
+.dash-table tbody td{
+  padding:10px;border-bottom:1px solid #1F2937;font-size:13px;color:#E5E7EB;vertical-align:middle;
+}
+.dash-table tbody tr:hover{background:#0B1428;}
+.dash-table tbody tr:nth-child(odd){background:rgba(255,255,255,0.01);}
+
+.truncate-cell{ max-width:100%; }
+
+.cal-input{width:100%;padding:7px 9px;border-radius:10px;border:1px solid #243041;background:#0B1220;color:#E5E7EB;outline:none;}
 .cal-input:focus{border-color:#2E4B8F;box-shadow:0 0 0 3px rgba(37,99,235,.25);}
-.btn{border-radius:10px;padding:6px 10px;font-weight:600;cursor:pointer;}
+
+.btn{border-radius:10px;padding:6px 10px;font-weight:600;cursor:pointer;border:1px solid transparent;}
 .btn--primary{background:#2563EB;color:#fff;}
-.btn--ghost{background:#111827;color:#E5E7EB;border:1px solid #243041;}
+.btn--ghost{background:#111827;color:#E5E7EB;border-color:#243041;}
 .btn--danger{background:#DC2626;color:#fff;}
 .btn--sm{font-size:12px;}
 .btn--icon{padding:6px;width:32px;height:28px;display:inline-flex;align-items:center;justify-content:center;}
-.cal-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;}
-.cal-empty{text-align:center;color:#9CA3AF;padding:20px;}
-.cal-table-scroll::-webkit-scrollbar{height:12px;}
+.cal-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;white-space:nowrap;}
+
+.cal-empty{text-align:center;color:#9CA3AF;padding:18px;}
+
+/* scrollbar */
+.cal-table-scroll::-webkit-scrollbar{height:10px;}
 .cal-table-scroll::-webkit-scrollbar-thumb{background:#59637C;border:2px solid #0B1220;border-radius:10px;}
 .cal-table-scroll:hover::-webkit-scrollbar-thumb{background:#7B88A6;}
+
+/* keep page itself from scrolling horizontally */
+:root, html, body { overflow-x: hidden; }
 `;
