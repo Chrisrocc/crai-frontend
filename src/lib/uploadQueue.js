@@ -40,14 +40,19 @@ function openDB() {
   });
   return dbPromise;
 }
+
 async function idbAdd(job) {
   const db = await openDB();
+  // IMPORTANT: with keyPath "id" + autoIncrement, do not provide an undefined id
+  const toStore = { ...job };
+  if (toStore.id === undefined) delete toStore.id;
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).add(job).onsuccess = (e) => resolve(e.target.result);
+    tx.objectStore(STORE).add(toStore).onsuccess = (e) => resolve(e.target.result);
     tx.onerror = () => reject(tx.error);
   });
 }
+
 async function idbPut(job) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -56,6 +61,7 @@ async function idbPut(job) {
     tx.onerror = () => reject(tx.error);
   });
 }
+
 async function idbGetAll() {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -65,6 +71,7 @@ async function idbGetAll() {
     req.onerror = () => reject(req.error);
   });
 }
+
 async function idbDelete(id) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -197,13 +204,18 @@ export const UploadQueue = {
     // Restore stored jobs as retry (without File blobs). Worker will mark them needs-file after first run.
     state.jobs = (stored || [])
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
-      .map(j => ({ ...j, file: undefined, status: j.status === "done" ? "done" : "retry", progress: j.progress || 0 }));
+      .map(j => ({
+        ...j,
+        file: undefined,
+        status: j.status === "done" ? "done" : "retry",
+        progress: j.progress || 0
+      }));
     emit("change", snapshot());
     tick();
   },
   async enqueue({ carId, file, caption = "" }) {
     const job = {
-      id: undefined,
+      // do NOT set id here; let IndexedDB auto-increment generate it
       carId,
       name: file?.name || "upload.jpg",
       size: file?.size || 0,
@@ -214,10 +226,9 @@ export const UploadQueue = {
       error: "",
       createdAt: Date.now(),
     };
-    const id = await idbAdd(job);
-    job.id = id;
-    // keep the actual File only in memory
-    job.file = file;
+    const id = await idbAdd(job);   // autoIncrement supplies the key
+    job.id = id;                     // now we set it in-memory
+    job.file = file;                 // keep the actual File only in memory
     state.jobs.push(job);
     emit("change", snapshot());
     tick();
