@@ -91,23 +91,12 @@ export default function CarFormModal({ show, onClose, onSave }) {
       const carId = data?.data?._id || data?.data?.id;
       if (!carId) throw new Error("Car created but no id returned");
 
-      // 2) upload photos via presigned URLs, then attach to car
-      for (const f of photos) {
-        const pres = await api.post("/photos/presign", {
-          carId,
-          filename: f.name,
-          contentType: f.type || "application/octet-stream",
-        });
-        const { key, uploadUrl } = pres.data?.data || {};
-        if (!uploadUrl || !key) throw new Error("Failed to get upload URL");
-
-        await fetch(uploadUrl, {
-          method: "PUT",
-          body: f,
-          headers: { "Content-Type": f.type || "application/octet-stream" },
-        });
-
-        await api.post("/photos/attach", { carId, key, caption: "" });
+      // 2) enqueue photos for background upload (non-blocking)
+      if (photos?.length) {
+        const { UploadQueue } = await import("../../lib/uploadQueue");
+        for (const f of photos) {
+          UploadQueue.enqueue({ carId, file: f, caption: "" });
+        }
       }
 
       onSave?.();
@@ -251,13 +240,13 @@ const overlay = {
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
-  padding: 10,                 // small gutter so modal never touches edges
+  padding: 10,
   zIndex: 1000,
 };
 
 const modal = {
   width: "min(560px, 96vw)",
-  maxHeight: "92vh",           // <— controls overall height
+  maxHeight: "92vh",
   background: "#0b1220",
   color: "#e5e7eb",
   borderRadius: 14,
@@ -290,7 +279,7 @@ const closeBtn = {
 const content = {
   padding: 16,
   paddingTop: 12,
-  overflow: "auto",            // <— scrollable content
+  overflow: "auto",
   WebkitOverflowScrolling: "touch",
   display: "flex",
   flexDirection: "column",
@@ -307,8 +296,8 @@ const baseInput = {
   background: "#0b1220",
   color: "#e5e7eb",
   outline: "none",
-  fontSize: 16,                // prevents iOS zoom
-  minHeight: 44,               // comfortable touch target
+  fontSize: 16,
+  minHeight: 44,
   boxSizing: "border-box",
 };
 

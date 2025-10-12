@@ -73,26 +73,16 @@ export default function CarProfileModal({ open, car, onClose }) {
 
   const handlePick = () => fileRef.current?.click();
 
+  // UPDATED: enqueue selected files into the persistent upload queue
   const handleFiles = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length || !localCar?._id) return;
-    setBusy(true);
     try {
-      for (const f of files) {
-        const pres = await api.post("/photos/presign", {
-          carId: localCar._id, filename: f.name, contentType: f.type || "application/octet-stream",
-        });
-        const { key, uploadUrl } = pres.data?.data || {};
-        if (!key || !uploadUrl) throw new Error("Invalid presign response");
-        await fetch(uploadUrl, { method: "PUT", body: f, headers: { "Content-Type": f.type || "application/octet-stream" } });
-        await api.post("/photos/attach", { carId: localCar._id, key, caption: "" });
-      }
-      await fetchPhotos();
-      alert("Uploaded!");
-    } catch (err) {
-      console.error(err); alert(err.response?.data?.message || err.message || "Upload failed");
+      const { UploadQueue } = await import("../../lib/uploadQueue");
+      for (const f of files) UploadQueue.enqueue({ carId: localCar._id, file: f, caption: "" });
+      // Optimistic: refresh after a short delay so attached URLs appear
+      setTimeout(fetchPhotos, 1500);
     } finally {
-      setBusy(false);
       if (fileRef.current) fileRef.current.value = "";
     }
   };
@@ -393,12 +383,12 @@ const overlayStyle = {
 
 const modalShell = {
   width:"min(1100px, 96vw)",
-  maxHeight:"94vh",                     // total height cap
+  maxHeight:"94vh",
   background:"#0b1220", color:"#e5e7eb",
   borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.35)",
   border:"1px solid #1f2937",
   display:"flex", flexDirection:"column",
-  overflow:"hidden",                    // header/tabs fixed, body scrolls
+  overflow:"hidden",
 };
 
 const responsiveCss = `
