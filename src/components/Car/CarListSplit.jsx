@@ -12,7 +12,7 @@ const STAGES = ["In Works", "In Works/Online", "Online", "Sold"];
 const TrashIcon = ({ size = 16 }) => (
   <svg className="icon" viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" focusable="false">
     <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0  1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     <path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
     <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
   </svg>
@@ -185,10 +185,9 @@ export default function CarListSplit({ embedded = false, listOverride }) {
         headers: { "Content-Type": "application/json" },
       });
 
-      // --- KEY FIX for Split/embedded: keep UI in sync immediately ---
+      // Keep Split/embedded UI in sync immediately
       if (res?.data?.data) {
         const updated = res.data.data;
-
         if (listOverride && Array.isArray(listOverride)) {
           const ix = listOverride.findIndex((c) => c && c._id === updated._id);
           if (ix !== -1) Object.assign(listOverride[ix], updated);
@@ -312,52 +311,22 @@ export default function CarListSplit({ embedded = false, listOverride }) {
     return [ordered.slice(0, mid), ordered.slice(mid)];
   }, [cars, query, stageFilter, embedded]);
 
-  if (loading) {
-    return <div className="page-pad">Loading…</div>;
-  }
+  if (loading) return <div className="page-pad">Loading…</div>;
 
   return (
     <div className="page-pad">
-      {/* Local layout/compact styles */}
       <style>{`
-        /* Split grid – no page-level horizontal scrollbar */
-        .split-panels{
-          display:grid;
-          grid-template-columns: 1fr;
-          gap:12px;
-        }
-        @media (min-width: 1100px){
-          .split-panels{ grid-template-columns: 1fr 1fr; }
-        }
+        /* Split grid */
+        .split-panels{ display:grid; grid-template-columns: 1fr; gap:12px; }
+        @media (min-width: 1100px){ .split-panels{ grid-template-columns: 1fr 1fr; } }
 
-        /* Make toolbars compact */
-        .toolbar.header-row { gap:10px; }
-        .toolbar .btn, .toolbar .chip { transform: translateZ(0); }
+        .table-wrap{ position:relative; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
+          border:1px solid #1d2a3a; border-radius:10px; background:#0b1220; }
 
-        /* Table wrapper ensures ONLY table scrolls horizontally */
-        .table-wrap{
-          position:relative;
-          overflow-x:auto;
-          overflow-y:hidden;
-          -webkit-overflow-scrolling:touch;
-          border:1px solid #1d2a3a;
-          border-radius:10px;
-          background:#0b1220;
-        }
-
-        /* Base density */
-        .car-table{
-          width:100%;
-          table-layout:fixed;
-          border-collapse:separate;
-          border-spacing:0;
-          font-size:13px;
-          line-height:1.25;
-        }
+        .car-table{ width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; font-size:13px; line-height:1.25; }
         .car-table th,.car-table td{ padding:6px 8px; vertical-align:middle; }
         .car-table thead th{ position:sticky; top:0; background:#0f1a2b; z-index:1; }
 
-        /* Default (fits most laptops); columns use conservative widths */
         .car-table col.col-car{ width:340px; }
         .car-table col.col-loc{ width:100px; }
         .car-table col.col-next{ width:160px; }
@@ -366,7 +335,6 @@ export default function CarListSplit({ embedded = false, listOverride }) {
         .car-table col.col-stage{ width:84px; }
         .car-table col.col-act{ width:74px; }
 
-        /* Ultra-compact DESKTOP mode (≥1400px) – squeeze both tables to show all cols */
         @media (min-width: 1400px){
           .car-table{ font-size:12px; }
           .car-table th,.car-table td{ padding:4px 6px; }
@@ -379,21 +347,28 @@ export default function CarListSplit({ embedded = false, listOverride }) {
           .car-table col.col-act{ width:70px; }
         }
 
-        /* Keep first column visible and text ellipsized */
-        thead th:first-child, tbody td:first-child{ display:table-cell !important; }
         .car-table .cell{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
 
-        /* Editing visuals */
-        td.is-editing{ background:#0c1a2e; box-shadow: inset 0 0 0 1px #2b3b54; border-radius:8px; }
+        /* --- Editing: let the editor spill over neighboring cells, opaque + above --- */
+        td.is-editing{ background:#0c1a2e; box-shadow: inset 0 0 0 1px #2b3b54; border-radius:8px;
+          position:relative; z-index:5; overflow:visible; }  /* key for expansion */
         .edit-cell{ display:flex; align-items:center; gap:8px; }
         .edit-cell-group{ display:flex; flex-direction:column; gap:6px; }
         .edit-inline{ display:flex; gap:6px; }
         .edit-actions{ display:flex; gap:6px; margin-top:2px; }
-        /* make inputs breathe a touch more but keep compact look */
-        .input.input--compact{ padding:7px 9px; font-size:12.5px; line-height:1.25; } /* comfort tweak */
-        .edit-cell-group .input{ width:100%; } /* ensure full width in car editor */
+        .input.input--compact{ padding:7px 9px; font-size:12.5px; line-height:1.25; }
+        .edit-cell-group .input{ width:100%; }
 
-        /* Buttons: smaller footprint */
+        /* Wider single-line editors for narrow columns (spill over nicely) */
+        td.is-editing .input--wider{
+          width:auto; min-width:260px; max-width:min(640px, 70vw);
+        }
+        td.is-editing .textarea--wider{
+          width:auto; min-width:360px; max-width:min(720px, 80vw);
+          min-height:40px; resize:vertical;
+        }
+
+        /* Buttons */
         .btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
         .btn--xs{ font-size:12px; padding:4px 8px; }
         .btn--icon{ padding:4px; width:28px; height:24px; display:inline-flex; align-items:center; justify-content:center; }
@@ -405,15 +380,8 @@ export default function CarListSplit({ embedded = false, listOverride }) {
           --sold-bg-hover: rgba(14, 165, 233, 0.18);
           --sold-border: rgba(14, 165, 233, 0.35);
         }
-        .car-table tr.row--sold td{
-          background: var(--sold-bg);
-          box-shadow: inset 0 0 0 1px var(--sold-border);
-        }
+        .car-table tr.row--sold td{ background: var(--sold-bg); box-shadow: inset 0 0 0 1px var(--sold-border); }
         .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
-
-        /* Trim internal gaps in header controls so more space goes to tables */
-        .chip-row{ gap:6px !important; }
-        .btn-row{ gap:6px !important; }
       `}</style>
 
       {/* Header (hidden when embedded) */}
@@ -657,7 +625,15 @@ function Table({
                   <td onDoubleClick={() => editing !== "location" && startEdit(car, "location", "location")} className={editing === "location" ? "is-editing" : ""}>
                     {editing === "location" ? (
                       <div className="edit-cell">
-                        <input className="input input--compact" name="location" value={editData.location} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} />
+                        <input
+                          className="input input--compact input--wider"
+                          name="location"
+                          value={editData.location}
+                          onChange={handleChange}
+                          onKeyUp={rememberCaret}
+                          onClick={rememberCaret}
+                          placeholder="Location"
+                        />
                         <div className="edit-actions"><button className="btn btn--primary" onClick={saveChanges}>Save</button></div>
                       </div>
                     ) : (
@@ -689,7 +665,16 @@ function Table({
                   <td onDoubleClick={() => editing !== "notes" && startEdit(car, "notes", "notes")} className={editing === "notes" ? "is-editing" : ""}>
                     {editing === "notes" ? (
                       <div className="edit-cell">
-                        <input className="input input--compact" name="notes" value={editData.notes} onChange={handleChange} onKeyUp={rememberCaret} onClick={rememberCaret} placeholder="Short notes" />
+                        <textarea
+                          className="input input--compact textarea--wider"
+                          name="notes"
+                          rows={2}
+                          value={editData.notes}
+                          onChange={handleChange}
+                          onKeyUp={rememberCaret}
+                          onClick={rememberCaret}
+                          placeholder="Notes"
+                        />
                         <div className="edit-actions"><button className="btn btn--primary" onClick={saveChanges}>Save</button></div>
                       </div>
                     ) : (
@@ -702,7 +687,7 @@ function Table({
                     {editing === "stage" ? (
                       <div className="edit-cell">
                         <select
-                          className="input input--compact input--select-lg"
+                          className="input input--compact input--select-lg input--wider"
                           name="stage"
                           value={editData.stage}
                           onChange={(e) => { stageDirtyRef.current = true; return handleChange(e); }}
