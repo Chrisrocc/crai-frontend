@@ -314,15 +314,27 @@ export default function CarListRegular() {
   };
 
   const handleDelete = async (carId) => {
-    if (!window.confirm("Are you sure you want to delete this car?")) return;
-    try {
-      await api.delete(`/cars/${carId}`);
+  if (!window.confirm("Are you sure you want to delete this car?")) return;
+  try {
+    await api.delete(`/cars/${encodeURIComponent(carId)}`);
+    // Optimistic UI
+    setCars((prev) => prev.filter((c) => c._id !== carId));
+    await refreshCars();
+    alert("Car deleted successfully!");
+  } catch (err) {
+    const status = err?.response?.status;
+    const msg = err?.response?.data?.message || err?.message || "Error deleting car";
+    if (status === 404) {
+      alert("Car not found (it may already be deleted). Refreshing list.");
       await refreshCars();
-      alert("Car deleted successfully!");
-    } catch (err) {
-      alert("Error deleting car: " + (err.response?.data?.message || err.message));
+    } else if (status === 401) {
+      alert("Not authorized. Please log in again.");
+    } else {
+      alert(`Error deleting car: ${msg}`);
     }
-  };
+  }
+};
+
 
   const saveChanges = async () => {
     if (!editTarget.id || savingRef.current) return;

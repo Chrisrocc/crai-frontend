@@ -231,14 +231,25 @@ export default function CarListSplit({ embedded = false, listOverride }) {
   }, [editTarget, editData]);
 
   const handleDelete = async (carId) => {
-    if (!window.confirm("Delete this car?")) return;
-    try {
-      await api.delete(`/cars/${carId}`);
+  if (!window.confirm("Delete this car?")) return;
+  try {
+    await api.delete(`/cars/${encodeURIComponent(carId)}`);
+    // Optimistic UI
+    setCars((prev) => prev.filter((c) => c._id !== carId));
+    await refreshCars();
+  } catch (err) {
+    const status = err?.response?.status;
+    const msg = err?.response?.data?.message || err?.message || "Delete failed";
+    if (status === 404) {
+      alert("Car not found (may already be deleted). Refreshing list.");
       await refreshCars();
-    } catch (err) {
-      alert("Delete failed: " + (err.response?.data?.message || err.message));
+    } else if (status === 401) {
+      alert("Not authorized. Please log in again.");
+    } else {
+      alert(`Delete failed: ${msg}`);
     }
-  };
+  }
+};
 
   /* ---------- header actions (standalone Split only) ---------- */
   const triggerCsv = () => fileInputRef.current?.click();
