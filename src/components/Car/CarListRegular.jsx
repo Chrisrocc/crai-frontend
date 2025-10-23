@@ -57,7 +57,6 @@ html, body { width: 100%; margin:0; overflow-x:hidden; }
 .btn{ border:1px solid transparent; border-radius:8px; padding:7px 10px; font-weight:600; cursor:pointer; white-space:nowrap; }
 .btn.btn--muted{ background:#1f2937; color:#e5e7eb; border:1px solid #243041; }
 .btn.btn--primary{ background:#2563EB !important; color:#fff !important; }
-.btn.btn--danger{ background:#DC2626 !important; color:#fff !important; }
 
 /* ===== Mobile/tablet tweaks (KILL vertical space) ===== */
 @media (max-width: 1024px){
@@ -81,6 +80,7 @@ html, body { width: 100%; margin:0; overflow-x:hidden; }
 .table-wrap::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
 .table-wrap:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
 `;
+
 
 /* chip theme */
 const stageChipCss = `
@@ -139,19 +139,6 @@ export default function CarListRegular() {
 
   const [showForm, setShowForm] = useState(false);
 
-  // Selection for bulk delete
-  const [selected, setSelected] = useState(() => new Set());
-  const selectedCount = selected.size;
-  const clearSelection = () => setSelected(new Set());
-  const toggleSelect = (id) => {
-    setSelected((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-  };
-
   // ---------- EDITING (per-cell) ----------
   // editTarget.field can be: "car" | "location" | "next" | "checklist" | "notes" | "stage"
   const [editTarget, setEditTarget] = useState({ id: null, field: null });
@@ -185,11 +172,9 @@ export default function CarListRegular() {
   const [stageFilter, setStageFilter] = useState(() => new Set(STAGES));
 
   // CSV upload
-// CSV upload
-const [uploading, setUploading] = useState(false);
-const fileInputRefRegular = useRef(null);
-const fileInputRefSplit = useRef(null);
-
+  const [uploading, setUploading] = useState(false);
+  const fileInputRefRegular = useRef(null);
+  const fileInputRefSplit = useRef(null);
 
   // Paste-Online
   const [pasteOpen, setPasteOpen] = useState(false);
@@ -233,11 +218,10 @@ const fileInputRefSplit = useRef(null);
         headers: { "Content-Type": "multipart/form-data" },
       });
       const { createdCount = 0, skippedCount = 0, errorCount = 0 } = res.data || {};
-      // Keep the simple finish notice for CSV import; deletions have no popups
-      console.log(`Import complete: created=${createdCount}, skipped=${skippedCount}, errors=${errorCount}`);
+      alert(`Import complete\nCreated: ${createdCount}\nSkipped: ${skippedCount}\nErrors: ${errorCount}`);
       await refreshCars();
     } catch (err) {
-      setErrMsg(`CSV import failed: ${err.response?.data?.message || err.message}`);
+      alert(`CSV import failed: ${err.response?.data?.message || err.message}`);
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -255,12 +239,14 @@ const fileInputRefSplit = useRef(null);
         { headers: { "Content-Type": "application/json" } }
       );
       const d = res.data?.data || {};
-      console.log(`Pasted list processed: changed=${d.totals?.changed ?? 0}, skipped=${d.totals?.skipped ?? 0}, notFound=${d.totals?.notFound ?? 0}`);
+      alert(
+        `Processed.\nChanged: ${d.totals?.changed ?? 0}\nSkipped: ${d.totals?.skipped ?? 0}\nNot found: ${d.totals?.notFound ?? 0}`
+      );
       setPasteOpen(false);
       setPasteText("");
       await refreshCars();
     } catch (e) {
-      setErrMsg(e.response?.data?.message || e.message || "Error processing pasted list");
+      alert(e.response?.data?.message || e.message || "Error processing pasted list");
     }
   };
 
@@ -327,43 +313,28 @@ const fileInputRefSplit = useRef(null);
     setEditData((p) => ({ ...p, [name]: value }));
   };
 
-  // Single delete (no confirm popups)
   const handleDelete = async (carId) => {
-    try {
-      // Optimistic UI
-      setCars((prev) => prev.filter((c) => c._id !== carId));
-      await api.delete(`/cars/${encodeURIComponent(carId)}`);
-      await refreshCars();
-      setErrMsg(null);
-    } catch (err) {
-      setErrMsg(err?.response?.data?.message || err?.message || "Error deleting car");
-      await refreshCars();
-    }
-  };
-
-  // Bulk delete
-  const bulkDelete = async () => {
-    if (selectedCount === 0) return;
-    const ids = Array.from(selected);
+  if (!window.confirm("Are you sure you want to delete this car?")) return;
+  try {
+    await api.delete(`/cars/${encodeURIComponent(carId)}`);
     // Optimistic UI
-    setCars((prev) => prev.filter((c) => !selected.has(c._id)));
-    clearSelection();
-    try {
-      await Promise.all(
-        ids.map((id) =>
-          api.delete(`/cars/${encodeURIComponent(id)}`).catch((e) => {
-            console.error("Bulk delete item failed", id, e);
-          })
-        )
-      );
+    setCars((prev) => prev.filter((c) => c._id !== carId));
+    await refreshCars();
+    alert("Car deleted successfully!");
+  } catch (err) {
+    const status = err?.response?.status;
+    const msg = err?.response?.data?.message || err?.message || "Error deleting car";
+    if (status === 404) {
+      alert("Car not found (it may already be deleted). Refreshing list.");
       await refreshCars();
-      setErrMsg(null);
-    } catch {
-      setErrMsg("Some items may not have been deleted.");
-      await refreshCars();
+    } else if (status === 401) {
+      alert("Not authorized. Please log in again.");
+    } else {
+      alert(`Error deleting car: ${msg}`);
     }
+  }
+};
 
-  };
 
   const saveChanges = async () => {
     if (!editTarget.id || savingRef.current) return;
@@ -383,7 +354,7 @@ const fileInputRefSplit = useRef(null);
           break;
         case "location":
           payload = { location: (editData.location ?? "").trim() };
-        break;
+          break;
         case "next":
           payload = { nextLocation: (editData.nextLocation ?? "").trim() };
           break;
@@ -410,10 +381,9 @@ const fileInputRefSplit = useRef(null);
         await refreshCars();
       }
       setEditTarget({ id: null, field: null });
-      setErrMsg(null);
     } catch (err) {
       console.error("Update failed", err.response?.data || err.message);
-      setErrMsg("Error updating car: " + (err.response?.data?.message || err.message));
+      alert("Error updating car: " + (err.response?.data?.message || err.message));
       await refreshCars();
       setEditTarget({ id: null, field: null });
     } finally {
@@ -540,7 +510,7 @@ const fileInputRefSplit = useRef(null);
         <th style={{ minWidth: 440 }}><button className="thbtn" onClick={() => clickSort("checklist")}>Checklist {sort.key === "checklist" && <SortChevron dir={sort.dir} />}</button></th>
         <th style={{ minWidth: 300 }}><button className="thbtn" onClick={() => clickSort("notes")}>Notes {sort.key === "notes" && <SortChevron dir={sort.dir} />}</button></th>
         <th style={{ minWidth: 90 }}><button className="thbtn" onClick={() => clickSort("stage")}>Stage {sort.key === "stage" && <SortChevron dir={sort.dir} />}</button></th>
-        <th style={{ width: 120 }}>Act</th>
+        <th style={{ width: 90 }}>Act</th>
       </tr>
     </thead>
   );
@@ -565,8 +535,6 @@ const fileInputRefSplit = useRef(null);
             const isEditingChecklist = editTarget.id === car._id && editTarget.field === "checklist";
             const isEditingNotes = editTarget.id === car._id && editTarget.field === "notes";
             const isEditingStage = editTarget.id === car._id && editTarget.field === "stage";
-
-            const isSelected = selected.has(car._id);
 
             return (
               <tr
@@ -685,31 +653,15 @@ const fileInputRefSplit = useRef(null);
 
                 {/* ACTIONS */}
                 <td>
-                  <div className="actions" style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <div className="actions">
                     <button
-                      className="btn btn--muted btn--xs"
-                      title={isSelected ? "Unselect" : "Select"}
-                      onClick={() => toggleSelect(car._id)}
-                      aria-pressed={isSelected}
-                      style={{ borderColor: isSelected ? "#2563EB" : undefined, color: isSelected ? "#fff" : undefined, background: isSelected ? "#2563EB" : undefined }}
-                    >
-                      {isSelected ? "Selected" : "Select"}
-                    </button>
-
-                    <button
-                      className="btn btn--muted btn--xs"
+                      className="btn btn--kebab btn--xs"
                       title="Open car profile"
                       onClick={() => { setSelectedCar(car); setProfileOpen(true); }}
                     >
                       ⋯
                     </button>
-
-                    <button
-                      className="btn btn--danger btn--xs btn--icon"
-                      title="Delete car"
-                      aria-label="Delete"
-                      onClick={() => handleDelete(car._id)}
-                    >
+                    <button className="btn btn--danger btn--xs btn--icon" title="Delete car" aria-label="Delete" onClick={() => handleDelete(car._id)}>
                       <TrashIcon />
                     </button>
                   </div>
@@ -736,7 +688,7 @@ const fileInputRefSplit = useRef(null);
         .car-table col.col-chk{width:440px;}
         .car-table col.col-notes{width:300px;}
         .car-table col.col-stage{width:90px;}
-        .car-table col.col-act{width:120px;}
+        .car-table col.col-act{width:90px;}
 
         .car-table .cell{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
         .thbtn{all:unset;cursor:pointer;color:#cbd5e1;padding:4px 6px;border-radius:6px;}
@@ -838,18 +790,6 @@ const fileInputRefSplit = useRef(null);
             <input ref={fileInputRefSplit} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={handleCsvChosen} />
 
             <button className="btn btn--muted" onClick={() => setPasteOpen(true)}>Paste Online List</button>
-
-            {selectedCount > 0 && (
-              <>
-                <span style={{ flex: "0 0 auto", color: "#9CA3AF" }}>
-                  {selectedCount} selected
-                </span>
-                <button className="btn btn--danger" onClick={bulkDelete}>
-                  Delete {selectedCount} {selectedCount === 1 ? "car" : "cars"}
-                </button>
-                <button className="btn btn--muted" onClick={clearSelection}>Clear</button>
-              </>
-            )}
           </div>
         </div>
 
@@ -943,18 +883,6 @@ const fileInputRefSplit = useRef(null);
           <input ref={fileInputRefRegular} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={handleCsvChosen} />
 
           <button className="btn btn--muted" onClick={() => setPasteOpen(true)}>Paste Online List</button>
-
-          {selectedCount > 0 && (
-            <>
-              <span style={{ flex: "0 0 auto", color: "#9CA3AF" }}>
-                {selectedCount} selected
-              </span>
-              <button className="btn btn--danger" onClick={bulkDelete}>
-                Delete {selectedCount} {selectedCount === 1 ? "car" : "cars"}
-              </button>
-              <button className="btn btn--muted" onClick={clearSelection}>Clear</button>
-            </>
-          )}
         </div>
       </div>
 
@@ -976,8 +904,7 @@ const fileInputRefSplit = useRef(null);
             try {
               await api.put(`/cars/${checklistModal.car._id}`, { checklist: items }, { headers: { "Content-Type": "application/json" } });
               await refreshCars();
-              setErrMsg(null);
-            } catch (e) { setErrMsg(e.response?.data?.message || e.message || "Error saving checklist"); }
+            } catch (e) { alert(e.response?.data?.message || e.message || "Error saving checklist"); }
             finally { setChecklistModal({ open: false, car: null }); }
           }}
           onClose={closeChecklistModal}
@@ -1002,8 +929,7 @@ const fileInputRefSplit = useRef(null);
                 { headers: { "Content-Type": "application/json" } }
               );
               await refreshCars();
-              setErrMsg(null);
-            } catch (e) { setErrMsg(e.response?.data?.message || e.message || "Error saving destinations"); }
+            } catch (e) { alert(e.response?.data?.message || e.message || "Error saving destinations"); }
             finally { setNextModal({ open: false, car: null }); }
           }}
           onSetCurrent={async (loc) => {
@@ -1020,8 +946,7 @@ const fileInputRefSplit = useRef(null);
                 { headers: { "Content-Type": "application/json" } }
               );
               await refreshCars();
-              setErrMsg(null);
-            } catch (e) { setErrMsg(e.response?.data?.message || e.message || "Error setting current location"); }
+            } catch (e) { alert(e.response?.data?.message || e.message || "Error setting current location"); }
           }}
           onClose={closeNextModal}
         />
