@@ -43,7 +43,6 @@ function openDB() {
 
 async function idbAdd(job) {
   const db = await openDB();
-  // IMPORTANT: with keyPath "id" + autoIncrement, do not provide an undefined id
   const toStore = { ...job };
   if (toStore.id === undefined) delete toStore.id;
   return new Promise((resolve, reject) => {
@@ -83,23 +82,23 @@ async function idbDelete(id) {
 
 // ----- Queue state -----
 const state = {
-  jobs: [],        // [{id, carId, name, size, type, caption, status, progress, error, createdAt, file?}]
+  jobs: [],
   running: false,
   concurrency: 3,
   inFlight: 0,
+  _initialized: false, // 👈 singleton guard
 };
 
-// NOTE: Avoid destructuring `{ file }` so ESLint doesn't complain about unused var.
 function snapshot() {
   return state.jobs.map((j) => {
     const rest = { ...j };
-    delete rest.file; // strip File blob from UI-facing snapshot
+    delete rest.file;
     return rest;
   });
 }
 
 function markNeedsFile(job) {
-  job.status = "needs-file"; // Indicates tab was killed mid-upload; file is gone from memory
+  job.status = "needs-file";
   job.progress = 0;
 }
 
@@ -110,7 +109,6 @@ async function runJob(job) {
   await idbPut(job);
   emit("change", snapshot());
 
-  // Ensure we still have the File (only kept in memory)
   if (!(job.file instanceof File)) {
     markNeedsFile(job);
     await idbPut(job);
@@ -127,7 +125,7 @@ async function runJob(job) {
   const { key, uploadUrl } = pres.data?.data || {};
   if (!key || !uploadUrl) throw new Error("Presign failed");
 
-  // 2) PUT to S3 with progress (use XHR to get progress in browsers)
+  // 2) Upload to S3
   job.status = "uploading";
   emit("change", snapshot());
   await new Promise((resolve, reject) => {
@@ -141,7 +139,7 @@ async function runJob(job) {
       }
     };
     xhr.onload = () =>
-      (xhr.status >= 200 && xhr.status < 300)
+      xhr.status >= 200 && xhr.status < 300
         ? resolve()
         : reject(new Error(`S3 PUT ${xhr.status}`));
     xhr.onerror = () => reject(new Error("S3 PUT network error"));
@@ -153,7 +151,6 @@ async function runJob(job) {
   emit("change", snapshot());
   await api.post("/photos/attach", { carId: job.carId, key, caption: job.caption || "" });
 
-  // Done
   job.status = "done";
   job.progress = 100;
   job.error = "";
@@ -165,7 +162,6 @@ async function runJob(job) {
 async function tick() {
   if (state.running) return;
   state.running = true;
-
   try {
     while (true) {
       const canStart = state.inFlight < state.concurrency;
@@ -175,9 +171,8 @@ async function tick() {
       state.inFlight++;
       (async () => {
         try {
-          await idbPut(next);            // persist status
+          await idbPut(next);
           await runJob(next);
-          // Remove from memory
           state.jobs = state.jobs.filter(j => j.id !== next.id);
           emit("change", snapshot());
         } catch (e) {
@@ -187,7 +182,7 @@ async function tick() {
           emit("error", { id: next.id, error: next.error });
         } finally {
           state.inFlight--;
-          tick(); // continue
+          tick();
         }
       })();
     }
@@ -200,8 +195,10 @@ async function tick() {
 export const UploadQueue = {
   on, off,
   async init() {
+    if (state._initialized) return; // 👈 prevents multiple init
+    state._initialized = true;
+
     const stored = await idbGetAll();
-    // Restore stored jobs as retry (without File blobs). Worker will mark them needs-file after first run.
     state.jobs = (stored || [])
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
       .map(j => ({
@@ -215,7 +212,6 @@ export const UploadQueue = {
   },
   async enqueue({ carId, file, caption = "" }) {
     const job = {
-      // do NOT set id here; let IndexedDB auto-increment generate it
       carId,
       name: file?.name || "upload.jpg",
       size: file?.size || 0,
@@ -226,9 +222,9 @@ export const UploadQueue = {
       error: "",
       createdAt: Date.now(),
     };
-    const id = await idbAdd(job);   // autoIncrement supplies the key
-    job.id = id;                     // now we set it in-memory
-    job.file = file;                 // keep the actual File only in memory
+    const id = await idbAdd(job);
+    job.id = id;
+    job.file = file;
     state.jobs.push(job);
     emit("change", snapshot());
     tick();
