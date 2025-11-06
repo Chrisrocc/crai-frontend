@@ -1,28 +1,16 @@
 // src/lib/uploadQueue.js
-/* Persistent upload queue using IndexedDB + in-memory worker.
-   - Adds jobs { carId, file, caption? }
-   - Emits events: "change", "progress", "done", "error"
-   - Resumes unfinished uploads on next app load
-   - Uses your API: /photos/presign -> S3 PUT -> /photos/attach
-   - Now includes retry + timeout protection for mobile uploads
-*/
+/* Upload queue with logging for debugging inconsistent uploads */
 import api from "./api";
 
-// ---------- tiny event emitter ----------
 const listeners = new Map();
-export function on(evt, fn) {
+function on(evt, fn) {
   if (!listeners.has(evt)) listeners.set(evt, new Set());
   listeners.get(evt).add(fn);
   return () => off(evt, fn);
 }
-export function off(evt, fn) {
-  listeners.get(evt)?.delete(fn);
-}
-function emit(evt, payload) {
-  listeners.get(evt)?.forEach(fn => fn(payload));
-}
+function off(evt, fn) { listeners.get(evt)?.delete(fn); }
+function emit(evt, payload) { listeners.get(evt)?.forEach(fn => fn(payload)); }
 
-// ---------- IndexedDB helpers ----------
 const DB_NAME = "npai-upload-queue";
 const STORE = "jobs";
 let dbPromise = null;
@@ -34,8 +22,7 @@ function openDB() {
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
-        const store = db.createObjectStore(STORE, { keyPath: "id", autoIncrement: true });
-        store.createIndex("status", "status", { unique: false });
+        db.createObjectStore(STORE, { keyPath: "id", autoIncrement: true });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -43,164 +30,131 @@ function openDB() {
   });
   return dbPromise;
 }
+async function idbAdd(job) { const db = await openDB(); return new Promise((res, rej) => { const tx = db.transaction(STORE, "readwrite"); const store = tx.objectStore(STORE); const j = { ...job }; if (j.id === undefined) delete j.id; const req = store.add(j); req.onsuccess = e => res(e.target.result); req.onerror = () => rej(tx.error); }); }
+async function idbPut(job) { const db = await openDB(); return new Promise((res, rej) => { const tx = db.transaction(STORE, "readwrite"); tx.objectStore(STORE).put(job); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+async function idbGetAll() { const db = await openDB(); return new Promise((res, rej) => { const tx = db.transaction(STORE, "readonly"); const req = tx.objectStore(STORE).getAll(); req.onsuccess = () => res(req.result || []); req.onerror = () => rej(req.error); }); }
+async function idbDelete(id) { const db = await openDB(); return new Promise((res, rej) => { const tx = db.transaction(STORE, "readwrite"); tx.objectStore(STORE).delete(id); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
 
-async function idbAdd(job) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, "readwrite");
-    const store = tx.objectStore(STORE);
-    const clean = { ...job };
-    if (clean.id === undefined) delete clean.id;
-    const req = store.add(clean);
-    req.onsuccess = e => resolve(e.target.result);
-    req.onerror = () => reject(tx.error);
-  });
-}
-async function idbPut(job) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).put(job);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-async function idbGetAll() {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, "readonly");
-    const req = tx.objectStore(STORE).getAll();
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror = () => reject(req.error);
-  });
-}
-async function idbDelete(id) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
+const state = { jobs: [], running: false, inFlight: 0, concurrency: 2 };
 
-// ---------- queue state ----------
-const state = {
-  jobs: [],
-  running: false,
-  inFlight: 0,
-  concurrency: 2,
-  _init: false,
-};
-
-// ---------- helpers ----------
 function snapshot() {
   return state.jobs.map(j => {
-    const clone = { ...j };
-    delete clone.file;
-    return clone;
+    const c = { ...j };
+    delete c.file;
+    return c;
   });
 }
-function markNeedsFile(job) {
-  job.status = "needs-file";
-  job.progress = 0;
-}
 
-// ---------- upload worker ----------
 async function runJob(job) {
+  console.log("📸 [UploadQueue] Starting job:", {
+    id: job.id, carId: job.carId, name: job.name, size: job.size
+  });
+
   job.status = "presigning";
-  job.progress = 0;
   await idbPut(job);
   emit("change", snapshot());
 
   if (!(job.file instanceof File)) {
-    markNeedsFile(job);
+    console.warn("⚠️ File missing from memory:", job.id);
+    job.status = "needs-file";
     await idbPut(job);
     emit("change", snapshot());
     return;
   }
 
-  // 1️⃣ get presigned URL
-  const pres = await api.post("/photos/presign", {
-    carId: job.carId,
-    filename: job.name,
-    contentType: job.type || "application/octet-stream",
-  });
-  const { key, uploadUrl } = pres.data?.data || {};
-  if (!key || !uploadUrl) throw new Error("Presign failed");
+  // 1️⃣ Presign
+  let key, uploadUrl;
+  try {
+    const pres = await api.post("/photos/presign", {
+      carId: job.carId,
+      filename: job.name,
+      contentType: job.type || "application/octet-stream",
+    });
+    key = pres.data?.data?.key;
+    uploadUrl = pres.data?.data?.uploadUrl;
+    console.log("✅ Presign success:", { carId: job.carId, key });
+  } catch (e) {
+    console.error("❌ Presign failed:", e.message);
+    throw e;
+  }
 
-  // 2️⃣ upload to S3 with timeout + progress
+  // 2️⃣ Upload
   job.status = "uploading";
   emit("change", snapshot());
 
-  await new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    let timeoutId = setTimeout(() => {
-      xhr.abort();
-      reject(new Error("Upload timeout (90s)"));
-    }, 90000);
+  try {
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const timeout = setTimeout(() => {
+        xhr.abort();
+        reject(new Error("Upload timeout (90s)"));
+      }, 90000);
+      xhr.open("PUT", uploadUrl, true);
+      xhr.setRequestHeader("Content-Type", job.type || "application/octet-stream");
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) {
+          job.progress = Math.round((e.loaded / e.total) * 100);
+          emit("progress", { id: job.id, progress: job.progress });
+        }
+      };
+      xhr.onload = () => {
+        clearTimeout(timeout);
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`S3 PUT ${xhr.status}`));
+      };
+      xhr.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error("S3 network error"));
+      };
+      xhr.send(job.file);
+    });
+    console.log("✅ Upload success:", { key, carId: job.carId });
+  } catch (e) {
+    console.error("❌ Upload failed:", e.message);
+    throw e;
+  }
 
-    xhr.open("PUT", uploadUrl, true);
-    xhr.setRequestHeader("Content-Type", job.type || "application/octet-stream");
-
-    xhr.upload.onprogress = e => {
-      if (e.lengthComputable) {
-        job.progress = Math.round((e.loaded / e.total) * 100);
-        emit("progress", { id: job.id, progress: job.progress });
-      }
-    };
-    xhr.onload = () => {
-      clearTimeout(timeoutId);
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`S3 PUT ${xhr.status}`));
-    };
-    xhr.onerror = () => {
-      clearTimeout(timeoutId);
-      reject(new Error("S3 network error"));
-    };
-    xhr.send(job.file);
-  });
-
-  // 3️⃣ attach to car
+  // 3️⃣ Attach
   job.status = "attaching";
   emit("change", snapshot());
-  await api.post("/photos/attach", { carId: job.carId, key, caption: job.caption || "" });
+  try {
+    await api.post("/photos/attach", { carId: job.carId, key, caption: job.caption || "" });
+    console.log("✅ Attach success:", { carId: job.carId, key });
+  } catch (e) {
+    console.error("❌ Attach failed:", e.message);
+    throw e;
+  }
 
-  // ✅ done
   job.status = "done";
   job.progress = 100;
-  job.error = "";
   await idbDelete(job.id);
   emit("done", { id: job.id });
+  console.log("🏁 Job complete:", { carId: job.carId, key });
 }
 
-// ---------- worker loop ----------
 async function tick() {
   if (state.running) return;
   state.running = true;
   try {
     while (true) {
-      const canStart = state.inFlight < state.concurrency;
       const next = state.jobs.find(j => ["queued", "retry"].includes(j.status));
-      if (!canStart || !next) break;
-
+      if (!next || state.inFlight >= state.concurrency) break;
       state.inFlight++;
       (async () => {
         try {
-          await idbPut(next);
           await runJob(next);
           state.jobs = state.jobs.filter(j => j.id !== next.id);
           emit("change", snapshot());
-        } catch (err) {
-          console.warn("Upload error:", err.message);
+        } catch (e) {
           next.status = "retry";
-          next.error = err.message;
+          next.error = e.message;
           next.progress = 0;
           await idbPut(next);
-          emit("error", { id: next.id, error: err.message });
+          emit("error", { id: next.id, error: e.message });
+          console.warn("🔁 Retrying later:", e.message);
         } finally {
           state.inFlight--;
-          setTimeout(tick, 1000); // retry queue every second
+          setTimeout(tick, 1500);
         }
       })();
     }
@@ -209,13 +163,9 @@ async function tick() {
   }
 }
 
-// ---------- public API ----------
 export const UploadQueue = {
-  on,
-  off,
+  on, off,
   async init() {
-    if (state._init) return;
-    state._init = true;
     const stored = await idbGetAll();
     state.jobs = (stored || []).map(j => ({
       ...j,
@@ -226,7 +176,6 @@ export const UploadQueue = {
     emit("change", snapshot());
     tick();
   },
-
   async enqueue({ carId, file, caption = "" }) {
     const job = {
       carId,
@@ -245,17 +194,13 @@ export const UploadQueue = {
     state.jobs.push(job);
     emit("change", snapshot());
     tick();
+    console.log("🆕 Enqueued upload:", { id, carId, name: job.name, size: job.size });
     return id;
   },
-
   async cancel(id) {
     await idbDelete(id);
     state.jobs = state.jobs.filter(j => j.id !== id);
     emit("change", snapshot());
   },
-
   getSnapshot: snapshot,
-  setConcurrency(n) {
-    state.concurrency = Math.max(1, Math.min(5, Number(n) || 2));
-  },
 };
