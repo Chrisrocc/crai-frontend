@@ -1,471 +1,292 @@
 // src/components/Car/CarProfileModal.jsx
 import { useEffect, useRef, useState } from "react";
 import api from "../../lib/api";
+import Lightbox from "yet-another-react-lightbox";
+import "yet-another-react-lightbox/styles.css";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
 // --- date helpers ---
 const msPerDay = 1000 * 60 * 60 * 24;
 const dateOnly = (d) => { const dt = new Date(d || Date.now()); dt.setHours(0,0,0,0); return dt; };
-const dmy = (d) => { if (!d) return "-"; const dt = new Date(d); if (Number.isNaN(dt.getTime())) return "-"; const dd=String(dt.getDate()); const mm=String(dt.getMonth()+1); const yy=String(dt.getFullYear()).slice(-2); return `${dd}/${mm}/${yy}`; };
-const fullDT = (d) => { if (!d) return "-"; const dt=new Date(d); if (Number.isNaN(dt.getTime())) return "-"; return `${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}`; };
-const daysOpen = (start) => { const s=dateOnly(start).getTime(); const e=dateOnly(Date.now()).getTime(); const diff=Math.max(0,e-s); return Math.max(1, Math.floor(diff/msPerDay)+1); };
-const daysClosed = (start,end) => { const s=dateOnly(start).getTime(); const e=dateOnly(end).getTime(); const diff=Math.max(0,e-s); return Math.max(1, Math.floor(diff/msPerDay)); };
+const dmy = (d) => { if (!d) return "-"; const dt=new Date(d); if (Number.isNaN(dt)) return "-"; return `${dt.getDate()}/${dt.getMonth()+1}/${String(dt.getFullYear()).slice(-2)}`; };
+const fullDT = (d) => d ? new Date(d).toLocaleString() : "-";
+const daysOpen = (start) => Math.max(1, Math.floor((Date.now()-dateOnly(start))/msPerDay)+1);
+const daysClosed = (start,end) => Math.max(1, Math.floor((dateOnly(end)-dateOnly(start))/msPerDay));
 
 export default function CarProfileModal({ open, car, onClose }) {
-  const [tab, setTab] = useState("info"); // 'info' | 'photos' | 'history'
+  const [tab, setTab] = useState("info");
   const [photos, setPhotos] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(-1);
   const [localCar, setLocalCar] = useState(car || null);
   const fileRef = useRef(null);
 
-  // single form state for Info tab
+  // --- Info state ---
   const [infoForm, setInfoForm] = useState({
-    rego: "", make: "", model: "", series: "", readinessStatus: "", notes: "", checklist: "",
+    rego:"", make:"", model:"", series:"", readinessStatus:"", notes:"", checklist:""
+  });
+  const [editable,setEditable]=useState({
+    rego:false, make:false, model:false, series:false, readinessStatus:false, notes:false, checklist:false
   });
 
-  // per-field edit state (locked by default; double-tap to unlock)
-  const [editable, setEditable] = useState({
-    rego: false, make: false, model: false, series: false, readinessStatus: false, notes: false, checklist: false,
-  });
+  const carTitle = localCar ? `${localCar.rego||""} ${localCar.make||""} ${localCar.model||""}`.trim() : "";
 
-  const carTitle = localCar ? `${localCar.rego || ""} ${localCar.make || ""} ${localCar.model || ""}`.trim() : "";
-
-  useEffect(() => { setLocalCar(car || null); setTab("info"); }, [car]);
-
-  useEffect(() => {
-    if (!localCar) return;
+  useEffect(()=>{ setLocalCar(car||null); setTab("info"); },[car]);
+  useEffect(()=>{
+    if(!localCar)return;
     setInfoForm({
-      rego: localCar.rego || "",
-      make: localCar.make || "",
-      model: localCar.model || "",
-      series: localCar.series || "",
-      readinessStatus: localCar.readinessStatus || "",
-      notes: localCar.notes || "",
-      checklist: Array.isArray(localCar.checklist) ? localCar.checklist.join(", ") : (localCar.checklist || ""),
+      rego:localCar.rego||"", make:localCar.make||"", model:localCar.model||"", series:localCar.series||"",
+      readinessStatus:localCar.readinessStatus||"", notes:localCar.notes||"",
+      checklist:Array.isArray(localCar.checklist)?localCar.checklist.join(", "):(localCar.checklist||"")
     });
-    setEditable({ rego:false, make:false, model:false, series:false, readinessStatus:false, notes:false, checklist:false });
-  }, [localCar]);
+    setEditable({rego:false,make:false,model:false,series:false,readinessStatus:false,notes:false,checklist:false});
+  },[localCar]);
 
-  const fetchPhotos = async () => {
-    if (!localCar?._id) return;
-    setBusy(true);
-    try {
-      const res = await api.get(`/photos/${localCar._id}`);
-      setPhotos(res.data?.data || []);
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || err.message || "Error fetching photos");
-    } finally { setBusy(false); }
+  const fetchPhotos = async()=>{
+    if(!localCar?._id)return;
+    try{ setBusy(true);
+      const res=await api.get(`/photos/${localCar._id}`);
+      setPhotos(res.data?.data||[]);
+    }catch(e){console.error(e);}finally{setBusy(false);}
   };
-
-  const refreshCar = async () => {
-    if (!localCar?._id) return;
-    try {
-      const res = await api.get("/cars");
-      const fresh = (res.data?.data || []).find((c) => c._id === localCar._id);
-      if (fresh) setLocalCar(fresh);
-    } catch (e) { console.error(e); }
+  const refreshCar = async()=>{
+    if(!localCar?._id)return;
+    try{
+      const res=await api.get("/cars");
+      const fresh=(res.data?.data||[]).find(c=>c._id===localCar._id);
+      if(fresh)setLocalCar(fresh);
+    }catch(e){console.error(e);}
   };
+  useEffect(()=>{ if(open&&localCar?._id){ refreshCar(); fetchPhotos(); }},[open,localCar?._id]);
 
-  useEffect(() => {
-    if (open && localCar?._id) { refreshCar(); fetchPhotos(); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, localCar?._id]);
-
-  const handlePick = () => fileRef.current?.click();
-
-  // UPDATED: enqueue selected files into the persistent upload queue
-  const handleFiles = async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length || !localCar?._id) return;
-    try {
-      const { UploadQueue } = await import("../../lib/uploadQueue");
-      for (const f of files) UploadQueue.enqueue({ carId: localCar._id, file: f, caption: "" });
-      // Optimistic: refresh after a short delay so attached URLs appear
-      setTimeout(fetchPhotos, 1500);
-    } finally {
-      if (fileRef.current) fileRef.current.value = "";
-    }
+  // ---------- PHOTO HANDLERS ----------
+  const handlePick=()=>fileRef.current?.click();
+  const handleFiles=async(e)=>{
+    const files=Array.from(e.target.files||[]);
+    if(!files.length||!localCar?._id)return;
+    const {UploadQueue}=await import("../../lib/uploadQueue");
+    for(const f of files)UploadQueue.enqueue({carId:localCar._id,file:f,caption:""});
+    setTimeout(fetchPhotos,2000);
+    if(fileRef.current)fileRef.current.value="";
   };
-
-  const handleDelete = async (key) => {
-    if (!window.confirm("Delete this photo?")) return;
-    setBusy(true);
-    try {
-      await api.delete(`/photos/${localCar._id}?key=${encodeURIComponent(key)}`);
-      await fetchPhotos();
-    } catch (err) { console.error(err); alert(err.response?.data?.message || err.message || "Delete failed"); }
-    finally { setBusy(false); }
+  const handleDelete=async(key)=>{
+    try{ await api.delete(`/photos/${localCar._id}?key=${encodeURIComponent(key)}`); setPhotos(p=>p.filter(ph=>ph.key!==key)); }
+    catch(e){console.error(e);}
   };
-
-  const handleCaption = async (key, caption) => {
-    setBusy(true);
-    try {
-      await api.patch(`/photos/${localCar._id}/caption`, { key, caption });
-      await fetchPhotos();
-    } catch (err) { console.error(err); alert(err.response?.data?.message || err.message || "Update failed"); }
-    finally { setBusy(false); }
+  const handleCaption=async(key,caption)=>{
+    try{ await api.patch(`/photos/${localCar._id}/caption`,{key,caption}); setPhotos(p=>p.map(ph=>ph.key===key?{...ph,caption}:ph)); }
+    catch(e){console.error(e);}
   };
-
-  // --- Info tab handlers ---
-  const onInfoChange = (e) => {
-    const { name, value } = e.target;
-    setInfoForm((p) => ({ ...p, [name]: value }));
-  };
-
-  const unlockField = (name) => setEditable((p) => ({ ...p, [name]: true }));
-  const lockField = (name) => setEditable((p) => ({ ...p, [name]: false }));
-
-  const resetInfo = () => {
-    if (!localCar) return;
-    setInfoForm({
-      rego: localCar.rego || "",
-      make: localCar.make || "",
-      model: localCar.model || "",
-      series: localCar.series || "",
-      readinessStatus: localCar.readinessStatus || "",
-      notes: localCar.notes || "",
-      checklist: Array.isArray(localCar.checklist) ? localCar.checklist.join(", ") : (localCar.checklist || ""),
-    });
-    setEditable({ rego:false, make:false, model:false, series:false, readinessStatus:false, notes:false, checklist:false });
-  };
-
-  const saveInfo = async () => {
-    if (!localCar?._id) return;
-    setBusy(true);
-    try {
-      const checklistArr = (infoForm.checklist || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-
-      await api.put(`/cars/${localCar._id}`, {
-        rego: (infoForm.rego || "").trim(),
-        make: (infoForm.make || "").trim(),
-        model: (infoForm.model || "").trim(),
-        series: (infoForm.series || "").trim(),
-        readinessStatus: (infoForm.readinessStatus || "").trim(),
-        notes: (infoForm.notes || "").trim(),
-        checklist: checklistArr.length ? checklistArr : "",
+  const onDragEnd=async(result)=>{
+    if(!result.destination)return;
+    const reordered=Array.from(photos);
+    const [moved]=reordered.splice(result.source.index,1);
+    reordered.splice(result.destination.index,0,moved);
+    setPhotos(reordered);
+    try{
+      await api.put(`/cars/${localCar._id}`,{
+        photos:reordered.map(p=>({key:p.key,caption:p.caption||""}))
       });
+    }catch(e){console.error(e);}
+  };
 
+  // ---------- INFO ----------
+  const onInfoChange=e=>setInfoForm(p=>({...p,[e.target.name]:e.target.value}));
+  const unlock=n=>setEditable(p=>({...p,[n]:true}));
+  const lock=n=>setEditable(p=>({...p,[n]:false}));
+  const resetInfo=()=>{
+    if(!localCar)return;
+    setInfoForm({
+      rego:localCar.rego||"",make:localCar.make||"",model:localCar.model||"",series:localCar.series||"",
+      readinessStatus:localCar.readinessStatus||"",notes:localCar.notes||"",
+      checklist:Array.isArray(localCar.checklist)?localCar.checklist.join(", "):(localCar.checklist||"")
+    });
+    setEditable({rego:false,make:false,model:false,series:false,readinessStatus:false,notes:false,checklist:false});
+  };
+  const saveInfo=async()=>{
+    if(!localCar?._id)return;
+    setBusy(true);
+    try{
+      const checklistArr=(infoForm.checklist||"").split(",").map(s=>s.trim()).filter(Boolean);
+      await api.put(`/cars/${localCar._id}`,{
+        rego:infoForm.rego.trim(),make:infoForm.make.trim(),model:infoForm.model.trim(),
+        series:infoForm.series.trim(),readinessStatus:infoForm.readinessStatus.trim(),
+        notes:infoForm.notes.trim(),checklist:checklistArr.length?checklistArr:""
+      });
       await refreshCar();
       alert("Info saved");
-      setEditable({ rego:false, make:false, model:false, series:false, readinessStatus:false, notes:false, checklist:false });
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || err.message || "Save failed");
-    } finally { setBusy(false); }
+      setEditable({rego:false,make:false,model:false,series:false,readinessStatus:false,notes:false,checklist:false});
+    }catch(e){console.error(e);}finally{setBusy(false);}
   };
 
-  if (!open) return null;
+  if(!open)return null;
+  const history=Array.isArray(localCar?.history)?localCar.history:[];
 
-  const history = Array.isArray(localCar?.history) ? localCar.history : [];
-
-  return (
-    <div style={overlayStyle}>
-      {/* extra CSS for responsive layout */}
-      <style>{responsiveCss}</style>
-
-      <div style={modalShell}>
-        {/* Sticky header */}
-        <div className="cpm-header">
-          <div>
-            <div className="cpm-title">Car Profile</div>
-            <div className="cpm-sub">{carTitle || "—"}</div>
-          </div>
-          <div className="cpm-actions">
-            {tab === "photos" ? (
-              <button onClick={fetchPhotos} className="btn btn--muted">Refresh</button>
-            ) : (
-              <button onClick={refreshCar} className="btn btn--muted">Refresh</button>
-            )}
-            <button onClick={() => onClose(false)} className="cpm-close" aria-label="Close">×</button>
-          </div>
+  return(
+  <div style={overlayStyle}>
+    <style>{css}</style>
+    <div className="modal-shell">
+      <div className="header">
+        <div>
+          <div className="title">Car Profile</div>
+          <div className="sub">{carTitle||"—"}</div>
         </div>
-
-        {/* Sticky tabs on mobile */}
-        <div className="cpm-tabs">
-          <button className={`tab ${tab === "info" ? "tab--active" : ""}`} onClick={() => setTab("info")}>Info</button>
-          <button className={`tab ${tab === "photos" ? "tab--active" : ""}`} onClick={() => setTab("photos")}>Photos</button>
-          <button className={`tab ${tab === "history" ? "tab--active" : ""}`} onClick={() => setTab("history")}>History</button>
-        </div>
-
-        {/* Scrollable content */}
-        <div className="cpm-body">
-          {tab === "info" && (
-            <div className="info-grid">
-              {/* Read-only meta */}
-              <InfoItem label="Created" value={fullDT(localCar?.dateCreated || localCar?.createdAt)} />
-              <InfoItem label="Updated" value={fullDT(localCar?.updatedAt)} />
-
-              {/* Editable fields (locked by default; double-tap to edit) */}
-              <EditableField
-                label="Rego" name="rego" value={infoForm.rego}
-                editable={editable.rego} onDblClick={() => unlockField("rego")}
-                onChange={onInfoChange} onBlur={() => lockField("rego")}
-              />
-
-              <EditableField
-                label="Make" name="make" value={infoForm.make}
-                editable={editable.make} onDblClick={() => unlockField("make")}
-                onChange={onInfoChange} onBlur={() => lockField("make")}
-              />
-
-              <EditableField
-                label="Model" name="model" value={infoForm.model}
-                editable={editable.model} onDblClick={() => unlockField("model")}
-                onChange={onInfoChange} onBlur={() => lockField("model")}
-              />
-
-              <EditableField
-                label="Series" name="series" value={infoForm.series}
-                editable={editable.series} onDblClick={() => unlockField("series")}
-                onChange={onInfoChange} onBlur={() => lockField("series")}
-              />
-
-              <EditableField
-                label="Readiness" name="readinessStatus" value={infoForm.readinessStatus}
-                editable={editable.readinessStatus} onDblClick={() => unlockField("readinessStatus")}
-                onChange={onInfoChange} onBlur={() => lockField("readinessStatus")}
-                long
-              />
-
-              <EditableField
-                label="Checklist" name="checklist" value={infoForm.checklist}
-                editable={editable.checklist} onDblClick={() => unlockField("checklist")}
-                onChange={onInfoChange} onBlur={() => lockField("checklist")}
-                long placeholder="Tyres, Service, Detail"
-              />
-
-              <EditableTextArea
-                label="Notes" name="notes" value={infoForm.notes}
-                editable={editable.notes} onDblClick={() => unlockField("notes")}
-                onChange={onInfoChange} onBlur={() => lockField("notes")}
-                long placeholder="Add any notes…"
-              />
-
-              <div className="info-actions">
-                <button className="btn btn--muted" onClick={resetInfo} disabled={busy}>Reset</button>
-                <button className="btn btn--primary" onClick={saveInfo} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
-              </div>
-            </div>
-          )}
-
-          {tab === "photos" && (
-            <>
-              <div className="row mb8">
-                <button onClick={handlePick} className="btn btn--primary">Upload Photos</button>
-                <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleFiles} />
-                {busy && <span className="muted">Working…</span>}
-              </div>
-
-              <div className="photos-wrap">
-                {photos.length === 0 ? (
-                  <div className="muted">{busy ? "Loading photos…" : "No photos yet."}</div>
-                ) : (
-                  <div className="photo-grid">
-                    {photos.map((p) => (
-                      <div key={p.key} className="photo-card">
-                        <a href={p.url} target="_blank" rel="noreferrer">
-                          <img src={p.url} alt={p.caption || "photo"} className="photo-img" />
-                        </a>
-                        <input
-                          type="text"
-                          placeholder="Caption"
-                          defaultValue={p.caption || ""}
-                          onBlur={(e) => {
-                            const newCap = e.target.value || "";
-                            if (newCap !== (p.caption || "")) handleCaption(p.key, newCap);
-                          }}
-                          className="caption-input"
-                        />
-                        <button onClick={() => handleDelete(p.key)} className="btn btn--danger w100">
-                          Delete
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {tab === "history" && (
-            <div className="history-wrap">
-              <div className="section-title">Location History</div>
-              {history.length === 0 ? (
-                <div className="muted">No history recorded.</div>
-              ) : (
-                <table className="history-table">
-                  <thead>
-                    <tr>
-                      <th>#</th><th>Location</th><th>Start</th><th>End</th><th>Days</th><th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((h, idx) => {
-                      const isOpen = !h.endDate;
-                      const days = isOpen ? daysOpen(h.startDate) : (h.days || daysClosed(h.startDate, h.endDate));
-                      return (
-                        <tr key={idx}>
-                          <td>{idx + 1}</td>
-                          <td>{h.location || "-"}</td>
-                          <td>{dmy(h.startDate)}</td>
-                          <td>{isOpen ? "Still There" : dmy(h.endDate)}</td>
-                          <td>{days} Days</td>
-                          <td><span className={`chip ${isOpen ? "chip--open" : "chip--closed"}`}>{isOpen ? "Open" : "Closed"}</span></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
+        <div className="actions">
+          <button onClick={refreshCar} className="btn btn--muted">Refresh</button>
+          <button onClick={()=>onClose(false)} className="close">×</button>
         </div>
       </div>
+
+      <div className="tabs">
+        <button className={`tab ${tab==="info"?"tab--active":""}`} onClick={()=>setTab("info")}>Info</button>
+        <button className={`tab ${tab==="photos"?"tab--active":""}`} onClick={()=>setTab("photos")}>Photos</button>
+        <button className={`tab ${tab==="history"?"tab--active":""}`} onClick={()=>setTab("history")}>History</button>
+      </div>
+
+      <div className="body">
+        {tab==="info" && (
+          <div className="info-grid">
+            <InfoItem label="Created" value={fullDT(localCar?.dateCreated||localCar?.createdAt)} />
+            <InfoItem label="Updated" value={fullDT(localCar?.updatedAt)} />
+            <EditableField label="Rego" name="rego" value={infoForm.rego} editable={editable.rego}
+              onDblClick={()=>unlock("rego")} onChange={onInfoChange} onBlur={()=>lock("rego")} />
+            <EditableField label="Make" name="make" value={infoForm.make} editable={editable.make}
+              onDblClick={()=>unlock("make")} onChange={onInfoChange} onBlur={()=>lock("make")} />
+            <EditableField label="Model" name="model" value={infoForm.model} editable={editable.model}
+              onDblClick={()=>unlock("model")} onChange={onInfoChange} onBlur={()=>lock("model")} />
+            <EditableField label="Series" name="series" value={infoForm.series} editable={editable.series}
+              onDblClick={()=>unlock("series")} onChange={onInfoChange} onBlur={()=>lock("series")} />
+            <EditableField label="Readiness" name="readinessStatus" value={infoForm.readinessStatus} editable={editable.readinessStatus}
+              onDblClick={()=>unlock("readinessStatus")} onChange={onInfoChange} onBlur={()=>lock("readinessStatus")} long/>
+            <EditableField label="Checklist" name="checklist" value={infoForm.checklist} editable={editable.checklist}
+              onDblClick={()=>unlock("checklist")} onChange={onInfoChange} onBlur={()=>lock("checklist")} long/>
+            <EditableTextArea label="Notes" name="notes" value={infoForm.notes} editable={editable.notes}
+              onDblClick={()=>unlock("notes")} onChange={onInfoChange} onBlur={()=>lock("notes")} long/>
+            <div className="info-actions">
+              <button className="btn btn--muted" onClick={resetInfo}>Reset</button>
+              <button className="btn btn--primary" onClick={saveInfo} disabled={busy}>{busy?"Saving…":"Save"}</button>
+            </div>
+          </div>
+        )}
+
+        {tab==="photos" && (
+          <>
+            <div className="row mb8">
+              <button onClick={handlePick} className="btn btn--primary">Upload Photos</button>
+              <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={handleFiles}/>
+              {busy&&<span className="muted">Working…</span>}
+            </div>
+            {photos.length===0?(
+              <div className="muted">{busy?"Loading…":"No photos yet"}</div>
+            ):(
+              <DragDropContext onDragEnd={onDragEnd}>
+                <Droppable droppableId="photos" direction="horizontal">
+                  {(provided)=>(
+                    <div className="photo-grid" ref={provided.innerRef} {...provided.droppableProps}>
+                      {photos.map((p,idx)=>(
+                        <Draggable key={p.key} draggableId={p.key} index={idx}>
+                          {(prov)=>(
+                            <div className="photo-card" ref={prov.innerRef} {...prov.draggableProps} {...prov.dragHandleProps}>
+                              <img src={p.url} alt={p.caption||"photo"} className="photo-img"
+                                onClick={()=>setViewerIndex(idx)}/>
+                              <input type="text" defaultValue={p.caption||""} placeholder="Caption"
+                                className="caption-input"
+                                onBlur={(e)=>handleCaption(p.key,e.target.value)}/>
+                              <button onClick={()=>handleDelete(p.key)} className="btn btn--danger w100">Delete</button>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
+            )}
+            <Lightbox open={viewerIndex>=0} index={viewerIndex}
+              close={()=>setViewerIndex(-1)} slides={photos.map(p=>({src:p.url,description:p.caption}))}/>
+          </>
+        )}
+
+        {tab==="history" && (
+          <div className="history-wrap">
+            <div className="section-title">Location History</div>
+            {history.length===0?(
+              <div className="muted">No history recorded.</div>
+            ):(
+              <table className="history-table">
+                <thead><tr><th>#</th><th>Location</th><th>Start</th><th>End</th><th>Days</th><th>Status</th></tr></thead>
+                <tbody>
+                  {history.map((h,i)=>{
+                    const isOpen=!h.endDate;
+                    const days=isOpen?daysOpen(h.startDate):daysClosed(h.startDate,h.endDate);
+                    return(<tr key={i}>
+                      <td>{i+1}</td><td>{h.location||"-"}</td>
+                      <td>{dmy(h.startDate)}</td><td>{isOpen?"Still There":dmy(h.endDate)}</td>
+                      <td>{days} Days</td>
+                      <td><span className={`chip ${isOpen?"chip--open":"chip--closed"}`}>{isOpen?"Open":"Closed"}</span></td>
+                    </tr>);
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
     </div>
-  );
+  </div>);
 }
 
-/* ---------- Reusable blocks ---------- */
-function InfoItem({ label, value, long = false }) {
-  return (
-    <div className={`card ${long ? "span-2" : ""}`}>
-      <div className="label">{label}</div>
-      <div className="value">{value}</div>
-    </div>
-  );
-}
+/* ---------- Reusable Blocks ---------- */
+function InfoItem({label,value,long}){return(<div className={`card ${long?"span-2":""}`}><div className="label">{label}</div><div className="value">{value}</div></div>);}
+function EditableField({label,name,value,editable,onDblClick,onChange,onBlur,long,placeholder}){return(
+  <div className={`card ${long?"span-2":""} ${editable?"is-editing":""}`} onDoubleClick={onDblClick}>
+    <div className="label">{label}</div>
+    <input type="text" name={name} value={value} onChange={editable?onChange:undefined}
+      onBlur={editable?onBlur:undefined} readOnly={!editable} className="input" placeholder={placeholder||""}/>
+    {!editable&&<div className="hint">Double-click to edit</div>}
+  </div>
+);}
+function EditableTextArea({label,name,value,editable,onDblClick,onChange,onBlur,long,placeholder}){return(
+  <div className={`card ${long?"span-2":""} ${editable?"is-editing":""}`} onDoubleClick={onDblClick}>
+    <div className="label">{label}</div>
+    <textarea name={name} value={value} onChange={editable?onChange:undefined}
+      onBlur={editable?onBlur:undefined} readOnly={!editable} className="input textarea" placeholder={placeholder||""}/>
+    {!editable&&<div className="hint">Double-click to edit</div>}
+  </div>
+);}
 
-function EditableField({ label, name, value, editable, onDblClick, onChange, onBlur, long = false, placeholder = "" }) {
-  return (
-    <div className={`card ${long ? "span-2" : ""} ${editable ? "is-editing" : ""}`} onDoubleClick={onDblClick} title={editable ? "" : "Double-click to edit"}>
-      <div className="label">{label}</div>
-      <input
-        type="text"
-        name={name}
-        value={value}
-        onChange={editable ? onChange : undefined}
-        onBlur={editable ? onBlur : undefined}
-        readOnly={!editable}
-        className="input"
-        placeholder={placeholder}
-      />
-      {!editable && <div className="hint">Double-click to edit</div>}
-    </div>
-  );
-}
-
-function EditableTextArea({ label, name, value, editable, onDblClick, onChange, onBlur, long = false, placeholder = "" }) {
-  return (
-    <div className={`card ${long ? "span-2" : ""} ${editable ? "is-editing" : ""}`} onDoubleClick={onDblClick} title={editable ? "" : "Double-click to edit"}>
-      <div className="label">{label}</div>
-      <textarea
-        name={name}
-        value={value}
-        onChange={editable ? onChange : undefined}
-        onBlur={editable ? onBlur : undefined}
-        readOnly={!editable}
-        className="input textarea"
-        placeholder={placeholder}
-      />
-      {!editable && <div className="hint">Double-click to edit</div>}
-    </div>
-  );
-}
-
-/* ---------- Inline styles & CSS ---------- */
-const overlayStyle = {
-  position:"fixed", inset:0, background:"rgba(0,0,0,0.45)",
-  display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000,
-};
-
-const modalShell = {
-  width:"min(1100px, 96vw)",
-  maxHeight:"94vh",
-  background:"#0b1220", color:"#e5e7eb",
-  borderRadius:14, boxShadow:"0 20px 60px rgba(0,0,0,0.35)",
-  border:"1px solid #1f2937",
-  display:"flex", flexDirection:"column",
-  overflow:"hidden",
-};
-
-const responsiveCss = `
-  .btn{border:1px solid #243041;border-radius:10px;padding:8px 12px;font-weight:600;cursor:pointer;background:#1f2937;color:#e5e7eb;}
-  .btn--muted{background:#1f2937;}
-  .btn--primary{background:#2563EB;color:#fff;border-color:transparent;}
-  .btn--danger{background:#DC2626;color:#fff;border-color:transparent;}
-  .w100{width:100%;}
-  .muted{color:#9ca3af}
-  .mb8{margin-bottom:8px;}
-
-  .cpm-header{
-    position:sticky; top:0; z-index:2;
-    display:flex; align-items:center; justify-content:space-between;
-    padding:12px 14px; background:#0b1220; border-bottom:1px solid #1f2937;
-  }
-  .cpm-title{font-weight:800;font-size:18px;}
-  .cpm-sub{font-size:13px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw;}
-  .cpm-actions{display:flex;gap:8px;align-items:center;}
-  .cpm-close{border:none;background:#1f2937;color:#e5e7eb;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;}
-
-  .cpm-tabs{
-    position:sticky; top:56px; z-index:1;
-    display:flex; gap:6px; padding:8px 12px;
-    background:#0b1220; border-bottom:1px solid #1f2937;
-  }
-  .tab{border:0;padding:8px 12px;border-radius:10px;background:#0f172a;color:#cbd5e1;font-weight:700;cursor:pointer;}
-  .tab--active{background:#1f2937;color:#fff;}
-
-  .cpm-body{padding:12px; overflow:auto; overscroll-behavior:contain;}
-
-  /* Info grid */
-  .info-grid{
-    display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px;
-  }
-  .card{
-    background:#0f172a;border:1px solid #1f2937;border-radius:10px;padding:12px;min-width:0;
-  }
-  .card.is-editing{box-shadow:inset 0 0 0 1px #334155}
-  .span-2{grid-column:span 2;}
-  .label{font-size:12px;color:#9ca3af;font-weight:700;margin-bottom:6px;}
-  .value{font-size:14px;word-break:break-word;}
-  .input{
-    width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px;
-    border:1px solid #243041; background:#0b1220; color:#e5e7eb; outline:none;
-  }
-  .textarea{min-height:120px; resize:vertical;}
-  .hint{font-size:11px;color:#9ca3af;margin-top:6px;}
-
-  .info-actions{
-    grid-column:span 2; display:flex; justify-content:flex-end; gap:8px; margin-top:2px;
-    position:sticky; bottom:0; background:linear-gradient(180deg, rgba(11,18,32,0) 0%, #0b1220 20%);
-    padding-top:12px; padding-bottom:4px;
-  }
-
-  /* Photos */
-  .photos-wrap{ max-height:calc(94vh - 190px); overflow:auto; border-top:1px solid #1f2937; padding-top:10px; }
-  .photo-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; }
-  .photo-card{ border:1px solid #1f2937; border-radius:10px; padding:10px; background:#0f172a; display:flex; flex-direction:column; gap:8px; }
-  .photo-img{ width:100%; height:160px; object-fit:cover; border-radius:8px; display:block; }
-  .caption-input{ width:100%; padding:8px 10px; border-radius:8px; border:1px solid #243041; background:#0b1220; color:#e5e7eb; outline:none; box-sizing:border-box; }
-
-  /* History */
-  .history-wrap{ max-height:calc(94vh - 170px); overflow:auto; }
-  .section-title{ font-weight:700; margin-bottom:8px; }
-  .history-table{ width:100%; border-collapse:collapse; font-size:14px; }
-  .history-table th, .history-table td{ padding:8px; border-bottom:1px solid #1f2937; text-align:left; }
-  .chip{display:inline-block;padding:4px 8px;border-radius:999px;font-weight:700;}
-  .chip--open{ background:#22c55e1f; color:#22c55e; }
-  .chip--closed{ background:#6b72801a; color:#9ca3af; }
-
-  /* Mobile tweaks */
-  @media (max-width: 720px){
-    .cpm-title{font-size:16px;}
-    .cpm-tabs{ top:52px; }
-    .info-grid{ grid-template-columns:1fr; }
-    .span-2{ grid-column:span 1; }
-    .photos-wrap, .history-wrap{ max-height:calc(94vh - 170px); }
-  }
+/* ---------- CSS ---------- */
+const overlayStyle={position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000};
+const css=`
+.modal-shell{width:min(1100px,96vw);max-height:94vh;background:#0b1220;color:#e5e7eb;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;border:1px solid #1f2937;}
+.header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#0b1220;border-bottom:1px solid #1f2937;}
+.title{font-weight:800;font-size:18px;}
+.sub{font-size:13px;color:#9ca3af;}
+.tabs{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid #1f2937;}
+.tab{border:0;padding:8px 12px;border-radius:10px;background:#0f172a;color:#cbd5e1;font-weight:700;cursor:pointer;}
+.tab--active{background:#1f2937;color:#fff;}
+.body{padding:12px;overflow:auto;}
+.btn{border:1px solid #243041;border-radius:10px;padding:8px 12px;font-weight:600;cursor:pointer;background:#1f2937;color:#e5e7eb;}
+.btn--primary{background:#2563EB;color:#fff;border:none;}
+.btn--muted{background:#1f2937;}
+.btn--danger{background:#DC2626;color:#fff;border:none;}
+.w100{width:100%;}
+.photo-grid{display:flex;flex-wrap:wrap;gap:10px;padding:10px 0;}
+.photo-card{border:1px solid #1f2937;border-radius:10px;background:#0f172a;padding:10px;display:flex;flex-direction:column;gap:8px;width:200px;}
+.photo-img{width:100%;height:160px;object-fit:cover;border-radius:8px;cursor:pointer;}
+.caption-input{width:100%;padding:8px 10px;border-radius:8px;border:1px solid #243041;background:#0b1220;color:#e5e7eb;outline:none;}
+.muted{color:#9ca3af;}
+.card{background:#0f172a;border:1px solid #1f2937;border-radius:10px;padding:12px;}
+.label{font-size:12px;color:#9ca3af;font-weight:700;margin-bottom:6px;}
+.input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #243041;background:#0b1220;color:#e5e7eb;}
+.textarea{min-height:120px;}
+.info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.info-actions{grid-column:span 2;display:flex;justify-content:flex-end;gap:8px;}
+.history-table{width:100%;border-collapse:collapse;}
+.history-table th,.history-table td{padding:8px;border-bottom:1px solid #1f2937;}
+.chip{display:inline-block;padding:4px 8px;border-radius:999px;font-weight:700;}
+.chip--open{background:#22c55e1f;color:#22c55e;}
+.chip--closed{background:#6b72801a;color:#9ca3af;}
+@media(max-width:720px){.photo-card{width:47%;}.info-grid{grid-template-columns:1fr;}}
 `;
