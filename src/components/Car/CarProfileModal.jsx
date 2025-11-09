@@ -6,13 +6,35 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
 // ---------- Utility helpers ----------
 const msPerDay = 1000 * 60 * 60 * 24;
-const dateOnly = (d) => { const dt = new Date(d || Date.now()); dt.setHours(0, 0, 0, 0); return dt; };
-const dmy = (d) => !d ? "-" : (() => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}/${String(dt.getFullYear()).slice(-2)}` })();
-const fullDT = (d) => d ? new Date(d).toLocaleString() : "-";
-const daysClosed = (s, e) => Math.max(1, Math.floor((dateOnly(e) - dateOnly(s)) / msPerDay));
+const dateOnly = (d) => {
+  const dt = new Date(d || Date.now());
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+};
+const dmy = (d) =>
+  !d
+    ? "-"
+    : (() => {
+        const dt = new Date(d);
+        return `${dt.getDate()}/${dt.getMonth() + 1}/${String(
+          dt.getFullYear()
+        ).slice(-2)}`;
+      })();
+const fullDT = (d) => (d ? new Date(d).toLocaleString() : "-");
+const daysClosed = (s, e) =>
+  Math.max(1, Math.floor((dateOnly(e) - dateOnly(s)) / msPerDay));
 
 // ---------- EditableField ----------
-function EditableField({ label, name, value, editable, long, onDblClick, onChange, onBlur }) {
+function EditableField({
+  label,
+  name,
+  value,
+  editable,
+  long,
+  onDblClick,
+  onChange,
+  onBlur,
+}) {
   return (
     <div className={`field ${long ? "field--long" : ""}`}>
       <label>{label}</label>
@@ -26,7 +48,11 @@ function EditableField({ label, name, value, editable, long, onDblClick, onChang
           className="input"
         />
       ) : (
-        <div className="static" onDoubleClick={onDblClick} title="Double-click to edit">
+        <div
+          className="static"
+          onDoubleClick={onDblClick}
+          title="Double-click to edit"
+        >
           {value || "—"}
         </div>
       )}
@@ -34,7 +60,16 @@ function EditableField({ label, name, value, editable, long, onDblClick, onChang
   );
 }
 
-function EditableTextArea({ label, name, value, editable, long, onDblClick, onChange, onBlur }) {
+function EditableTextArea({
+  label,
+  name,
+  value,
+  editable,
+  long,
+  onDblClick,
+  onChange,
+  onBlur,
+}) {
   return (
     <div className={`field ${long ? "field--long" : ""}`}>
       <label>{label}</label>
@@ -49,7 +84,11 @@ function EditableTextArea({ label, name, value, editable, long, onDblClick, onCh
           className="textarea"
         />
       ) : (
-        <div className="static static--multi" onDoubleClick={onDblClick} title="Double-click to edit">
+        <div
+          className="static static--multi"
+          onDoubleClick={onDblClick}
+          title="Double-click to edit"
+        >
           {value || "—"}
         </div>
       )}
@@ -95,7 +134,9 @@ export default function CarProfileModal({ open, car, onClose }) {
     checklist: false,
   });
 
-  const carTitle = localCar ? `${localCar.rego || ""} ${localCar.make || ""} ${localCar.model || ""}`.trim() : "";
+  const carTitle = localCar
+    ? `${localCar.rego || ""} ${localCar.make || ""} ${localCar.model || ""}`.trim()
+    : "";
 
   // ---------- Effects ----------
   useEffect(() => {
@@ -162,14 +203,17 @@ export default function CarProfileModal({ open, car, onClose }) {
     const files = Array.from(e.target.files || []);
     if (!files.length || !localCar?._id) return;
     const { UploadQueue } = await import("../../lib/uploadQueue");
-    for (const f of files) UploadQueue.enqueue({ carId: localCar._id, file: f, caption: "" });
+    for (const f of files)
+      UploadQueue.enqueue({ carId: localCar._id, file: f, caption: "" });
     setTimeout(fetchPhotos, 2000);
     fileRef.current.value = "";
   };
 
   const handleDelete = async (key) => {
     try {
-      await api.delete(`/photos/${localCar._id}?key=${encodeURIComponent(key)}`);
+      await api.delete(
+        `/photos/${localCar._id}?key=${encodeURIComponent(key)}`
+      );
       setPhotos((p) => p.filter((ph) => ph.key !== key));
     } catch (e) {
       console.error("handleDelete", e);
@@ -179,44 +223,45 @@ export default function CarProfileModal({ open, car, onClose }) {
   const handleCaption = async (key, caption) => {
     try {
       await api.patch(`/photos/${localCar._id}/caption`, { key, caption });
-      setPhotos((p) => p.map((ph) => (ph.key === key ? { ...ph, caption } : ph)));
+      setPhotos((p) =>
+        p.map((ph) => (ph.key === key ? { ...ph, caption } : ph))
+      );
     } catch (e) {
       console.error("handleCaption", e);
     }
   };
 
-  const onDragEnd = async (result) => {
+  const onDragEnd = (result) => {
     if (!result.destination) return;
     const reordered = Array.from(photos);
     const [moved] = reordered.splice(result.source.index, 1);
     reordered.splice(result.destination.index, 0, moved);
     setPhotos(reordered);
+  };
+
+  const savePhotoOrder = async () => {
+    if (!localCar?._id) return;
     try {
       await api.put(`/cars/${localCar._id}`, {
-        photos: reordered.map((p) => ({ key: p.key, caption: p.caption || "" })),
+        photos: photos.map((p) => ({
+          key: p.key,
+          caption: p.caption || "",
+        })),
       });
+      alert("✅ Photo order saved!");
     } catch (e) {
-      console.error("reorder error", e);
+      console.error("savePhotoOrder", e);
+      alert("❌ Failed to save photo order");
     }
   };
 
-  // ---------- NEW: Save order when closing ----------
   const handleClose = async () => {
-    if (localCar?._id && photos?.length) {
-      try {
-        await api.put(`/cars/${localCar._id}`, {
-          photos: photos.map((p) => ({ key: p.key, caption: p.caption || "" })),
-        });
-        console.log("✅ Saved photo order on close");
-      } catch (e) {
-        console.error("❌ final save order", e);
-      }
-    }
     onClose(false);
   };
 
   // ---------- Info handlers ----------
-  const onInfoChange = (e) => setInfoForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+  const onInfoChange = (e) =>
+    setInfoForm((p) => ({ ...p, [e.target.name]: e.target.value }));
   const unlock = (n) => setEditable((p) => ({ ...p, [n]: true }));
   const lock = (n) => setEditable((p) => ({ ...p, [n]: false }));
   const resetInfo = () => {
@@ -291,15 +336,34 @@ export default function CarProfileModal({ open, car, onClose }) {
             <div className="sub">{carTitle || "—"}</div>
           </div>
           <div className="actions">
-            <button className="btn btn--muted" onClick={refreshCar}>Refresh</button>
-            <button className="close" onClick={handleClose}>×</button>
+            <button className="btn btn--muted" onClick={refreshCar}>
+              Refresh
+            </button>
+            <button className="close" onClick={handleClose}>
+              ×
+            </button>
           </div>
         </div>
 
         <div className="tabs">
-          <button className={`tab ${tab === "info" ? "tab--active" : ""}`} onClick={() => setTab("info")}>Info</button>
-          <button className={`tab ${tab === "photos" ? "tab--active" : ""}`} onClick={() => setTab("photos")}>Photos</button>
-          <button className={`tab ${tab === "history" ? "tab--active" : ""}`} onClick={() => setTab("history")}>History</button>
+          <button
+            className={`tab ${tab === "info" ? "tab--active" : ""}`}
+            onClick={() => setTab("info")}
+          >
+            Info
+          </button>
+          <button
+            className={`tab ${tab === "photos" ? "tab--active" : ""}`}
+            onClick={() => setTab("photos")}
+          >
+            Photos
+          </button>
+          <button
+            className={`tab ${tab === "history" ? "tab--active" : ""}`}
+            onClick={() => setTab("history")}
+          >
+            History
+          </button>
         </div>
 
         <div className="body">
@@ -307,37 +371,143 @@ export default function CarProfileModal({ open, car, onClose }) {
             <div className="info-grid">
               <InfoItem label="Created" value={fullDT(localCar?.createdAt)} />
               <InfoItem label="Updated" value={fullDT(localCar?.updatedAt)} />
-              <EditableField label="Rego" name="rego" value={infoForm.rego} editable={editable.rego} onDblClick={() => unlock("rego")} onChange={onInfoChange} onBlur={() => lock("rego")} />
-              <EditableField label="Make" name="make" value={infoForm.make} editable={editable.make} onDblClick={() => unlock("make")} onChange={onInfoChange} onBlur={() => lock("make")} />
-              <EditableField label="Model" name="model" value={infoForm.model} editable={editable.model} onDblClick={() => unlock("model")} onChange={onInfoChange} onBlur={() => lock("model")} />
-              <EditableField label="Series" name="series" value={infoForm.series} editable={editable.series} onDblClick={() => unlock("series")} onChange={onInfoChange} onBlur={() => lock("series")} />
-              <EditableField label="Readiness" name="readinessStatus" value={infoForm.readinessStatus} editable={editable.readinessStatus} onDblClick={() => unlock("readinessStatus")} onChange={onInfoChange} onBlur={() => lock("readinessStatus")} long />
-              <EditableField label="Checklist" name="checklist" value={infoForm.checklist} editable={editable.checklist} onDblClick={() => unlock("checklist")} onChange={onInfoChange} onBlur={() => lock("checklist")} long />
-              <EditableTextArea label="Notes" name="notes" value={infoForm.notes} editable={editable.notes} onDblClick={() => unlock("notes")} onChange={onInfoChange} onBlur={() => lock("notes")} long />
+              <EditableField
+                label="Rego"
+                name="rego"
+                value={infoForm.rego}
+                editable={editable.rego}
+                onDblClick={() => unlock("rego")}
+                onChange={onInfoChange}
+                onBlur={() => lock("rego")}
+              />
+              <EditableField
+                label="Make"
+                name="make"
+                value={infoForm.make}
+                editable={editable.make}
+                onDblClick={() => unlock("make")}
+                onChange={onInfoChange}
+                onBlur={() => lock("make")}
+              />
+              <EditableField
+                label="Model"
+                name="model"
+                value={infoForm.model}
+                editable={editable.model}
+                onDblClick={() => unlock("model")}
+                onChange={onInfoChange}
+                onBlur={() => lock("model")}
+              />
+              <EditableField
+                label="Series"
+                name="series"
+                value={infoForm.series}
+                editable={editable.series}
+                onDblClick={() => unlock("series")}
+                onChange={onInfoChange}
+                onBlur={() => lock("series")}
+              />
+              <EditableField
+                label="Readiness"
+                name="readinessStatus"
+                value={infoForm.readinessStatus}
+                editable={editable.readinessStatus}
+                onDblClick={() => unlock("readinessStatus")}
+                onChange={onInfoChange}
+                onBlur={() => lock("readinessStatus")}
+                long
+              />
+              <EditableField
+                label="Checklist"
+                name="checklist"
+                value={infoForm.checklist}
+                editable={editable.checklist}
+                onDblClick={() => unlock("checklist")}
+                onChange={onInfoChange}
+                onBlur={() => lock("checklist")}
+                long
+              />
+              <EditableTextArea
+                label="Notes"
+                name="notes"
+                value={infoForm.notes}
+                editable={editable.notes}
+                onDblClick={() => unlock("notes")}
+                onChange={onInfoChange}
+                onBlur={() => lock("notes")}
+                long
+              />
               <div className="info-actions">
-                <button className="btn btn--muted" onClick={resetInfo}>Reset</button>
-                <button className="btn btn--primary" onClick={saveInfo} disabled={busy}>{busy ? "Saving..." : "Save"}</button>
+                <button className="btn btn--muted" onClick={resetInfo}>
+                  Reset
+                </button>
+                <button
+                  className="btn btn--primary"
+                  onClick={saveInfo}
+                  disabled={busy}
+                >
+                  {busy ? "Saving..." : "Save"}
+                </button>
               </div>
             </div>
           )}
 
           {tab === "photos" && (
             <div className="photo-tab">
-              <input ref={fileRef} type="file" multiple hidden onChange={handleFiles} />
+              <input
+                ref={fileRef}
+                type="file"
+                multiple
+                hidden
+                onChange={handleFiles}
+              />
               <div className="photo-toolbar">
-                <button className="btn btn--primary" onClick={handlePick}>Upload Photos</button>
+                <button className="btn btn--primary" onClick={handlePick}>
+                  Upload Photos
+                </button>
+                <button className="btn btn--muted" onClick={fetchPhotos}>
+                  Refresh
+                </button>
+                <button className="btn btn--primary" onClick={savePhotoOrder}>
+                  Save Order
+                </button>
               </div>
               <DragDropContext onDragEnd={onDragEnd}>
                 <Droppable droppableId="photos">
                   {(provided) => (
-                    <div ref={provided.innerRef} {...provided.droppableProps} className="photo-grid">
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className="photo-grid"
+                    >
                       {photos.map((ph, i) => (
                         <Draggable key={ph.key} draggableId={ph.key} index={i}>
                           {(prov) => (
-                            <div className="photo-item" ref={prov.innerRef} {...prov.draggableProps} {...prov.dragHandleProps}>
-                              <img src={ph.url} alt="" onClick={() => setViewerIndex(i)} />
-                              <input className="caption" placeholder="Add caption" value={ph.caption || ""} onChange={(e) => handleCaption(ph.key, e.target.value)} />
-                              <button className="del" onClick={() => handleDelete(ph.key)}>×</button>
+                            <div
+                              className="photo-item"
+                              ref={prov.innerRef}
+                              {...prov.draggableProps}
+                              {...prov.dragHandleProps}
+                            >
+                              <img
+                                src={ph.url}
+                                alt=""
+                                onClick={() => setViewerIndex(i)}
+                              />
+                              <input
+                                className="caption"
+                                placeholder="Add caption"
+                                value={ph.caption || ""}
+                                onChange={(e) =>
+                                  handleCaption(ph.key, e.target.value)
+                                }
+                              />
+                              <button
+                                className="del"
+                                onClick={() => handleDelete(ph.key)}
+                              >
+                                ×
+                              </button>
                             </div>
                           )}
                         </Draggable>
@@ -347,26 +517,46 @@ export default function CarProfileModal({ open, car, onClose }) {
                   )}
                 </Droppable>
               </DragDropContext>
-              <Lightbox open={viewerIndex >= 0} index={viewerIndex} close={() => setViewerIndex(-1)} slides={photos.map((p) => ({ src: p.url }))} />
+              <Lightbox
+                open={viewerIndex >= 0}
+                index={viewerIndex}
+                close={() => setViewerIndex(-1)}
+                slides={photos.map((p) => ({ src: p.url }))}
+              />
             </div>
           )}
 
           {tab === "history" && (
             <table className="history-table">
               <thead>
-                <tr><th>Location</th><th>Start</th><th>End</th><th>Days</th></tr>
+                <tr>
+                  <th>Location</th>
+                  <th>Start</th>
+                  <th>End</th>
+                  <th>Days</th>
+                </tr>
               </thead>
               <tbody>
                 {history.length === 0 ? (
-                  <tr><td colSpan={4} className="empty">No history</td></tr>
-                ) : history.map((h, i) => (
-                  <tr key={i}>
-                    <td>{h.location || "—"}</td>
-                    <td>{dmy(h.startDate)}</td>
-                    <td>{h.endDate ? dmy(h.endDate) : "—"}</td>
-                    <td>{h.endDate ? daysClosed(h.startDate, h.endDate) : "—"}</td>
+                  <tr>
+                    <td colSpan={4} className="empty">
+                      No history
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  history.map((h, i) => (
+                    <tr key={i}>
+                      <td>{h.location || "—"}</td>
+                      <td>{dmy(h.startDate)}</td>
+                      <td>{h.endDate ? dmy(h.endDate) : "—"}</td>
+                      <td>
+                        {h.endDate
+                          ? daysClosed(h.startDate, h.endDate)
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           )}
@@ -399,7 +589,7 @@ const css = `
 .btn--muted{background:#333;color:#ccc;}
 .btn--primary{background:#0078ff;color:#fff;}
 .photo-tab{padding:8px;}
-.photo-toolbar{text-align:right;margin-bottom:8px;}
+.photo-toolbar{text-align:right;margin-bottom:8px;display:flex;gap:6px;justify-content:flex-end;}
 .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;}
 .photo-item{position:relative;}
 .photo-item img{width:100%;height:100px;object-fit:cover;border-radius:6px;cursor:pointer;}
