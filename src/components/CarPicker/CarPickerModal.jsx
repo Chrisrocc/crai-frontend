@@ -14,6 +14,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
   const [q, setQ] = useState("");
   const inputRef = useRef(null);
 
+  // Focus and escape
   useEffect(() => {
     if (!show) return;
     const t = setTimeout(() => inputRef.current?.focus(), 50);
@@ -25,6 +26,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
     };
   }, [show, onClose]);
 
+  // Search filter
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return cars;
@@ -44,9 +46,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
       <div className="cpk-modal" role="document" onClick={(e) => e.stopPropagation()}>
         <header className="cpk-head">
           <h3>Select a Car</h3>
-          <button className="cpk-x" onClick={onClose} aria-label="Close">
-            ×
-          </button>
+          <button className="cpk-x" onClick={onClose} aria-label="Close">×</button>
         </header>
 
         <div className="cpk-tools">
@@ -58,23 +58,19 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
             onChange={(e) => setQ(e.target.value)}
           />
           <div className="cpk-spacer" />
-          <button className="cpk-btn cpk-btn--ghost" onClick={() => onSelect?.(null)}>
-            Clear
-          </button>
-          <button className="cpk-btn cpk-btn--primary" onClick={onClose}>
-            Done
-          </button>
+          <button className="cpk-btn cpk-btn--ghost" onClick={() => onSelect?.(null)}>Clear</button>
+          <button className="cpk-btn cpk-btn--primary" onClick={onClose}>Done</button>
         </div>
 
         <div className="cpk-table-wrap">
           <table className="cpk-table">
             <colgroup>
-              <col style={{ width: "12%" }} /> {/* New photo column */}
-              <col style={{ width: "16%" }} />
-              <col style={{ width: "25%" }} />
-              <col style={{ width: "25%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "12%" }} />
+              <col style={{ width: "12%" }} /> {/* Photo */}
+              <col style={{ width: "16%" }} /> {/* Rego */}
+              <col style={{ width: "24%" }} /> {/* Make */}
+              <col style={{ width: "24%" }} /> {/* Model */}
+              <col style={{ width: "10%" }} /> {/* Year */}
+              <col style={{ width: "14%" }} /> {/* Action */}
             </colgroup>
             <thead>
               <tr>
@@ -89,25 +85,33 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td className="cpk-empty" colSpan={6}>
-                    No cars match your search.
-                  </td>
+                  <td className="cpk-empty" colSpan={6}>No cars match your search.</td>
                 </tr>
               ) : (
                 filtered.map((c) => {
-                  const firstPhoto = Array.isArray(c.photos) && c.photos.length > 0 ? c.photos[0] : null;
+                  const firstPhoto =
+                    Array.isArray(c.photos) && c.photos.length > 0
+                      ? c.photos[0]
+                      : null;
+
+                  let photoUrl = "";
+                  if (typeof firstPhoto === "string" && firstPhoto.trim() !== "") {
+                    if (firstPhoto.startsWith("http")) {
+                      photoUrl = firstPhoto;
+                    } else {
+                      photoUrl = `/uploads/${firstPhoto.replace(/^\/+/, "")}`;
+                    }
+                  }
+
                   return (
                     <tr key={c._id} onDoubleClick={() => onSelect?.(c)}>
                       <td>
-                        {firstPhoto ? (
+                        {photoUrl ? (
                           <img
-                            src={
-                              firstPhoto.startsWith("http")
-                                ? firstPhoto
-                                : `/uploads/${firstPhoto}`
-                            }
+                            src={photoUrl}
                             alt="car"
                             className="cpk-photo"
+                            onError={(e) => (e.target.style.display = "none")}
                           />
                         ) : (
                           <div className="cpk-photo-placeholder" />
@@ -139,7 +143,11 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
 
 const css = `
 :root { color-scheme: dark; }
-.cpk-wrap { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.55); backdrop-filter: blur(2px); display:flex; align-items:center; justify-content:center; }
+.cpk-wrap {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,.55); backdrop-filter: blur(2px);
+  display:flex; align-items:center; justify-content:center;
+}
 .cpk-modal {
   width: min(900px, calc(100vw - 32px));
   max-height: min(80vh, 900px);
@@ -148,19 +156,34 @@ const css = `
   border: 1px solid #1F2937; border-radius: 14px;
   box-shadow: 0 20px 60px rgba(0,0,0,.4);
 }
-.cpk-head { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid #1F2937; }
+.cpk-head {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 14px; border-bottom:1px solid #1F2937;
+}
 .cpk-head h3 { margin:0; font-size:16px; }
-.cpk-x { border:none; background:#111827; color:#E5E7EB; border:1px solid #243041; width:28px; height:28px; border-radius:8px; cursor:pointer; }
+.cpk-x {
+  border:none; background:#111827; color:#E5E7EB;
+  border:1px solid #243041; width:28px; height:28px;
+  border-radius:8px; cursor:pointer;
+}
 
-.cpk-tools { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid #1F2937; }
+.cpk-tools {
+  display:flex; align-items:center; gap:8px;
+  padding:10px 14px; border-bottom:1px solid #1F2937;
+}
 .cpk-input {
   flex: 0 1 420px; max-width: 520px;
-  padding:8px 10px; border-radius:10px; border:1px solid #243041; background:#0B1220; color:#E5E7EB; outline:none;
+  padding:8px 10px; border-radius:10px;
+  border:1px solid #243041; background:#0B1220; color:#E5E7EB;
+  outline:none;
 }
 .cpk-input:focus { border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,0.25); }
 .cpk-spacer { flex: 1; }
 
-.cpk-btn { border:1px solid transparent; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:600; }
+.cpk-btn {
+  border:1px solid transparent; border-radius:10px;
+  padding:8px 12px; cursor:pointer; font-weight:600;
+}
 .cpk-btn--primary { background:#2563EB; color:#fff; }
 .cpk-btn--ghost { background:#111827; color:#E5E7EB; border-color:#243041; }
 .cpk-btn--sm { padding:6px 10px; font-size:12px; border-radius:8px; }
@@ -169,22 +192,25 @@ const css = `
 .cpk-table { width:100%; border-collapse:separate; border-spacing:0; table-layout: fixed; }
 .cpk-table thead th {
   position: sticky; top: 0; z-index: 1; background:#0F172A;
-  border-bottom:1px solid #1F2937; color:#9CA3AF; font-size:12px; text-align:left; padding:10px;
+  border-bottom:1px solid #1F2937; color:#9CA3AF;
+  font-size:12px; text-align:left; padding:10px;
 }
 .cpk-table tbody td {
-  padding:10px; border-bottom:1px solid #1F2937; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; vertical-align:middle;
+  padding:10px; border-bottom:1px solid #1F2937;
+  font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .cpk-table tbody tr:hover { background:#0B1428; }
 .cpk-actions { display:flex; justify-content:flex-end; }
 .cpk-empty { text-align:center; color:#9CA3AF; padding:18px; }
 
 .cpk-photo {
-  width:48px; height:48px; border-radius:10px; object-fit:cover;
-  background:#111; border:1px solid #243041;
+  width:48px; height:48px; object-fit:cover;
+  border-radius:8px; border:1px solid #1F2937;
 }
 .cpk-photo-placeholder {
-  width:48px; height:48px; border-radius:10px;
-  background:#0B1220; border:1px solid #243041;
+  width:48px; height:48px;
+  border-radius:8px; border:1px dashed #1F2937;
+  background:#0B1220;
 }
 `;
 
