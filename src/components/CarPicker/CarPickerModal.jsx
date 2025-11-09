@@ -6,9 +6,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
  *
  * Props:
  * - show: boolean
- * - cars: Array<{ _id, rego, make, model, year }>
+ * - cars: Array<{ _id, rego, make, model, year, photos?: string[] }>
  * - onClose: () => void
- * - onSelect: (carOrNull) => void     // pass null to clear selection
+ * - onSelect: (carOrNull) => void
  */
 export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
   const [q, setQ] = useState("");
@@ -44,7 +44,9 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
       <div className="cpk-modal" role="document" onClick={(e) => e.stopPropagation()}>
         <header className="cpk-head">
           <h3>Select a Car</h3>
-          <button className="cpk-x" onClick={onClose} aria-label="Close">×</button>
+          <button className="cpk-x" onClick={onClose} aria-label="Close">
+            ×
+          </button>
         </header>
 
         <div className="cpk-tools">
@@ -56,21 +58,27 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
             onChange={(e) => setQ(e.target.value)}
           />
           <div className="cpk-spacer" />
-          <button className="cpk-btn cpk-btn--ghost" onClick={() => onSelect?.(null)}>Clear</button>
-          <button className="cpk-btn cpk-btn--primary" onClick={onClose}>Done</button>
+          <button className="cpk-btn cpk-btn--ghost" onClick={() => onSelect?.(null)}>
+            Clear
+          </button>
+          <button className="cpk-btn cpk-btn--primary" onClick={onClose}>
+            Done
+          </button>
         </div>
 
         <div className="cpk-table-wrap">
           <table className="cpk-table">
             <colgroup>
-              <col style={{ width: "18%" }} />
-              <col style={{ width: "26%" }} />
-              <col style={{ width: "26%" }} />
-              <col style={{ width: "14%" }} />
+              <col style={{ width: "12%" }} /> {/* New photo column */}
               <col style={{ width: "16%" }} />
+              <col style={{ width: "25%" }} />
+              <col style={{ width: "25%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "12%" }} />
             </colgroup>
             <thead>
               <tr>
+                <th>Photo</th>
                 <th>Rego</th>
                 <th>Make</th>
                 <th>Model</th>
@@ -81,22 +89,45 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td className="cpk-empty" colSpan={5}>No cars match your search.</td>
+                  <td className="cpk-empty" colSpan={6}>
+                    No cars match your search.
+                  </td>
                 </tr>
               ) : (
-                filtered.map((c) => (
-                  <tr key={c._id} onDoubleClick={() => onSelect?.(c)}>
-                    <td title={c.rego || ""}>{c.rego || "—"}</td>
-                    <td title={c.make || ""}>{c.make || "—"}</td>
-                    <td title={c.model || ""}>{c.model || "—"}</td>
-                    <td title={c.year || ""}>{c.year || "—"}</td>
-                    <td className="cpk-actions">
-                      <button className="cpk-btn cpk-btn--primary cpk-btn--sm" onClick={() => onSelect?.(c)}>
-                        Select
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                filtered.map((c) => {
+                  const firstPhoto = Array.isArray(c.photos) && c.photos.length > 0 ? c.photos[0] : null;
+                  return (
+                    <tr key={c._id} onDoubleClick={() => onSelect?.(c)}>
+                      <td>
+                        {firstPhoto ? (
+                          <img
+                            src={
+                              firstPhoto.startsWith("http")
+                                ? firstPhoto
+                                : `/uploads/${firstPhoto}`
+                            }
+                            alt="car"
+                            className="cpk-photo"
+                          />
+                        ) : (
+                          <div className="cpk-photo-placeholder" />
+                        )}
+                      </td>
+                      <td title={c.rego || ""}>{c.rego || "—"}</td>
+                      <td title={c.make || ""}>{c.make || "—"}</td>
+                      <td title={c.model || ""}>{c.model || "—"}</td>
+                      <td title={c.year || ""}>{c.year || "—"}</td>
+                      <td className="cpk-actions">
+                        <button
+                          className="cpk-btn cpk-btn--primary cpk-btn--sm"
+                          onClick={() => onSelect?.(c)}
+                        >
+                          Select
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -141,9 +172,19 @@ const css = `
   border-bottom:1px solid #1F2937; color:#9CA3AF; font-size:12px; text-align:left; padding:10px;
 }
 .cpk-table tbody td {
-  padding:10px; border-bottom:1px solid #1F2937; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  padding:10px; border-bottom:1px solid #1F2937; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; vertical-align:middle;
 }
 .cpk-table tbody tr:hover { background:#0B1428; }
 .cpk-actions { display:flex; justify-content:flex-end; }
 .cpk-empty { text-align:center; color:#9CA3AF; padding:18px; }
+
+.cpk-photo {
+  width:48px; height:48px; border-radius:10px; object-fit:cover;
+  background:#111; border:1px solid #243041;
+}
+.cpk-photo-placeholder {
+  width:48px; height:48px; border-radius:10px;
+  background:#0B1220; border:1px solid #243041;
+}
 `;
+
