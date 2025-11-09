@@ -13,16 +13,14 @@ const dateOnly = (d) => {
 };
 const dmy = (d) =>
   !d
-    ? "-"
+    ? "—"
     : (() => {
         const dt = new Date(d);
         return `${dt.getDate()}/${dt.getMonth() + 1}/${String(
           dt.getFullYear()
         ).slice(-2)}`;
       })();
-const fullDT = (d) => (d ? new Date(d).toLocaleString() : "-");
-const daysClosed = (s, e) =>
-  Math.max(1, Math.floor((dateOnly(e) - dateOnly(s)) / msPerDay));
+const fullDT = (d) => (d ? new Date(d).toLocaleString() : "—");
 
 /* ---------- Small reusable fields ---------- */
 function EditableField({
@@ -30,12 +28,13 @@ function EditableField({
   name,
   value,
   editable,
+  long,
   onDblClick,
   onChange,
   onBlur,
 }) {
   return (
-    <div className="field">
+    <div className={`field ${long ? "field--long" : ""}`}>
       <label>{label}</label>
       {editable ? (
         <input
@@ -59,9 +58,18 @@ function EditableField({
   );
 }
 
-function EditableTextArea({ label, name, value, editable, onDblClick, onChange, onBlur }) {
+function EditableTextArea({
+  label,
+  name,
+  value,
+  editable,
+  long,
+  onDblClick,
+  onChange,
+  onBlur,
+}) {
   return (
-    <div className="field field--full">
+    <div className={`field ${long ? "field--long" : ""}`}>
       <label>{label}</label>
       {editable ? (
         <textarea
@@ -102,6 +110,8 @@ export default function CarProfileModal({ open, car, onClose }) {
   const [busy, setBusy] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(-1);
   const [localCar, setLocalCar] = useState(car || null);
+  const [today, setToday] = useState(dateOnly(Date.now())); // live date
+
   const fileRef = useRef(null);
 
   const [infoForm, setInfoForm] = useState({
@@ -127,6 +137,7 @@ export default function CarProfileModal({ open, car, onClose }) {
     ? `${localCar.rego || ""} ${localCar.make || ""} ${localCar.model || ""}`.trim()
     : "";
 
+  /* ---------- Effects ---------- */
   useEffect(() => {
     setLocalCar(car || null);
     setTab("info");
@@ -155,6 +166,22 @@ export default function CarProfileModal({ open, car, onClose }) {
       checklist: false,
     });
   }, [localCar]);
+
+  /* Midnight refresh — triggers once a day */
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+      0,
+      0,
+      5
+    );
+    const timeout = nextMidnight - now;
+    const timer = setTimeout(() => setToday(dateOnly(Date.now())), timeout);
+    return () => clearTimeout(timer);
+  }, [today]);
 
   /* ---------- API helpers ---------- */
   const fetchPhotos = async () => {
@@ -293,7 +320,9 @@ export default function CarProfileModal({ open, car, onClose }) {
             <div className="sub">{carTitle || "—"}</div>
           </div>
           <div className="actions">
-            <button className="btn btn--muted" onClick={refreshCar}>Refresh</button>
+            <button className="btn btn--muted" onClick={refreshCar}>
+              Refresh
+            </button>
             <button className="close" onClick={handleClose}>×</button>
           </div>
         </div>
@@ -313,9 +342,9 @@ export default function CarProfileModal({ open, car, onClose }) {
               <EditableField label="Make" name="make" value={infoForm.make} editable={editable.make} onDblClick={() => unlock("make")} onChange={onInfoChange} onBlur={() => lock("make")} />
               <EditableField label="Model" name="model" value={infoForm.model} editable={editable.model} onDblClick={() => unlock("model")} onChange={onInfoChange} onBlur={() => lock("model")} />
               <EditableField label="Series" name="series" value={infoForm.series} editable={editable.series} onDblClick={() => unlock("series")} onChange={onInfoChange} onBlur={() => lock("series")} />
-              <EditableField label="Readiness" name="readinessStatus" value={infoForm.readinessStatus} editable={editable.readinessStatus} onDblClick={() => unlock("readinessStatus")} onChange={onInfoChange} onBlur={() => lock("readinessStatus")} />
-              <EditableField label="Checklist" name="checklist" value={infoForm.checklist} editable={editable.checklist} onDblClick={() => unlock("checklist")} onChange={onInfoChange} onBlur={() => lock("checklist")} />
-              <EditableTextArea label="Notes" name="notes" value={infoForm.notes} editable={editable.notes} onDblClick={() => unlock("notes")} onChange={onInfoChange} onBlur={() => lock("notes")} />
+              <EditableField label="Readiness" name="readinessStatus" value={infoForm.readinessStatus} editable={editable.readinessStatus} onDblClick={() => unlock("readinessStatus")} onChange={onInfoChange} onBlur={() => lock("readinessStatus")} long />
+              <EditableField label="Checklist" name="checklist" value={infoForm.checklist} editable={editable.checklist} onDblClick={() => unlock("checklist")} onChange={onInfoChange} onBlur={() => lock("checklist")} long />
+              <EditableTextArea label="Notes" name="notes" value={infoForm.notes} editable={editable.notes} onDblClick={() => unlock("notes")} onChange={onInfoChange} onBlur={() => lock("notes")} long />
               <div className="info-actions">
                 <button className="btn btn--muted" onClick={refreshCar}>Reset</button>
                 <button className="btn btn--primary" onClick={saveInfo} disabled={busy}>{busy ? "Saving..." : "Save"}</button>
@@ -359,17 +388,21 @@ export default function CarProfileModal({ open, car, onClose }) {
             <table className="history-table">
               <thead><tr><th>Location</th><th>Start</th><th>End</th><th>Days</th></tr></thead>
               <tbody>
-                {(!history.length) ? (
+                {!history.length ? (
                   <tr><td colSpan={4} className="empty">No history</td></tr>
                 ) : (
-                  history.map((h, i) => (
-                    <tr key={i}>
-                      <td>{h.location || "—"}</td>
-                      <td>{dmy(h.startDate)}</td>
-                      <td>{h.endDate ? dmy(h.endDate) : "—"}</td>
-                      <td>{h.endDate ? daysClosed(h.startDate, h.endDate) : "—"}</td>
-                    </tr>
-                  ))
+                  history.map((h, i) => {
+                    const end = h.endDate ? dateOnly(h.endDate) : today;
+                    const days = Math.max(1, Math.floor((end - dateOnly(h.startDate)) / msPerDay));
+                    return (
+                      <tr key={i}>
+                        <td>{h.location || "—"}</td>
+                        <td>{dmy(h.startDate)}</td>
+                        <td>{h.endDate ? dmy(h.endDate) : "—"}</td>
+                        <td>{days}</td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -391,83 +424,187 @@ const css = `
   backdrop-filter: blur(3px);
 }
 .modal {
-  width: min(900px, calc(100vw - 32px));
+  width: min(960px, calc(100vw - 32px));
   max-height: 90vh;
   background:#0F172A; color:#E5E7EB;
   border:1px solid #1F2937; border-radius:14px;
   box-shadow:0 20px 60px rgba(0,0,0,.45);
   display:flex; flex-direction:column;
   overflow:hidden;
+  animation: fadeUp .12s ease-out;
 }
+@keyframes fadeUp { from{transform:translateY(8px);opacity:.8} to{transform:none;opacity:1} }
+
 .header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:16px 20px; border-bottom:1px solid #1F2937;
+  padding:14px 18px; border-bottom:1px solid #1F2937;
   background:#111827;
 }
 .title { font-size:18px; font-weight:600; }
 .sub { font-size:12px; color:#9CA3AF; }
-.actions { display:flex; align-items:center; gap:8px; }
 .close {
   background:#111827; color:#E5E7EB;
   border:1px solid #243041;
   width:32px; height:32px;
   border-radius:10px; cursor:pointer;
 }
+.actions { display:flex; align-items:center; gap:8px; }
+
 .tabs {
-  display:flex; background:#0B1220; border-bottom:1px solid #1F2937;
+  display:flex;
+  background:#0B1220;
+  border-bottom:1px solid #1F2937;
 }
 .tab {
-  flex:1; padding:10px 12px; background:transparent;
-  border:none; color:#9CA3AF; cursor:pointer; transition:all .2s;
+  flex:1; padding:10px 12px;
+  background:transparent; border:none;
+  color:#9CA3AF; cursor:pointer;
+  font-weight:500; transition:all .2s;
 }
 .tab:hover { color:#fff; background:#1E293B; }
-.tab--active { background:#1E3A8A; color:#fff; }
+.tab--active {
+  background:#1E3A8A; color:#fff; font-weight:600;
+}
 
-.body { padding:20px; overflow-y:auto; }
+.body {
+  padding:18px 20px;
+  overflow-y:auto;
+}
 
 .info-grid {
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:18px 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px 24px;
+  align-items: start;
 }
+
 .field label {
-  font-size:12px; color:#9CA3AF; margin-bottom:4px; display:block;
+  font-size: 12px;
+  color: #9CA3AF;
+  margin-bottom: 4px;
+  display: block;
 }
 .static, .input, .textarea {
-  width:100%;
-  padding:10px 12px;
-  border-radius:10px;
-  background:#0B1220;
-  border:1px solid #243041;
-  color:#E5E7EB;
-  font-size:13px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #0B1220;
+  border: 1px solid #243041;
+  color: #E5E7EB;
+  font-size: 13px;
+  transition: border-color .2s, box-shadow .2s;
 }
-.static { cursor:default; min-height:36px; }
-.field--full { grid-column:1 / -1; }
-
+.input:focus, .textarea:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37,99,235,.25);
+}
+.textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+.static {
+  cursor: default;
+  user-select: none;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+}
 .info-actions {
-  grid-column:1/-1;
-  display:flex; justify-content:flex-end; gap:10px;
-  margin-top:10px;
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
 }
 .btn {
-  border:1px solid transparent; border-radius:12px;
-  padding:10px 14px; font-weight:600; cursor:pointer;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s, opacity .2s;
 }
-.btn--primary { background:#2563EB; color:#fff; }
-.btn--muted { background:#111827; color:#E5E7EB; border:1px solid #243041; }
-.btn:disabled { opacity:.6; cursor:default; }
-
-.photo-toolbar { display:flex; justify-content:flex-end; gap:10px; margin-bottom:10px; }
-.photo-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
-.photo-item { position:relative; background:#111827; border:1px solid #243041; border-radius:10px; overflow:hidden; }
-.photo-item img { width:100%; height:120px; object-fit:cover; cursor:pointer; }
-.caption { width:100%; border:none; background:#0B1220; color:#E5E7EB; font-size:12px; padding:6px 8px; border-top:1px solid #1F2937; }
-.del { position:absolute; top:6px; right:6px; width:24px; height:24px; border:none; border-radius:50%; background:rgba(0,0,0,0.5); color:#fff; cursor:pointer; font-size:16px; }
-
-.history-table { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
-.history-table th, .history-table td { padding:8px 10px; border-bottom:1px solid #1F2937; }
-.history-table th { background:#111827; color:#E5E7EB; text-align:left; }
-.history-table tr:hover td { background:#0B1220; }
-.history-table .empty { text-align:center; color:#6B7280; padding:16px; }
+.btn--primary {
+  background: #2563EB;
+  color: #fff;
+}
+.btn--muted {
+  background: #111827;
+  color: #E5E7EB;
+  border: 1px solid #243041;
+}
+.btn:disabled {
+  opacity: .6;
+  cursor: default;
+}
+.photo-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.photo-item {
+  position: relative;
+  background: #111827;
+  border: 1px solid #243041;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.photo-item img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  cursor: pointer;
+}
+.caption {
+  width: 100%;
+  border: none;
+  background: #0B1220;
+  color: #E5E7EB;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-top: 1px solid #1F2937;
+}
+.del {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.history-table th,
+.history-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #1F2937;
+}
+.history-table th {
+  background: #111827;
+  color: #E5E7EB;
+  text-align: left;
+}
+.history-table tr:hover td {
+  background: #0B1220;
+}
+.history-table .empty {
+  text-align: center;
+  color: #6B7280;
+  padding: 16px;
+}
 `;
