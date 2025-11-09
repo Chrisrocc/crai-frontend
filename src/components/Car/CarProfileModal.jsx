@@ -1,34 +1,24 @@
+// src/components/Car/CarProfileModal.jsx
 import { useEffect, useRef, useState } from "react";
 import api from "../../lib/api";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
-// ---------- Utility helpers ----------
 const msPerDay = 1000 * 60 * 60 * 24;
 const dateOnly = (d) => { const dt = new Date(d || Date.now()); dt.setHours(0, 0, 0, 0); return dt; };
 const dmy = (d) => !d ? "-" : (() => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}/${String(dt.getFullYear()).slice(-2)}` })();
 const fullDT = (d) => d ? new Date(d).toLocaleString() : "-";
 const daysClosed = (s, e) => Math.max(1, Math.floor((dateOnly(e) - dateOnly(s)) / msPerDay));
 
-// ---------- EditableField ----------
 function EditableField({ label, name, value, editable, long, onDblClick, onChange, onBlur }) {
   return (
     <div className={`field ${long ? "field--long" : ""}`}>
       <label>{label}</label>
       {editable ? (
-        <input
-          name={name}
-          value={value}
-          onChange={onChange}
-          onBlur={onBlur}
-          autoFocus
-          className="input"
-        />
+        <input name={name} value={value} onChange={onChange} onBlur={onBlur} autoFocus className="input" />
       ) : (
-        <div className="static" onDoubleClick={onDblClick} title="Double-click to edit">
-          {value || "—"}
-        </div>
+        <div className="static" onDoubleClick={onDblClick}>{value || "—"}</div>
       )}
     </div>
   );
@@ -39,19 +29,9 @@ function EditableTextArea({ label, name, value, editable, long, onDblClick, onCh
     <div className={`field ${long ? "field--long" : ""}`}>
       <label>{label}</label>
       {editable ? (
-        <textarea
-          name={name}
-          value={value}
-          onChange={onChange}
-          onBlur={onBlur}
-          rows={3}
-          autoFocus
-          className="textarea"
-        />
+        <textarea name={name} value={value} onChange={onChange} onBlur={onBlur} rows={3} autoFocus className="textarea" />
       ) : (
-        <div className="static static--multi" onDoubleClick={onDblClick} title="Double-click to edit">
-          {value || "—"}
-        </div>
+        <div className="static static--multi" onDoubleClick={onDblClick}>{value || "—"}</div>
       )}
     </div>
   );
@@ -66,7 +46,6 @@ function InfoItem({ label, value }) {
   );
 }
 
-// ---------- Main ----------
 export default function CarProfileModal({ open, car, onClose }) {
   const [tab, setTab] = useState("info");
   const [photos, setPhotos] = useState([]);
@@ -75,33 +54,14 @@ export default function CarProfileModal({ open, car, onClose }) {
   const [localCar, setLocalCar] = useState(car || null);
   const fileRef = useRef(null);
 
-  // editable info
   const [infoForm, setInfoForm] = useState({
-    rego: "",
-    make: "",
-    model: "",
-    series: "",
-    readinessStatus: "",
-    notes: "",
-    checklist: "",
+    rego: "", make: "", model: "", series: "", readinessStatus: "", notes: "", checklist: ""
   });
-  const [editable, setEditable] = useState({
-    rego: false,
-    make: false,
-    model: false,
-    series: false,
-    readinessStatus: false,
-    notes: false,
-    checklist: false,
-  });
+  const [editable, setEditable] = useState({});
 
   const carTitle = localCar ? `${localCar.rego || ""} ${localCar.make || ""} ${localCar.model || ""}`.trim() : "";
 
-  // ---------- Effects ----------
-  useEffect(() => {
-    setLocalCar(car || null);
-    setTab("info");
-  }, [car]);
+  useEffect(() => { setLocalCar(car || null); setTab("info"); }, [car]);
 
   useEffect(() => {
     if (!localCar) return;
@@ -112,36 +72,19 @@ export default function CarProfileModal({ open, car, onClose }) {
       series: localCar.series || "",
       readinessStatus: localCar.readinessStatus || "",
       notes: localCar.notes || "",
-      checklist: Array.isArray(localCar.checklist)
-        ? localCar.checklist.join(", ")
-        : localCar.checklist || "",
+      checklist: Array.isArray(localCar.checklist) ? localCar.checklist.join(", ") : localCar.checklist || "",
     });
     setEditable({
-      rego: false,
-      make: false,
-      model: false,
-      series: false,
-      readinessStatus: false,
-      notes: false,
-      checklist: false,
+      rego: false, make: false, model: false, series: false,
+      readinessStatus: false, notes: false, checklist: false,
     });
+    setPhotos(localCar.photos || []);
   }, [localCar]);
-
-  // ---------- API helpers ----------
-  const fetchPhotos = async () => {
-    if (!localCar?._id) return;
-    try {
-      const res = await api.get(`/photos/${localCar._id}`);
-      setPhotos(res.data?.data || []);
-    } catch (e) {
-      console.error("fetchPhotos error", e);
-    }
-  };
 
   const refreshCar = async () => {
     if (!localCar?._id) return;
     try {
-      const res = await api.get("/cars");
+      const res = await api.get(`/cars`);
       const fresh = (res.data?.data || []).find((c) => c._id === localCar._id);
       if (fresh) setLocalCar(fresh);
     } catch (e) {
@@ -149,40 +92,31 @@ export default function CarProfileModal({ open, car, onClose }) {
     }
   };
 
-  useEffect(() => {
-    if (open && localCar?._id) {
-      refreshCar();
-      fetchPhotos();
-    }
-  }, [open, localCar?._id]);
+  useEffect(() => { if (open && localCar?._id) refreshCar(); }, [open, localCar?._id]);
 
-  // ---------- Photo handlers ----------
   const handlePick = () => fileRef.current?.click();
+
   const handleFiles = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length || !localCar?._id) return;
     const { UploadQueue } = await import("../../lib/uploadQueue");
     for (const f of files) UploadQueue.enqueue({ carId: localCar._id, file: f, caption: "" });
-    setTimeout(fetchPhotos, 2000);
+    setTimeout(refreshCar, 2000);
     fileRef.current.value = "";
   };
 
   const handleDelete = async (key) => {
     try {
       await api.delete(`/photos/${localCar._id}?key=${encodeURIComponent(key)}`);
-      setPhotos((p) => p.filter((ph) => ph.key !== key));
-    } catch (e) {
-      console.error("handleDelete", e);
-    }
+      await refreshCar();
+    } catch (e) { console.error("handleDelete", e); }
   };
 
   const handleCaption = async (key, caption) => {
     try {
       await api.patch(`/photos/${localCar._id}/caption`, { key, caption });
-      setPhotos((p) => p.map((ph) => (ph.key === key ? { ...ph, caption } : ph)));
-    } catch (e) {
-      console.error("handleCaption", e);
-    }
+      await refreshCar();
+    } catch (e) { console.error("handleCaption", e); }
   };
 
   const onDragEnd = async (result) => {
@@ -195,15 +129,16 @@ export default function CarProfileModal({ open, car, onClose }) {
       await api.put(`/cars/${localCar._id}`, {
         photos: reordered.map((p) => ({ key: p.key, caption: p.caption || "" })),
       });
+      await refreshCar(); // ✅ reload immediately to confirm order saved
     } catch (e) {
       console.error("reorder error", e);
     }
   };
 
-  // ---------- Info handlers ----------
   const onInfoChange = (e) => setInfoForm((p) => ({ ...p, [e.target.name]: e.target.value }));
   const unlock = (n) => setEditable((p) => ({ ...p, [n]: true }));
   const lock = (n) => setEditable((p) => ({ ...p, [n]: false }));
+
   const resetInfo = () => {
     if (!localCar) return;
     setInfoForm({
@@ -217,15 +152,6 @@ export default function CarProfileModal({ open, car, onClose }) {
         ? localCar.checklist.join(", ")
         : localCar.checklist || "",
     });
-    setEditable({
-      rego: false,
-      make: false,
-      model: false,
-      series: false,
-      readinessStatus: false,
-      notes: false,
-      checklist: false,
-    });
   };
 
   const saveInfo = async () => {
@@ -233,9 +159,7 @@ export default function CarProfileModal({ open, car, onClose }) {
     setBusy(true);
     try {
       const checklistArr = (infoForm.checklist || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
+        .split(",").map((s) => s.trim()).filter(Boolean);
       await api.put(`/cars/${localCar._id}`, {
         rego: infoForm.rego.trim(),
         make: infoForm.make.trim(),
@@ -247,15 +171,7 @@ export default function CarProfileModal({ open, car, onClose }) {
       });
       await refreshCar();
       alert("Info saved successfully");
-      setEditable({
-        rego: false,
-        make: false,
-        model: false,
-        series: false,
-        readinessStatus: false,
-        notes: false,
-        checklist: false,
-      });
+      setEditable({});
     } catch (e) {
       console.error("saveInfo", e);
     } finally {
@@ -320,7 +236,7 @@ export default function CarProfileModal({ open, car, onClose }) {
                         <Draggable key={ph.key} draggableId={ph.key} index={i}>
                           {(prov) => (
                             <div className="photo-item" ref={prov.innerRef} {...prov.draggableProps} {...prov.dragHandleProps}>
-                              <img src={ph.url} alt="" onClick={() => setViewerIndex(i)} />
+                              <img src={ph.url || ph.signedUrl || ph.key} alt="" onClick={() => setViewerIndex(i)} />
                               <input className="caption" placeholder="Add caption" value={ph.caption || ""} onChange={(e) => handleCaption(ph.key, e.target.value)} />
                               <button className="del" onClick={() => handleDelete(ph.key)}>×</button>
                             </div>
@@ -332,15 +248,13 @@ export default function CarProfileModal({ open, car, onClose }) {
                   )}
                 </Droppable>
               </DragDropContext>
-              <Lightbox open={viewerIndex >= 0} index={viewerIndex} close={() => setViewerIndex(-1)} slides={photos.map((p) => ({ src: p.url }))} />
+              <Lightbox open={viewerIndex >= 0} index={viewerIndex} close={() => setViewerIndex(-1)} slides={photos.map((p) => ({ src: p.url || p.signedUrl || p.key }))} />
             </div>
           )}
 
           {tab === "history" && (
             <table className="history-table">
-              <thead>
-                <tr><th>Location</th><th>Start</th><th>End</th><th>Days</th></tr>
-              </thead>
+              <thead><tr><th>Location</th><th>Start</th><th>End</th><th>Days</th></tr></thead>
               <tbody>
                 {history.length === 0 ? (
                   <tr><td colSpan={4} className="empty">No history</td></tr>
@@ -361,7 +275,6 @@ export default function CarProfileModal({ open, car, onClose }) {
   );
 }
 
-// ---------- CSS ----------
 const css = `
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;}
 .modal{background:#1a1a1a;color:#fff;width:95%;max-width:1024px;border-radius:10px;box-shadow:0 0 20px rgba(0,0,0,0.6);overflow:hidden;}
