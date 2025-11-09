@@ -1,20 +1,11 @@
 // src/components/CarPicker/CarPickerModal.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 
-/**
- * Reusable Car Picker modal
- *
- * Props:
- * - show: boolean
- * - cars: Array<{ _id, rego, make, model, year, photos }>
- * - onClose: () => void
- * - onSelect: (carOrNull) => void
- */
 export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
   const [q, setQ] = useState("");
   const inputRef = useRef(null);
 
-  // Focus & Esc key
+  // Focus & ESC
   useEffect(() => {
     if (!show) return;
     const t = setTimeout(() => inputRef.current?.focus(), 50);
@@ -26,7 +17,6 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
     };
   }, [show, onClose]);
 
-  // Filter cars by query
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return cars;
@@ -38,7 +28,6 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
     );
   }, [q, cars]);
 
-  // Helper: resolve photo URL from your AWS bucket
   const resolvePhotoUrl = (car) => {
     if (!car?.photos?.length) return "";
     const first = car.photos[0];
@@ -49,8 +38,10 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
         ? first.key
         : "";
     if (!key) return "";
-    // Full public S3 path
-    return `https://npai-car-photos.s3.ap-southeast-2.amazonaws.com/${key}`;
+
+    // Remove redundant bucket prefix if present
+    const cleanKey = key.replace(/^npai-car-photos[\\/]/, "");
+    return `https://npai-car-photos.s3.ap-southeast-2.amazonaws.com/${cleanKey}`;
   };
 
   if (!show) return null;
@@ -86,7 +77,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
         <div className="cpk-table-wrap">
           <table className="cpk-table">
             <colgroup>
-              <col style={{ width: "70px" }} /> {/* Image column */}
+              <col style={{ width: "70px" }} />
               <col style={{ width: "16%" }} />
               <col style={{ width: "24%" }} />
               <col style={{ width: "24%" }} />
@@ -127,10 +118,10 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
                           <div className="cpk-thumb cpk-thumb--empty" />
                         )}
                       </td>
-                      <td title={c.rego || ""}>{c.rego || "—"}</td>
-                      <td title={c.make || ""}>{c.make || "—"}</td>
-                      <td title={c.model || ""}>{c.model || "—"}</td>
-                      <td title={c.year || ""}>{c.year || "—"}</td>
+                      <td>{c.rego || "—"}</td>
+                      <td>{c.make || "—"}</td>
+                      <td>{c.model || "—"}</td>
+                      <td>{c.year || "—"}</td>
                       <td className="cpk-actions">
                         <button
                           className="cpk-btn cpk-btn--primary cpk-btn--sm"
@@ -155,8 +146,7 @@ const css = `
 :root { color-scheme: dark; }
 .cpk-wrap {
   position: fixed; inset: 0; z-index: 60;
-  background: rgba(0,0,0,.55);
-  backdrop-filter: blur(2px);
+  background: rgba(0,0,0,.55); backdrop-filter: blur(2px);
   display:flex; align-items:center; justify-content:center;
 }
 .cpk-modal {
@@ -167,39 +157,25 @@ const css = `
   border:1px solid #1F2937; border-radius:14px;
   box-shadow: 0 20px 60px rgba(0,0,0,.4);
 }
-.cpk-head {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:12px 14px; border-bottom:1px solid #1F2937;
-}
+.cpk-head { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid #1F2937; }
 .cpk-head h3 { margin:0; font-size:16px; }
-.cpk-x {
-  border:none; background:#111827; color:#E5E7EB;
-  border:1px solid #243041; width:28px; height:28px;
-  border-radius:8px; cursor:pointer;
-}
-.cpk-tools {
-  display:flex; align-items:center; gap:8px;
-  padding:10px 14px; border-bottom:1px solid #1F2937;
-}
+.cpk-x { border:none; background:#111827; color:#E5E7EB; border:1px solid #243041; width:28px; height:28px; border-radius:8px; cursor:pointer; }
+
+.cpk-tools { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid #1F2937; }
 .cpk-input {
-  flex:0 1 420px; max-width:520px;
-  padding:8px 10px; border-radius:10px;
-  border:1px solid #243041; background:#0B1220;
-  color:#E5E7EB; outline:none;
+  flex:0 1 420px; max-width:520px; padding:8px 10px; border-radius:10px;
+  border:1px solid #243041; background:#0B1220; color:#E5E7EB; outline:none;
 }
 .cpk-input:focus { border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,0.25); }
 .cpk-spacer { flex:1; }
 
-.cpk-btn {
-  border:1px solid transparent; border-radius:10px;
-  padding:8px 12px; cursor:pointer; font-weight:600;
-}
+.cpk-btn { border:1px solid transparent; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:600; }
 .cpk-btn--primary { background:#2563EB; color:#fff; }
 .cpk-btn--ghost { background:#111827; color:#E5E7EB; border-color:#243041; }
 .cpk-btn--sm { padding:6px 10px; font-size:12px; border-radius:8px; }
 
 .cpk-table-wrap { overflow:auto; padding:10px 12px 14px; }
-.cpk-table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; }
+.cpk-table { width:100%; border-collapse:collapse; table-layout:fixed; }
 .cpk-table thead th {
   position:sticky; top:0; z-index:1; background:#0F172A;
   border-bottom:1px solid #1F2937; color:#9CA3AF;
@@ -208,19 +184,19 @@ const css = `
 .cpk-table tbody td {
   padding:10px; border-bottom:1px solid #1F2937;
   font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  vertical-align:middle;
 }
 .cpk-table tbody tr:hover { background:#0B1428; }
-.cpk-actions { display:flex; justify-content:flex-end; }
+.cpk-actions { text-align:right; vertical-align:middle; }
 .cpk-empty { text-align:center; color:#9CA3AF; padding:18px; }
 
-/* Thumbnail */
+/* Thumbnails */
 .cpk-thumb {
-  width:60px; height:60px;
-  object-fit:cover; border-radius:8px;
+  width:60px; height:60px; object-fit:cover; border-radius:8px;
   background:#1F2937; border:1px solid #243041;
 }
 .cpk-thumb--empty {
-  display:inline-block; width:60px; height:60px;
-  border-radius:8px; background:#111827; border:1px solid #243041;
+  display:inline-block; width:60px; height:60px; border-radius:8px;
+  background:#111827; border:1px solid #243041;
 }
 `;
