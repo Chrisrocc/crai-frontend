@@ -1,6 +1,8 @@
-// src/components/CarPicker/CarPickerModal.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 
+/**
+ * Car Picker Modal with photo logging
+ */
 export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
   const [q, setQ] = useState("");
   const inputRef = useRef(null);
@@ -17,6 +19,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
     };
   }, [show, onClose]);
 
+  // Filter cars
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return cars;
@@ -28,20 +31,32 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
     );
   }, [q, cars]);
 
+  // 🔍 Debug-enabled photo resolver
   const resolvePhotoUrl = (car) => {
-    if (!car?.photos?.length) return "";
+    if (!car?.photos?.length) {
+      console.log(`🚫 No photos for ${car.rego}`);
+      return "";
+    }
+
     const first = car.photos[0];
+    console.log("🖼️ car.photos[0] for", car.rego, "=", first);
+
     const key =
       typeof first === "string"
         ? first
         : typeof first?.key === "string"
         ? first.key
         : "";
-    if (!key) return "";
 
-    // Remove redundant bucket prefix if present
+    if (!key) {
+      console.log(`⚠️ No valid key for ${car.rego}`, first);
+      return "";
+    }
+
     const cleanKey = key.replace(/^npai-car-photos[\\/]/, "");
-    return `https://npai-car-photos.s3.ap-southeast-2.amazonaws.com/${cleanKey}`;
+    const fullUrl = `https://npai-car-photos.s3.ap-southeast-2.amazonaws.com/${cleanKey}`;
+    console.log(`✅ Resolved photo for ${car.rego}:`, fullUrl);
+    return fullUrl;
   };
 
   if (!show) return null;
@@ -112,7 +127,10 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
                             src={photoUrl}
                             alt={`${c.make || ""} ${c.model || ""}`}
                             className="cpk-thumb"
-                            onError={(e) => (e.target.style.display = "none")}
+                            onError={(e) => {
+                              console.warn("🧩 Image failed to load for", c.rego, photoUrl);
+                              e.target.style.display = "none";
+                            }}
                           />
                         ) : (
                           <div className="cpk-thumb cpk-thumb--empty" />
