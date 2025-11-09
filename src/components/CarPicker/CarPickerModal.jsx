@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
  *
  * Props:
  * - show: boolean
- * - cars: Array<{ _id, rego, make, model, year, photos?: string[] }>
+ * - cars: Array<{ _id, rego, make, model, year, photos }>
  * - onClose: () => void
  * - onSelect: (carOrNull) => void
  */
@@ -14,7 +14,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
   const [q, setQ] = useState("");
   const inputRef = useRef(null);
 
-  // Focus and escape
+  // Focus & Esc key
   useEffect(() => {
     if (!show) return;
     const t = setTimeout(() => inputRef.current?.focus(), 50);
@@ -26,7 +26,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
     };
   }, [show, onClose]);
 
-  // Search filter
+  // Filter cars by query
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return cars;
@@ -38,6 +38,21 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
     );
   }, [q, cars]);
 
+  // Helper: resolve photo URL from your AWS bucket
+  const resolvePhotoUrl = (car) => {
+    if (!car?.photos?.length) return "";
+    const first = car.photos[0];
+    const key =
+      typeof first === "string"
+        ? first
+        : typeof first?.key === "string"
+        ? first.key
+        : "";
+    if (!key) return "";
+    // Full public S3 path
+    return `https://npai-car-photos.s3.ap-southeast-2.amazonaws.com/${key}`;
+  };
+
   if (!show) return null;
 
   return (
@@ -46,7 +61,9 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
       <div className="cpk-modal" role="document" onClick={(e) => e.stopPropagation()}>
         <header className="cpk-head">
           <h3>Select a Car</h3>
-          <button className="cpk-x" onClick={onClose} aria-label="Close">×</button>
+          <button className="cpk-x" onClick={onClose} aria-label="Close">
+            ×
+          </button>
         </header>
 
         <div className="cpk-tools">
@@ -58,19 +75,23 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
             onChange={(e) => setQ(e.target.value)}
           />
           <div className="cpk-spacer" />
-          <button className="cpk-btn cpk-btn--ghost" onClick={() => onSelect?.(null)}>Clear</button>
-          <button className="cpk-btn cpk-btn--primary" onClick={onClose}>Done</button>
+          <button className="cpk-btn cpk-btn--ghost" onClick={() => onSelect?.(null)}>
+            Clear
+          </button>
+          <button className="cpk-btn cpk-btn--primary" onClick={onClose}>
+            Done
+          </button>
         </div>
 
         <div className="cpk-table-wrap">
           <table className="cpk-table">
             <colgroup>
-              <col style={{ width: "12%" }} /> {/* Photo */}
-              <col style={{ width: "16%" }} /> {/* Rego */}
-              <col style={{ width: "24%" }} /> {/* Make */}
-              <col style={{ width: "24%" }} /> {/* Model */}
-              <col style={{ width: "10%" }} /> {/* Year */}
-              <col style={{ width: "14%" }} /> {/* Action */}
+              <col style={{ width: "70px" }} /> {/* Image column */}
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "24%" }} />
+              <col style={{ width: "24%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "14%" }} />
             </colgroup>
             <thead>
               <tr>
@@ -85,36 +106,25 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td className="cpk-empty" colSpan={6}>No cars match your search.</td>
+                  <td className="cpk-empty" colSpan={6}>
+                    No cars match your search.
+                  </td>
                 </tr>
               ) : (
                 filtered.map((c) => {
-                  const firstPhoto =
-                    Array.isArray(c.photos) && c.photos.length > 0
-                      ? c.photos[0]
-                      : null;
-
-                  let photoUrl = "";
-                  if (typeof firstPhoto === "string" && firstPhoto.trim() !== "") {
-                    if (firstPhoto.startsWith("http")) {
-                      photoUrl = firstPhoto;
-                    } else {
-                      photoUrl = `/uploads/${firstPhoto.replace(/^\/+/, "")}`;
-                    }
-                  }
-
+                  const photoUrl = resolvePhotoUrl(c);
                   return (
                     <tr key={c._id} onDoubleClick={() => onSelect?.(c)}>
                       <td>
                         {photoUrl ? (
                           <img
                             src={photoUrl}
-                            alt="car"
-                            className="cpk-photo"
+                            alt={`${c.make || ""} ${c.model || ""}`}
+                            className="cpk-thumb"
                             onError={(e) => (e.target.style.display = "none")}
                           />
                         ) : (
-                          <div className="cpk-photo-placeholder" />
+                          <div className="cpk-thumb cpk-thumb--empty" />
                         )}
                       </td>
                       <td title={c.rego || ""}>{c.rego || "—"}</td>
@@ -145,15 +155,16 @@ const css = `
 :root { color-scheme: dark; }
 .cpk-wrap {
   position: fixed; inset: 0; z-index: 60;
-  background: rgba(0,0,0,.55); backdrop-filter: blur(2px);
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(2px);
   display:flex; align-items:center; justify-content:center;
 }
 .cpk-modal {
   width: min(900px, calc(100vw - 32px));
   max-height: min(80vh, 900px);
-  display: flex; flex-direction: column;
-  background: #0F172A; color: #E5E7EB;
-  border: 1px solid #1F2937; border-radius: 14px;
+  display:flex; flex-direction:column;
+  background:#0F172A; color:#E5E7EB;
+  border:1px solid #1F2937; border-radius:14px;
   box-shadow: 0 20px 60px rgba(0,0,0,.4);
 }
 .cpk-head {
@@ -166,19 +177,18 @@ const css = `
   border:1px solid #243041; width:28px; height:28px;
   border-radius:8px; cursor:pointer;
 }
-
 .cpk-tools {
   display:flex; align-items:center; gap:8px;
   padding:10px 14px; border-bottom:1px solid #1F2937;
 }
 .cpk-input {
-  flex: 0 1 420px; max-width: 520px;
+  flex:0 1 420px; max-width:520px;
   padding:8px 10px; border-radius:10px;
-  border:1px solid #243041; background:#0B1220; color:#E5E7EB;
-  outline:none;
+  border:1px solid #243041; background:#0B1220;
+  color:#E5E7EB; outline:none;
 }
 .cpk-input:focus { border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,0.25); }
-.cpk-spacer { flex: 1; }
+.cpk-spacer { flex:1; }
 
 .cpk-btn {
   border:1px solid transparent; border-radius:10px;
@@ -189,9 +199,9 @@ const css = `
 .cpk-btn--sm { padding:6px 10px; font-size:12px; border-radius:8px; }
 
 .cpk-table-wrap { overflow:auto; padding:10px 12px 14px; }
-.cpk-table { width:100%; border-collapse:separate; border-spacing:0; table-layout: fixed; }
+.cpk-table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; }
 .cpk-table thead th {
-  position: sticky; top: 0; z-index: 1; background:#0F172A;
+  position:sticky; top:0; z-index:1; background:#0F172A;
   border-bottom:1px solid #1F2937; color:#9CA3AF;
   font-size:12px; text-align:left; padding:10px;
 }
@@ -203,14 +213,14 @@ const css = `
 .cpk-actions { display:flex; justify-content:flex-end; }
 .cpk-empty { text-align:center; color:#9CA3AF; padding:18px; }
 
-.cpk-photo {
-  width:48px; height:48px; object-fit:cover;
-  border-radius:8px; border:1px solid #1F2937;
+/* Thumbnail */
+.cpk-thumb {
+  width:60px; height:60px;
+  object-fit:cover; border-radius:8px;
+  background:#1F2937; border:1px solid #243041;
 }
-.cpk-photo-placeholder {
-  width:48px; height:48px;
-  border-radius:8px; border:1px dashed #1F2937;
-  background:#0B1220;
+.cpk-thumb--empty {
+  display:inline-block; width:60px; height:60px;
+  border-radius:8px; background:#111827; border:1px solid #243041;
 }
 `;
-
