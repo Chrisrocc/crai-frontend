@@ -6,10 +6,10 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
   const [photoCache, setPhotoCache] = useState({});
   const inputRef = useRef(null);
 
-  // focus + escape
+  // ✅ Focus and escape
   useEffect(() => {
     if (!show) return;
-    const t = setTimeout(() => inputRef.current?.focus(), 50);
+    const t = setTimeout(() => inputRef.current?.focus(), 80);
     const onKey = (e) => e.key === "Escape" && onClose?.();
     document.addEventListener("keydown", onKey);
     return () => {
@@ -18,7 +18,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
     };
   }, [show, onClose]);
 
-  // search filter
+  // ✅ Filter cars by search
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return cars;
@@ -30,7 +30,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
     );
   }, [q, cars]);
 
-  // signed URL loader
+  // ✅ Fetch signed photo previews lazily
   const fetchPhoto = async (car) => {
     if (photoCache[car._id]) return photoCache[car._id];
     try {
@@ -40,9 +40,8 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
         setPhotoCache((p) => ({ ...p, [car._id]: url }));
         console.log(`✅ Signed photo loaded for ${car.rego}`);
         return url;
-      } else {
-        console.log(`🚫 No photo for ${car.rego}`);
       }
+      console.log(`🚫 No photo for ${car.rego}`);
     } catch (err) {
       console.warn(`❌ Error loading photo for ${car.rego}`, err);
     }
@@ -52,9 +51,21 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
   if (!show) return null;
 
   return (
-    <div className="cpk-wrap" role="dialog" aria-modal="true" onClick={onClose}>
+    <div
+      className="cpk-wrap"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => {
+        // ✅ only close if clicked outside modal
+        if (e.target.classList.contains("cpk-wrap")) onClose?.();
+      }}
+    >
       <style>{css}</style>
-      <div className="cpk-modal" role="document" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="cpk-modal"
+        role="document"
+        onClick={(e) => e.stopPropagation()} // prevent overlay close
+      >
         <header className="cpk-head">
           <h3>Select a Car</h3>
           <button className="cpk-x" onClick={onClose} aria-label="Close">
@@ -134,8 +145,13 @@ function CarRow({ car, fetchPhoto, cachedUrl, onSelect }) {
     }
   }, [car, cachedUrl, fetchPhoto]);
 
+  const handleSelect = () => {
+    // ✅ don’t auto-close the modal; leave Done button for that
+    onSelect?.(car);
+  };
+
   return (
-    <tr onDoubleClick={() => onSelect?.(car)}>
+    <tr onDoubleClick={handleSelect}>
       <td className="car-photo-cell">
         {photoUrl ? (
           <img
@@ -152,7 +168,7 @@ function CarRow({ car, fetchPhoto, cachedUrl, onSelect }) {
       <td>{car.model || "—"}</td>
       <td>{car.year || "—"}</td>
       <td className="cpk-actions">
-        <button className="cpk-btn cpk-btn--primary cpk-btn--sm" onClick={() => onSelect?.(car)}>
+        <button className="cpk-btn cpk-btn--primary cpk-btn--sm" onClick={handleSelect}>
           Select
         </button>
       </td>
@@ -164,11 +180,12 @@ const css = `
 .cpk-wrap {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.7);
+  background: rgba(0,0,0,0.75);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
+  animation: fadeIn 0.2s ease-out;
 }
 .cpk-modal {
   background: #1a1a1a;
@@ -178,7 +195,12 @@ const css = `
   border-radius: 10px;
   box-shadow: 0 0 20px rgba(0,0,0,0.5);
   overflow: hidden;
+  transform: scale(1);
+  animation: popIn 0.25s ease-out;
 }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes popIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
 .cpk-head {
   display: flex;
   justify-content: space-between;
@@ -257,7 +279,7 @@ const css = `
   color: #888;
 }
 
-/* ✅ fixed photo cell */
+/* ✅ Fixed image cell sizing */
 .car-photo-cell {
   width: 64px;
   min-width: 64px;
