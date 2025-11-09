@@ -30,13 +30,12 @@ function EditableField({
   name,
   value,
   editable,
-  long,
   onDblClick,
   onChange,
   onBlur,
 }) {
   return (
-    <div className={`field ${long ? "field--long" : ""}`}>
+    <div className="field">
       <label>{label}</label>
       {editable ? (
         <input
@@ -60,18 +59,9 @@ function EditableField({
   );
 }
 
-function EditableTextArea({
-  label,
-  name,
-  value,
-  editable,
-  long,
-  onDblClick,
-  onChange,
-  onBlur,
-}) {
+function EditableTextArea({ label, name, value, editable, onDblClick, onChange, onBlur }) {
   return (
-    <div className={`field ${long ? "field--long" : ""}`}>
+    <div className="field field--full">
       <label>{label}</label>
       {editable ? (
         <textarea
@@ -137,7 +127,6 @@ export default function CarProfileModal({ open, car, onClose }) {
     ? `${localCar.rego || ""} ${localCar.make || ""} ${localCar.model || ""}`.trim()
     : "";
 
-  /* ---------- Effects ---------- */
   useEffect(() => {
     setLocalCar(car || null);
     setTab("info");
@@ -240,7 +229,6 @@ export default function CarProfileModal({ open, car, onClose }) {
     if (!localCar?._id) return;
     try {
       const body = { photos: photos.map((p) => ({ key: p.key, caption: p.caption || "" })) };
-      console.log("🔼 savePhotoOrder body", body);
       await api.put(`/photos/reorder/${localCar._id}`, body);
       alert("✅ Photo order saved!");
     } catch (e) {
@@ -305,9 +293,7 @@ export default function CarProfileModal({ open, car, onClose }) {
             <div className="sub">{carTitle || "—"}</div>
           </div>
           <div className="actions">
-            <button className="btn btn--muted" onClick={refreshCar}>
-              Refresh
-            </button>
+            <button className="btn btn--muted" onClick={refreshCar}>Refresh</button>
             <button className="close" onClick={handleClose}>×</button>
           </div>
         </div>
@@ -327,9 +313,9 @@ export default function CarProfileModal({ open, car, onClose }) {
               <EditableField label="Make" name="make" value={infoForm.make} editable={editable.make} onDblClick={() => unlock("make")} onChange={onInfoChange} onBlur={() => lock("make")} />
               <EditableField label="Model" name="model" value={infoForm.model} editable={editable.model} onDblClick={() => unlock("model")} onChange={onInfoChange} onBlur={() => lock("model")} />
               <EditableField label="Series" name="series" value={infoForm.series} editable={editable.series} onDblClick={() => unlock("series")} onChange={onInfoChange} onBlur={() => lock("series")} />
-              <EditableField label="Readiness" name="readinessStatus" value={infoForm.readinessStatus} editable={editable.readinessStatus} onDblClick={() => unlock("readinessStatus")} onChange={onInfoChange} onBlur={() => lock("readinessStatus")} long />
-              <EditableField label="Checklist" name="checklist" value={infoForm.checklist} editable={editable.checklist} onDblClick={() => unlock("checklist")} onChange={onInfoChange} onBlur={() => lock("checklist")} long />
-              <EditableTextArea label="Notes" name="notes" value={infoForm.notes} editable={editable.notes} onDblClick={() => unlock("notes")} onChange={onInfoChange} onBlur={() => lock("notes")} long />
+              <EditableField label="Readiness" name="readinessStatus" value={infoForm.readinessStatus} editable={editable.readinessStatus} onDblClick={() => unlock("readinessStatus")} onChange={onInfoChange} onBlur={() => lock("readinessStatus")} />
+              <EditableField label="Checklist" name="checklist" value={infoForm.checklist} editable={editable.checklist} onDblClick={() => unlock("checklist")} onChange={onInfoChange} onBlur={() => lock("checklist")} />
+              <EditableTextArea label="Notes" name="notes" value={infoForm.notes} editable={editable.notes} onDblClick={() => unlock("notes")} onChange={onInfoChange} onBlur={() => lock("notes")} />
               <div className="info-actions">
                 <button className="btn btn--muted" onClick={refreshCar}>Reset</button>
                 <button className="btn btn--primary" onClick={saveInfo} disabled={busy}>{busy ? "Saving..." : "Save"}</button>
@@ -405,63 +391,47 @@ const css = `
   backdrop-filter: blur(3px);
 }
 .modal {
-  width: min(960px, calc(100vw - 32px));
+  width: min(900px, calc(100vw - 32px));
   max-height: 90vh;
   background:#0F172A; color:#E5E7EB;
   border:1px solid #1F2937; border-radius:14px;
   box-shadow:0 20px 60px rgba(0,0,0,.45);
   display:flex; flex-direction:column;
   overflow:hidden;
-  animation: fadeUp .12s ease-out;
 }
-@keyframes fadeUp { from{transform:translateY(8px);opacity:.8} to{transform:none;opacity:1} }
-
 .header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:14px 18px; border-bottom:1px solid #1F2937;
+  padding:16px 20px; border-bottom:1px solid #1F2937;
   background:#111827;
 }
 .title { font-size:18px; font-weight:600; }
 .sub { font-size:12px; color:#9CA3AF; }
+.actions { display:flex; align-items:center; gap:8px; }
 .close {
   background:#111827; color:#E5E7EB;
   border:1px solid #243041;
   width:32px; height:32px;
   border-radius:10px; cursor:pointer;
 }
-.actions { display:flex; align-items:center; gap:8px; }
-
 .tabs {
-  display:flex;
-  background:#0B1220;
-  border-bottom:1px solid #1F2937;
+  display:flex; background:#0B1220; border-bottom:1px solid #1F2937;
 }
 .tab {
-  flex:1; padding:10px 12px;
-  background:transparent; border:none;
-  color:#9CA3AF; cursor:pointer;
-  font-weight:500; transition:all .2s;
+  flex:1; padding:10px 12px; background:transparent;
+  border:none; color:#9CA3AF; cursor:pointer; transition:all .2s;
 }
 .tab:hover { color:#fff; background:#1E293B; }
-.tab--active {
-  background:#1E3A8A; color:#fff; font-weight:600;
-}
+.tab--active { background:#1E3A8A; color:#fff; }
 
-.body {
-  padding:16px;
-  overflow-y:auto;
-}
+.body { padding:20px; overflow-y:auto; }
 
 .info-grid {
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-  gap:14px;
+  grid-template-columns:1fr 1fr;
+  gap:18px 24px;
 }
 .field label {
-  font-size:12px;
-  color:#9CA3AF;
-  margin-bottom:4px;
-  display:block;
+  font-size:12px; color:#9CA3AF; margin-bottom:4px; display:block;
 }
 .static, .input, .textarea {
   width:100%;
@@ -471,79 +441,33 @@ const css = `
   border:1px solid #243041;
   color:#E5E7EB;
   font-size:13px;
-  transition:border-color .2s, box-shadow .2s;
 }
-.input:focus, .textarea:focus {
-  border-color:#2563EB;
-  box-shadow:0 0 0 3px rgba(37,99,235,.25);
-}
-.static { cursor:default; user-select:none; min-height:34px; }
-.textarea { resize:vertical; min-height:70px; }
+.static { cursor:default; min-height:36px; }
+.field--full { grid-column:1 / -1; }
 
 .info-actions {
   grid-column:1/-1;
-  text-align:right;
-  margin-top:12px;
   display:flex; justify-content:flex-end; gap:10px;
+  margin-top:10px;
 }
 .btn {
-  border:1px solid transparent;
-  border-radius:12px;
-  padding:10px 14px;
-  font-weight:600;
-  cursor:pointer;
-  transition:background .2s, opacity .2s;
+  border:1px solid transparent; border-radius:12px;
+  padding:10px 14px; font-weight:600; cursor:pointer;
 }
 .btn--primary { background:#2563EB; color:#fff; }
 .btn--muted { background:#111827; color:#E5E7EB; border:1px solid #243041; }
 .btn:disabled { opacity:.6; cursor:default; }
 
-.photo-toolbar {
-  display:flex; justify-content:flex-end; gap:10px; margin-bottom:10px;
-}
-.photo-grid {
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
-  gap:10px;
-}
-.photo-item {
-  position:relative;
-  background:#111827;
-  border:1px solid #243041;
-  border-radius:10px;
-  overflow:hidden;
-}
-.photo-item img {
-  width:100%; height:120px; object-fit:cover; cursor:pointer;
-}
-.caption {
-  width:100%;
-  border:none;
-  background:#0B1220;
-  color:#E5E7EB;
-  font-size:12px;
-  padding:6px 8px;
-  border-top:1px solid #1F2937;
-}
-.del {
-  position:absolute;
-  top:6px; right:6px;
-  width:24px; height:24px;
-  border:none;
-  border-radius:50%;
-  background:rgba(0,0,0,0.5);
-  color:#fff; cursor:pointer;
-  font-size:16px; line-height:1;
-}
-.history-table {
-  width:100%; border-collapse:collapse; font-size:13px;
-}
-.history-table th, .history-table td {
-  padding:8px 10px; border-bottom:1px solid #1F2937;
-}
-.history-table th {
-  background:#111827; color:#E5E7EB; text-align:left;
-}
+.photo-toolbar { display:flex; justify-content:flex-end; gap:10px; margin-bottom:10px; }
+.photo-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+.photo-item { position:relative; background:#111827; border:1px solid #243041; border-radius:10px; overflow:hidden; }
+.photo-item img { width:100%; height:120px; object-fit:cover; cursor:pointer; }
+.caption { width:100%; border:none; background:#0B1220; color:#E5E7EB; font-size:12px; padding:6px 8px; border-top:1px solid #1F2937; }
+.del { position:absolute; top:6px; right:6px; width:24px; height:24px; border:none; border-radius:50%; background:rgba(0,0,0,0.5); color:#fff; cursor:pointer; font-size:16px; }
+
+.history-table { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
+.history-table th, .history-table td { padding:8px 10px; border-bottom:1px solid #1F2937; }
+.history-table th { background:#111827; color:#E5E7EB; text-align:left; }
 .history-table tr:hover td { background:#0B1220; }
 .history-table .empty { text-align:center; color:#6B7280; padding:16px; }
 `;
