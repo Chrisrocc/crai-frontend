@@ -1,4 +1,3 @@
-// src/components/CarPicker/CarPickerModal.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../../lib/api";
 
@@ -7,6 +6,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
   const [photoCache, setPhotoCache] = useState({});
   const inputRef = useRef(null);
 
+  // focus + escape
   useEffect(() => {
     if (!show) return;
     const t = setTimeout(() => inputRef.current?.focus(), 50);
@@ -18,6 +18,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
     };
   }, [show, onClose]);
 
+  // search filter
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return cars;
@@ -29,7 +30,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
     );
   }, [q, cars]);
 
-  // 🔗 Load signed URLs only when needed
+  // signed URL loader
   const fetchPhoto = async (car) => {
     if (photoCache[car._id]) return photoCache[car._id];
     try {
@@ -126,6 +127,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
 
 function CarRow({ car, fetchPhoto, cachedUrl, onSelect }) {
   const [photoUrl, setPhotoUrl] = useState(cachedUrl || "");
+
   useEffect(() => {
     if (!cachedUrl && car?.photos?.length) {
       fetchPhoto(car).then((url) => url && setPhotoUrl(url));
@@ -134,16 +136,15 @@ function CarRow({ car, fetchPhoto, cachedUrl, onSelect }) {
 
   return (
     <tr onDoubleClick={() => onSelect?.(car)}>
-      <td>
+      <td className="car-photo-cell">
         {photoUrl ? (
           <img
             src={photoUrl}
             alt={`${car.make || ""} ${car.model || ""}`}
-            className="cpk-thumb"
             onError={(e) => (e.target.style.display = "none")}
           />
         ) : (
-          <div className="cpk-thumb cpk-thumb--empty" />
+          <div className="cpk-thumb--empty" />
         )}
       </td>
       <td>{car.rego || "—"}</td>
@@ -159,4 +160,124 @@ function CarRow({ car, fetchPhoto, cachedUrl, onSelect }) {
   );
 }
 
-const css = `/* identical to your previous styling */`;
+const css = `
+.cpk-wrap {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.cpk-modal {
+  background: #1a1a1a;
+  color: #fff;
+  width: 90%;
+  max-width: 960px;
+  border-radius: 10px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+.cpk-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #222;
+  padding: 10px 16px;
+  border-bottom: 1px solid #333;
+}
+.cpk-head h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.cpk-x {
+  background: none;
+  color: #ccc;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+}
+.cpk-tools {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid #333;
+}
+.cpk-input {
+  flex: 1;
+  background: #111;
+  border: 1px solid #333;
+  color: #fff;
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+.cpk-btn {
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 12px;
+}
+.cpk-btn--primary {
+  background: #0078ff;
+  color: #fff;
+}
+.cpk-btn--ghost {
+  background: transparent;
+  color: #aaa;
+  border: 1px solid #444;
+}
+.cpk-btn--sm {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+.cpk-table-wrap {
+  max-height: 65vh;
+  overflow-y: auto;
+}
+.cpk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.cpk-table th,
+.cpk-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #222;
+}
+.cpk-table th {
+  background: #191919;
+  text-align: left;
+  font-weight: 600;
+}
+.cpk-empty {
+  text-align: center;
+  padding: 20px;
+  color: #888;
+}
+
+/* ✅ fixed photo cell */
+.car-photo-cell {
+  width: 64px;
+  min-width: 64px;
+  height: 48px;
+  overflow: hidden;
+}
+.car-photo-cell img {
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+}
+.cpk-thumb--empty {
+  width: 64px;
+  height: 48px;
+  background: #222;
+  border-radius: 4px;
+}
+.cpk-actions {
+  text-align: right;
+}
+`;
