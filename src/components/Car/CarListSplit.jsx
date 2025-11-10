@@ -54,7 +54,7 @@ const TrashIcon = ({ size = 16 }) => (
   </svg>
 );
 
-/* ---------- helpers ---------- */
+/* ---------- Helpers ---------- */
 const isSold = (car = {}) =>
   String(car.stage || "").trim().toLowerCase() === "sold";
 
@@ -69,13 +69,19 @@ const carString = (car) => {
   return [head, tail.join(", ")].filter(Boolean).join(", ");
 };
 
-const nextDir = (d) => (d === null ? "desc" : d === "desc" ? "asc" : null);
-const normalize = (v) =>
-  v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v);
+const nextDir = (d) =>
+  d === null ? "desc" : d === "desc" ? "asc" : null;
+
+const norm = (v) =>
+  v == null
+    ? ""
+    : Array.isArray(v)
+    ? v.join(", ")
+    : String(v);
 
 const compareStr = (a, b, dir) => {
-  const A = normalize(a).toLowerCase();
-  const B = normalize(b).toLowerCase();
+  const A = norm(a).toLowerCase();
+  const B = norm(b).toLowerCase();
   if (A === B) return 0;
   return dir === "desc" ? (A < B ? 1 : -1) : A < B ? -1 : 1;
 };
@@ -83,51 +89,12 @@ const compareStr = (a, b, dir) => {
 const compareNum = (a, b, dir) => {
   const A = Number(a ?? NaN);
   const B = Number(b ?? NaN);
-  if (Number.isNaN(A) && Number.isNaN(B)) return 0;
-  if (Number.isNaN(A)) return dir === "desc" ? 1 : -1;
-  if (Number.isNaN(B)) return dir === "desc" ? -1 : 1;
+  const aNaN = Number.isNaN(A);
+  const bNaN = Number.isNaN(B);
+  if (aNaN && bNaN) return 0;
+  if (aNaN) return dir === "desc" ? 1 : -1;
+  if (bNaN) return dir === "desc" ? -1 : 1;
   return dir === "desc" ? B - A : A - B;
-};
-
-const applySort = (list, sort) => {
-  if (!sort?.key || !sort?.dir) return list;
-  const dir = sort.dir;
-  const cmp = (a, b) => {
-    switch (sort.key) {
-      case "car": {
-        const byMake = compareStr(a.make, b.make, dir);
-        if (byMake !== 0) return byMake;
-        return compareStr(a.model, b.model, dir);
-      }
-      case "location":
-        return compareStr(a.location, b.location, dir);
-      case "next":
-        return compareStr(
-          Array.isArray(a.nextLocations) && a.nextLocations.length
-            ? a.nextLocations.join(", ")
-            : a.nextLocation,
-          Array.isArray(b.nextLocations) && b.nextLocations.length
-            ? b.nextLocations.join(", ")
-            : b.nextLocation,
-          dir
-        );
-      case "checklist":
-        return compareStr(
-          Array.isArray(a.checklist) ? a.checklist.join(", ") : a.checklist,
-          Array.isArray(b.checklist) ? b.checklist.join(", ") : b.checklist,
-          dir
-        );
-      case "notes":
-        return compareStr(a.notes, b.notes, dir);
-      case "stage":
-        return compareStr(a.stage, b.stage, dir);
-      case "year":
-        return compareNum(a.year, b.year, dir);
-      default:
-        return 0;
-    }
-  };
-  return list.slice().sort(cmp);
 };
 
 const SortChevron = ({ dir }) => (
@@ -136,49 +103,34 @@ const SortChevron = ({ dir }) => (
   </span>
 );
 
-/* ====================================================================== */
+/* =================================================================== */
 
 export default function CarListSplit({
   embedded = false,
   listOverride,
-  sortState, // when embedded inside CarListRegular
+  sortState,
+  onSortChange,
 }) {
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState(null);
 
-  // header UI (only when standalone)
+  // header UI (only meaningful when not embedded)
   const [query, setQuery] = useState("");
-  const [stageFilter, setStageFilter] = useState(() => new Set(STAGES));
+  const [stageFilter, setStageFilter] = useState(
+    () => new Set(STAGES)
+  );
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
 
-  // sorting (internal, unless embedded with sortState)
-  const [sort, setSort] = useState(sortState || { key: null, dir: null });
-
-  // keep in sync when embedded parent passes sortState
-  useEffect(() => {
-    if (sortState) setSort(sortState);
-  }, [sortState?.key, sortState?.dir]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const clickSort = (key) => {
-    // When embedded, parent (CarListRegular) owns sort + passes listOverride already sorted.
-    if (embedded && sortState) return;
-
-    setSort((prev) => {
-      if (prev.key === key) {
-        const dir = nextDir(prev.dir);
-        return { key: dir ? key : null, dir };
-      }
-      return { key, dir: "desc" };
-    });
-  };
-
   // per-cell editing
-  const [editTarget, setEditTarget] = useState({ id: null, field: null });
+  const [editTarget, setEditTarget] = useState({
+    id: null,
+    field: null,
+  });
   const [editData, setEditData] = useState({});
   const savingRef = useRef(false);
   const activeRef = useRef(null);
@@ -192,9 +144,19 @@ export default function CarListSplit({
     open: false,
     car: null,
   });
-  const [nextModal, setNextModal] = useState({ open: false, car: null });
+  const [nextModal, setNextModal] = useState({
+    open: false,
+    car: null,
+  });
 
-  /* ---------- load cars ---------- */
+  // local sort when not controlled by parent
+  const [internalSort, setInternalSort] = useState({
+    key: null,
+    dir: null,
+  });
+  const sort = sortState || internalSort;
+
+  /* ---------- fetch ---------- */
   useEffect(() => {
     if (listOverride) {
       setCars(listOverride);
@@ -235,10 +197,31 @@ export default function CarListSplit({
     }
   }, [listOverride]);
 
+  /* ---------- sort: header click handler ---------- */
+  const handleSortClick = (key) => {
+    // use functional update so we always read freshest internal state
+    setInternalSort((prevInternal) => {
+      const curr = sortState || prevInternal;
+      const nextDirection =
+        curr.key === key ? nextDir(curr.dir) : "desc";
+      const next =
+        nextDirection === null
+          ? { key: null, dir: null }
+          : { key, dir: nextDirection };
+
+      if (onSortChange) {
+        onSortChange(next);
+        // when controlled by parent, keep internal as-is (ignored)
+        return prevInternal;
+      }
+      // unmanaged: update internal sort
+      return next;
+    });
+  };
+
   /* ---------- editing helpers ---------- */
   const startEdit = (car, field, focusName = null) => {
     setEditTarget({ id: car._id, field });
-
     const base = {
       make: car.make ?? "",
       model: car.model ?? "",
@@ -257,14 +240,16 @@ export default function CarListSplit({
       caretRef.current = { name: null, start: null, end: null };
       return;
     }
-
     caretRef.current = { name: focusName, start: null, end: null };
     requestAnimationFrame(() => {
       const root = activeRef.current;
+      if (!root) return;
       const el =
         (focusName &&
-          root?.querySelector(`[name="${CSS.escape(focusName)}"]`)) ||
-        root?.querySelector("input, textarea, select");
+          root.querySelector(
+            `[name="${CSS.escape(focusName)}"]`
+          )) ||
+        root.querySelector("input, textarea, select");
       if (el) {
         el.focus();
         el.select?.();
@@ -284,18 +269,22 @@ export default function CarListSplit({
   const handleChange = (e) => {
     rememberCaret(e);
     const { name, value } = e.target;
-    if (name === "year")
+    if (name === "year") {
       return setEditData((p) => ({
         ...p,
         year: value.replace(/[^\d]/g, ""),
       }));
-    if (name === "badge")
+    }
+    if (name === "badge") {
       return setEditData((p) => ({
         ...p,
         badge: value.slice(0, 4),
       }));
+    }
     if (name === "rego") {
-      const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const clean = value
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
       return setEditData((p) => ({ ...p, rego: clean }));
     }
     setEditData((p) => ({ ...p, [name]: value }));
@@ -307,16 +296,26 @@ export default function CarListSplit({
     const root = activeRef.current;
     if (!root) return;
     const el =
-      (name && root.querySelector(`[name="${CSS.escape(name)}"]`)) ||
+      (name &&
+        root.querySelector(
+          `[name="${CSS.escape(name)}"]`
+        )) ||
       root.querySelector("input, textarea, select");
     if (!el) return;
     if (document.activeElement !== el) el.focus();
-    if (typeof el.setSelectionRange === "function" && "value" in el) {
+    if (
+      typeof el.setSelectionRange === "function" &&
+      "value" in el
+    ) {
       const v = el.value ?? "";
       const s =
-        typeof start === "number" ? Math.min(start, v.length) : v.length;
+        typeof start === "number"
+          ? Math.min(start, v.length)
+          : v.length;
       const ee =
-        typeof end === "number" ? Math.min(end, v.length) : v.length;
+        typeof end === "number"
+          ? Math.min(end, v.length)
+          : v.length;
       el.setSelectionRange(s, ee);
     }
   }, [editData, editTarget]);
@@ -334,39 +333,53 @@ export default function CarListSplit({
             badge: (editData.badge || "").trim(),
             rego: (editData.rego || "").trim(),
             year:
-              editData.year === "" ? undefined : Number(editData.year),
+              editData.year === ""
+                ? undefined
+                : Number(editData.year),
             description: (editData.description || "").trim(),
           };
           break;
         case "location":
-          payload = { location: (editData.location || "").trim() };
+          payload = {
+            location: (editData.location || "").trim(),
+          };
           break;
         case "notes":
           payload = { notes: (editData.notes || "").trim() };
           break;
         case "stage":
-          payload = { stage: (editData.stage || "In Works").trim() };
+          payload = {
+            stage: (editData.stage || "In Works").trim(),
+          };
           break;
         default:
           break;
       }
 
-      const res = await api.put(`/cars/${editTarget.id}`, payload, {
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await api.put(
+        `/cars/${editTarget.id}`,
+        payload,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (res?.data?.data) {
         const updated = res.data.data;
-
-        // If embedded with external data, mutate override in-place-ish
         if (listOverride && Array.isArray(listOverride)) {
           const ix = listOverride.findIndex(
             (c) => c && c._id === updated._id
           );
-          if (ix !== -1) Object.assign(listOverride[ix], updated);
+          if (ix !== -1) {
+            Object.assign(listOverride[ix], updated);
+          }
         } else {
           setCars((prev) =>
-            prev.map((c) => (c._id === updated._id ? updated : c))
+            prev.map((c) =>
+              c._id === updated._id ? updated : c
+            )
           );
         }
       } else if (!listOverride) {
@@ -377,7 +390,8 @@ export default function CarListSplit({
     } catch (err) {
       alert(
         "Error updating car: " +
-          (err.response?.data?.message || err.message)
+          (err.response?.data?.message ||
+            err.message)
       );
       if (!listOverride) await refreshCars();
       setEditTarget({ id: null, field: null });
@@ -394,7 +408,10 @@ export default function CarListSplit({
       );
       if (!rowEl) return;
       if (!rowEl.contains(e.target)) {
-        if (editTarget.field === "stage" && !stageDirtyRef.current) {
+        if (
+          editTarget.field === "stage" &&
+          !stageDirtyRef.current
+        ) {
           setEditTarget({ id: null, field: null });
         } else {
           saveChanges();
@@ -417,8 +434,12 @@ export default function CarListSplit({
   const handleDelete = async (carId) => {
     if (!window.confirm("Delete this car?")) return;
     try {
-      await api.delete(`/cars/${encodeURIComponent(carId)}`);
-      setCars((prev) => prev.filter((c) => c._id !== carId));
+      await api.delete(
+        `/cars/${encodeURIComponent(carId)}`
+      );
+      setCars((prev) =>
+        prev.filter((c) => c._id !== carId)
+      );
       await refreshCars();
     } catch (err) {
       const status = err?.response?.status;
@@ -439,8 +460,9 @@ export default function CarListSplit({
     }
   };
 
-  /* ---------- header actions (standalone only) ---------- */
-  const triggerCsv = () => fileInputRef.current?.click();
+  /* ---------- header actions (standalone Split only) ---------- */
+  const triggerCsv = () =>
+    fileInputRef.current?.click();
 
   const handleCsvChosen = async (e) => {
     const file = e.target.files?.[0];
@@ -450,9 +472,16 @@ export default function CarListSplit({
       const form = new FormData();
       form.append("file", file);
       form.append("defaultStage", "In Works");
-      const res = await api.post("/cars/import-csv", form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await api.post(
+        "/cars/import-csv",
+        form,
+        {
+          headers: {
+            "Content-Type":
+              "multipart/form-data",
+          },
+        }
+      );
       const {
         createdCount = 0,
         skippedCount = 0,
@@ -465,7 +494,8 @@ export default function CarListSplit({
     } catch (err) {
       alert(
         `CSV import failed: ${
-          err.response?.data?.message || err.message
+          err.response?.data?.message ||
+          err.message
         }`
       );
     } finally {
@@ -479,13 +509,20 @@ export default function CarListSplit({
       const res = await api.post(
         "/cars/mark-online-from-text",
         { text: pasteText },
-        { headers: { "Content-Type": "application/json" } }
+        {
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+        }
       );
       const d = res.data?.data || {};
       alert(
         `Processed.\nChanged: ${
           d.totals?.changed ?? 0
-        }\nSkipped: ${d.totals?.skipped ?? 0}\nNot found: ${
+        }\nSkipped: ${
+          d.totals?.skipped ?? 0
+        }\nNot found: ${
           d.totals?.notFound ?? 0
         }`
       );
@@ -501,20 +538,20 @@ export default function CarListSplit({
     }
   };
 
-  /* ---------- data shaping: filter + sort + split ---------- */
+  /* ---------- data shaping + sorting ---------- */
   const [leftList, rightList] = useMemo(() => {
-    let list = listOverride || cars;
+    let list = cars;
 
-    // When embedded, CarListRegular already:
-    // - applied stage filter
-    // - applied search
-    // - applied sort
-    // So we trust order and ONLY split.
+    // In embedded mode (inside CarListRegular) we assume
+    // listOverride already filtered + sorted; we only apply
+    // extra filters/search if NOT embedded.
     if (!embedded) {
       // Stage filter
       list =
         stageFilter.size > 0
-          ? list.filter((c) => stageFilter.has(c?.stage ?? ""))
+          ? list.filter((c) =>
+              stageFilter.has(c?.stage ?? "")
+            )
           : [];
 
       // Search
@@ -530,7 +567,9 @@ export default function CarListSplit({
             car.description,
             car.location,
             car.stage,
-            ...(Array.isArray(car.nextLocations)
+            ...(Array.isArray(
+              car.nextLocations
+            )
               ? car.nextLocations
               : [car.nextLocation]),
             ...(Array.isArray(car.checklist)
@@ -543,20 +582,103 @@ export default function CarListSplit({
           return hay.includes(q);
         });
       }
-
-      // Sort (internal)
-      list = applySort(list, sort);
     }
 
-    // Always show Sold first (like Regular)
+    // Put SOLD first (matches regular)
     const sold = [];
     const other = [];
-    for (const c of list) (isSold(c) ? sold : other).push(c);
-    const ordered = [...sold, ...other];
+    for (const c of list) {
+      (isSold(c) ? sold : other).push(c);
+    }
+    let ordered = [...sold, ...other];
 
+    // Apply sort if active
+    if (sort?.key && sort?.dir) {
+      const dir = sort.dir;
+      const key = sort.key;
+      const cmp = (a, b) => {
+        switch (key) {
+          case "car": {
+            const byMake = compareStr(
+              a.make,
+              b.make,
+              dir
+            );
+            if (byMake !== 0) return byMake;
+            return compareStr(
+              a.model,
+              b.model,
+              dir
+            );
+          }
+          case "location":
+            return compareStr(
+              a.location,
+              b.location,
+              dir
+            );
+          case "next": {
+            const an =
+              Array.isArray(
+                a.nextLocations
+              ) && a.nextLocations.length
+                ? a.nextLocations.join(", ")
+                : a.nextLocation;
+            const bn =
+              Array.isArray(
+                b.nextLocations
+              ) && b.nextLocations.length
+                ? b.nextLocations.join(", ")
+                : b.nextLocation;
+            return compareStr(an, bn, dir);
+          }
+          case "checklist": {
+            const ac =
+              Array.isArray(a.checklist)
+                ? a.checklist.join(", ")
+                : a.checklist;
+            const bc =
+              Array.isArray(b.checklist)
+                ? b.checklist.join(", ")
+                : b.checklist;
+            return compareStr(ac, bc, dir);
+          }
+          case "notes":
+            return compareStr(
+              a.notes,
+              b.notes,
+              dir
+            );
+          case "stage":
+            return compareStr(
+              a.stage,
+              b.stage,
+              dir
+            );
+          case "year":
+            return compareNum(
+              a.year,
+              b.year,
+              dir
+            );
+          default:
+            return 0;
+        }
+      };
+      ordered = ordered.slice().sort(cmp);
+    }
+
+    // Split into two columns
     const mid = Math.ceil(ordered.length / 2);
     return [ordered.slice(0, mid), ordered.slice(mid)];
-  }, [cars, listOverride, query, stageFilter, embedded, sort]);
+  }, [
+    cars,
+    query,
+    stageFilter,
+    embedded,
+    sort?.key,
+    sort?.dir,
+  ]);
 
   if (loading)
     return <div className="page-pad">Loading…</div>;
@@ -571,7 +693,9 @@ export default function CarListSplit({
           gap:12px;
         }
         @media (min-width: 1100px){
-          .split-panels{ grid-template-columns: 1fr 1fr; }
+          .split-panels{
+            grid-template-columns: 1fr 1fr;
+          }
         }
 
         .table-wrap{
@@ -592,7 +716,8 @@ export default function CarListSplit({
           font-size:13px;
           line-height:1.25;
         }
-        .car-table th,.car-table td{
+        .car-table th,
+        .car-table td{
           padding:6px 8px;
           vertical-align:middle;
         }
@@ -613,7 +738,8 @@ export default function CarListSplit({
 
         @media (min-width: 1400px){
           .car-table{ font-size:12px; }
-          .car-table th,.car-table td{ padding:4px 6px; }
+          .car-table th,
+          .car-table td{ padding:4px 6px; }
           .car-table col.col-car{ width:300px; }
           .car-table col.col-loc{ width:88px; }
           .car-table col.col-next{ width:140px; }
@@ -642,6 +768,7 @@ export default function CarListSplit({
           background:#1f2937;
         }
 
+        /* Editing */
         td.is-editing{
           background:#0c1a2e;
           box-shadow: inset 0 0 0 1px #2b3b54;
@@ -650,17 +777,33 @@ export default function CarListSplit({
           z-index:5;
           overflow:visible;
         }
-        .edit-cell{ display:flex; align-items:center; gap:8px; }
-        .edit-cell-group{ display:flex; flex-direction:column; gap:6px; }
-        .edit-inline{ display:flex; gap:6px; }
-        .edit-actions{ display:flex; gap:6px; margin-top:2px; }
+        .edit-cell{
+          display:flex;
+          align-items:center;
+          gap:8px;
+        }
+        .edit-cell-group{
+          display:flex;
+          flex-direction:column;
+          gap:6px;
+        }
+        .edit-inline{
+          display:flex;
+          gap:6px;
+        }
+        .edit-actions{
+          display:flex;
+          gap:6px;
+          margin-top:2px;
+        }
         .input.input--compact{
           padding:7px 9px;
           font-size:12.5px;
           line-height:1.25;
         }
-        .edit-cell-group .input{ width:100%; }
-
+        .edit-cell-group .input{
+          width:100%;
+        }
         td.is-editing .input--wider{
           width:auto;
           min-width:260px;
@@ -681,7 +824,10 @@ export default function CarListSplit({
           cursor:pointer;
           font-weight:600;
         }
-        .btn--xs{ font-size:12px; padding:4px 8px; }
+        .btn--xs{
+          font-size:12px;
+          padding:4px 8px;
+        }
         .btn--icon{
           padding:4px;
           width:28px;
@@ -690,8 +836,14 @@ export default function CarListSplit({
           align-items:center;
           justify-content:center;
         }
-        .btn--danger{ background:#DC2626; color:#fff; }
-        .btn--kebab{ background:#1f2a3e; color:#c9d3e3; }
+        .btn--danger{
+          background:#DC2626;
+          color:#fff;
+        }
+        .btn--kebab{
+          background:#1f2a3e;
+          color:#c9d3e3;
+        }
 
         :root{
           --sold-bg: rgba(14, 165, 233, 0.12);
@@ -707,33 +859,49 @@ export default function CarListSplit({
         }
       `}</style>
 
-      {/* Header (standalone only) */}
+      {/* Header (hidden when embedded inside Regular) */}
       {!embedded && (
         <div className="toolbar header-row">
-          <h1 className="title" style={{ margin: 0 }}>
+          <h1
+            className="title"
+            style={{ margin: 0 }}
+          >
             Car Inventory
           </h1>
-          <p className="subtitle" style={{ margin: 0 }}>
+          <p
+            className="subtitle"
+            style={{ margin: 0 }}
+          >
             {cars.length} cars
           </p>
 
           <div
             className="chip-row"
-            style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
+            style={{
+              display: "flex",
+              gap: 6,
+              flexWrap: "wrap",
+            }}
           >
             {STAGES.map((s) => {
               const on = stageFilter.has(s);
               return (
                 <button
                   key={s}
-                  className={`chip ${on ? "chip--on" : ""}`}
+                  className={`chip ${
+                    on ? "chip--on" : ""
+                  }`}
                   onClick={() =>
-                    setStageFilter((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(s)) next.delete(s);
-                      else next.add(s);
-                      return next;
-                    })
+                    setStageFilter(
+                      (prev) => {
+                        const next =
+                          new Set(prev);
+                        if (next.has(s))
+                          next.delete(s);
+                        else next.add(s);
+                        return next;
+                      }
+                    )
                   }
                   title={s}
                 >
@@ -747,13 +915,22 @@ export default function CarListSplit({
             className="input searchbar"
             placeholder="Search cars…"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{ flex: "1 1 360px", minWidth: 220 }}
+            onChange={(e) =>
+              setQuery(e.target.value)
+            }
+            style={{
+              flex: "1 1 360px",
+              minWidth: 220,
+            }}
           />
 
           <div
             className="btn-row"
-            style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
           >
             <button
               className="btn btn--primary"
@@ -766,7 +943,9 @@ export default function CarListSplit({
               onClick={triggerCsv}
               disabled={uploading}
             >
-              {uploading ? "Uploading…" : "Upload CSV"}
+              {uploading
+                ? "Uploading…"
+                : "Upload CSV"}
             </button>
             <input
               ref={fileInputRef}
@@ -777,7 +956,9 @@ export default function CarListSplit({
             />
             <button
               className="btn btn--muted"
-              onClick={() => setPasteOpen(true)}
+              onClick={() =>
+                setPasteOpen(true)
+              }
             >
               Paste Online List
             </button>
@@ -786,7 +967,9 @@ export default function CarListSplit({
       )}
 
       {errMsg && (
-        <div className="alert alert--error">{errMsg}</div>
+        <div className="alert alert--error">
+          {errMsg}
+        </div>
       )}
 
       {/* Two tables side by side */}
@@ -794,42 +977,44 @@ export default function CarListSplit({
         <Table
           list={leftList}
           sort={sort}
-          clickSort={clickSort}
-          editTarget={editTarget}
-          setEditTarget={setEditTarget}
-          editData={editData}
-          startEdit={startEdit}
-          rememberCaret={rememberCaret}
-          handleChange={handleChange}
-          saveChanges={saveChanges}
-          stageDirtyRef={stageDirtyRef}
-          activeRef={activeRef}
-          setProfileOpen={setProfileOpen}
-          setSelectedCar={setSelectedCar}
-          setChecklistModal={setChecklistModal}
-          setNextModal={setNextModal}
-          handleDelete={handleDelete}
-          showHeader
+          onSortClick={handleSortClick}
+          {...{
+            editTarget,
+            setEditTarget,
+            editData,
+            startEdit,
+            rememberCaret,
+            handleChange,
+            saveChanges,
+            stageDirtyRef,
+            activeRef,
+            setProfileOpen,
+            setSelectedCar,
+            setChecklistModal,
+            setNextModal,
+            handleDelete,
+          }}
         />
         <Table
           list={rightList}
           sort={sort}
-          clickSort={clickSort}
-          editTarget={editTarget}
-          setEditTarget={setEditTarget}
-          editData={editData}
-          startEdit={startEdit}
-          rememberCaret={rememberCaret}
-          handleChange={handleChange}
-          saveChanges={saveChanges}
-          stageDirtyRef={stageDirtyRef}
-          activeRef={activeRef}
-          setProfileOpen={setProfileOpen}
-          setSelectedCar={setSelectedCar}
-          setChecklistModal={setChecklistModal}
-          setNextModal={setNextModal}
-          handleDelete={handleDelete}
-          showHeader
+          onSortClick={handleSortClick}
+          {...{
+            editTarget,
+            setEditTarget,
+            editData,
+            startEdit,
+            rememberCaret,
+            handleChange,
+            saveChanges,
+            stageDirtyRef,
+            activeRef,
+            setProfileOpen,
+            setSelectedCar,
+            setChecklistModal,
+            setNextModal,
+            handleDelete,
+          }}
         />
       </div>
 
@@ -846,39 +1031,53 @@ export default function CarListSplit({
         <CarProfileModal
           open={profileOpen}
           car={selectedCar}
-          onClose={() => setProfileOpen(false)}
+          onClose={() =>
+            setProfileOpen(false)
+          }
         />
       )}
 
       {checklistModal.open && (
         <ChecklistFormModal
           open
-          items={checklistModal.car?.checklist ?? []}
+          items={
+            checklistModal.car
+              ?.checklist ?? []
+          }
           onSave={async (items) => {
-            if (!checklistModal.car) return;
+            if (!checklistModal.car)
+              return;
             try {
               await api.put(
                 `/cars/${checklistModal.car._id}`,
                 { checklist: items },
                 {
                   headers: {
-                    "Content-Type": "application/json",
+                    "Content-Type":
+                      "application/json",
                   },
                 }
               );
               await refreshCars();
             } catch (e) {
               alert(
-                e.response?.data?.message ||
+                e.response?.data
+                  ?.message ||
                   e.message ||
                   "Error saving checklist"
               );
             } finally {
-              setChecklistModal({ open: false, car: null });
+              setChecklistModal({
+                open: false,
+                car: null,
+              });
             }
           }}
           onClose={() =>
-            setChecklistModal({ open: false, car: null })
+            setChecklistModal({
+              open: false,
+              car: null,
+            })
           }
         />
       )}
@@ -887,10 +1086,18 @@ export default function CarListSplit({
         <NextLocationsFormModal
           open
           items={
-            Array.isArray(nextModal.car?.nextLocations)
-              ? nextModal.car.nextLocations
-              : nextModal.car?.nextLocation
-              ? [nextModal.car.nextLocation]
+            Array.isArray(
+              nextModal.car
+                ?.nextLocations
+            )
+              ? nextModal.car
+                  .nextLocations
+              : nextModal.car
+                  ?.nextLocation
+              ? [
+                  nextModal.car
+                    .nextLocation,
+                ]
               : []
           }
           onSave={async (items) => {
@@ -901,63 +1108,88 @@ export default function CarListSplit({
                 {
                   nextLocations: items,
                   nextLocation:
-                    items[items.length - 1] ?? "",
+                    items[
+                      items.length -
+                        1
+                    ] ?? "",
                 },
                 {
                   headers: {
-                    "Content-Type": "application/json",
+                    "Content-Type":
+                      "application/json",
                   },
                 }
               );
               await refreshCars();
             } catch (e) {
               alert(
-                e.response?.data?.message ||
+                e.response?.data
+                  ?.message ||
                   e.message ||
                   "Error saving destinations"
               );
             } finally {
-              setNextModal({ open: false, car: null });
+              setNextModal({
+                open: false,
+                car: null,
+              });
             }
           }}
           onSetCurrent={async (loc) => {
             if (!nextModal.car) return;
             try {
-              const existing = Array.isArray(
-                nextModal.car.nextLocations
-              )
-                ? nextModal.car.nextLocations
-                : nextModal.car.nextLocation
-                ? [nextModal.car.nextLocation]
-                : [];
-              const remaining = existing.filter(
-                (s) => s !== loc
-              );
+              const existing =
+                Array.isArray(
+                  nextModal.car
+                    .nextLocations
+                )
+                  ? nextModal.car
+                      .nextLocations
+                  : nextModal.car
+                      .nextLocation
+                  ? [
+                      nextModal.car
+                        .nextLocation,
+                    ]
+                  : [];
+              const remaining =
+                existing.filter(
+                  (s) => s !== loc
+                );
               await api.put(
                 `/cars/${nextModal.car._id}`,
                 {
                   location: loc,
-                  nextLocations: remaining,
+                  nextLocations:
+                    remaining,
                   nextLocation:
-                    remaining[remaining.length - 1] ?? "",
+                    remaining[
+                      remaining.length -
+                        1
+                    ] ?? "",
                 },
                 {
                   headers: {
-                    "Content-Type": "application/json",
+                    "Content-Type":
+                      "application/json",
                   },
                 }
               );
               await refreshCars();
             } catch (e) {
               alert(
-                e.response?.data?.message ||
+                e.response?.data
+                  ?.message ||
                   e.message ||
                   "Error setting current location"
               );
             }
           }}
           onClose={() =>
-            setNextModal({ open: false, car: null })
+            setNextModal({
+              open: false,
+              car: null,
+            })
           }
         />
       )}
@@ -967,72 +1199,113 @@ export default function CarListSplit({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,.5)",
+            background:
+              "rgba(0,0,0,.5)",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            alignItems:
+              "center",
+            justifyContent:
+              "center",
             zIndex: 1000,
           }}
-          onClick={() => setPasteOpen(false)}
+          onClick={() =>
+            setPasteOpen(false)
+          }
         >
           <div
             style={{
-              background: "#0b1220",
-              border: "1px solid #243041",
+              background:
+                "#0b1220",
+              border:
+                "1px solid #243041",
               borderRadius: 12,
-              width: "min(900px, 92vw)",
+              width:
+                "min(900px, 92vw)",
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) =>
+              e.stopPropagation()
+            }
           >
             <div
               style={{
                 padding: 14,
-                borderBottom: "1px solid #243041",
+                borderBottom:
+                  "1px solid #243041",
               }}
             >
-              <h3 style={{ margin: 0 }}>Paste Autogate List</h3>
+              <h3
+                style={{
+                  margin: 0,
+                }}
+              >
+                Paste Autogate List
+              </h3>
               <p
                 style={{
-                  margin: "4px 0 0",
-                  color: "#9CA3AF",
+                  margin:
+                    "4px 0 0",
+                  color:
+                    "#9CA3AF",
                   fontSize: 13,
                 }}
               >
-                We’ll set cars to <b>Online</b> only if they’re
-                currently <b>In Works</b>.
+                We’ll set cars to{" "}
+                <b>
+                  Online
+                </b>{" "}
+                only if they’re
+                currently{" "}
+                <b>
+                  In Works
+                </b>
+                .
               </p>
             </div>
-            <div style={{ padding: 14 }}>
+            <div
+              style={{
+                padding: 14,
+              }}
+            >
               <textarea
                 className="input"
                 style={{
                   width: "100%",
                   minHeight: 280,
-                  resize: "vertical",
+                  resize:
+                    "vertical",
                 }}
                 placeholder="Paste the whole Autogate block here…"
                 value={pasteText}
                 onChange={(e) =>
-                  setPasteText(e.target.value)
+                  setPasteText(
+                    e.target.value
+                  )
                 }
               />
               <div
                 style={{
                   display: "flex",
                   gap: 8,
-                  justifyContent: "flex-end",
+                  justifyContent:
+                    "flex-end",
                   marginTop: 10,
                 }}
               >
                 <button
                   className="btn"
-                  onClick={() => setPasteOpen(false)}
+                  onClick={() =>
+                    setPasteOpen(
+                      false
+                    )
+                  }
                 >
                   Cancel
                 </button>
                 <button
                   className="btn btn--primary"
-                  onClick={submitPaste}
+                  onClick={
+                    submitPaste
+                  }
                 >
                   Process
                 </button>
@@ -1045,11 +1318,11 @@ export default function CarListSplit({
   );
 }
 
-/* ---------- Split table ---------- */
+/* ---------- Table (dumb, uses provided sort + click handler) ---------- */
 function Table({
   list,
   sort,
-  clickSort,
+  onSortClick,
   editTarget,
   setEditTarget,
   editData,
@@ -1065,7 +1338,11 @@ function Table({
   setNextModal,
   handleDelete,
 }) {
-  const visibleCols = 7;
+  const Sort = ({ col }) =>
+    sort?.key === col ? (
+      <SortChevron dir={sort.dir} />
+    ) : null;
+
   return (
     <div className="table-wrap">
       <table className="car-table">
@@ -1083,67 +1360,70 @@ function Table({
             <th>
               <button
                 className="thbtn"
-                onClick={() => clickSort("car")}
+                onClick={() =>
+                  onSortClick("car")
+                }
               >
-                Car
-                {sort.key === "car" && (
-                  <SortChevron dir={sort.dir} />
-                )}
+                Car <Sort col="car" />
               </button>
             </th>
             <th>
               <button
                 className="thbtn"
-                onClick={() => clickSort("location")}
+                onClick={() =>
+                  onSortClick(
+                    "location"
+                  )
+                }
               >
-                Location
-                {sort.key === "location" && (
-                  <SortChevron dir={sort.dir} />
-                )}
+                Location{" "}
+                <Sort col="location" />
               </button>
             </th>
             <th>
               <button
                 className="thbtn"
-                onClick={() => clickSort("next")}
+                onClick={() =>
+                  onSortClick("next")
+                }
               >
-                Next Loc
-                {sort.key === "next" && (
-                  <SortChevron dir={sort.dir} />
-                )}
+                Next Loc{" "}
+                <Sort col="next" />
               </button>
             </th>
             <th>
               <button
                 className="thbtn"
-                onClick={() => clickSort("checklist")}
+                onClick={() =>
+                  onSortClick(
+                    "checklist"
+                  )
+                }
               >
-                Checklist
-                {sort.key === "checklist" && (
-                  <SortChevron dir={sort.dir} />
-                )}
+                Checklist{" "}
+                <Sort col="checklist" />
               </button>
             </th>
             <th>
               <button
                 className="thbtn"
-                onClick={() => clickSort("notes")}
+                onClick={() =>
+                  onSortClick("notes")
+                }
               >
-                Notes
-                {sort.key === "notes" && (
-                  <SortChevron dir={sort.dir} />
-                )}
+                Notes{" "}
+                <Sort col="notes" />
               </button>
             </th>
             <th>
               <button
                 className="thbtn"
-                onClick={() => clickSort("stage")}
+                onClick={() =>
+                  onSortClick("stage")
+                }
               >
-                Stage
-                {sort.key === "stage" && (
-                  <SortChevron dir={sort.dir} />
-                )}
+                Stage{" "}
+                <Sort col="stage" />
               </button>
             </th>
             <th>Act</th>
@@ -1153,7 +1433,7 @@ function Table({
           {list.length === 0 ? (
             <tr>
               <td
-                colSpan={visibleCols}
+                colSpan={7}
                 className="empty"
               >
                 No cars.
@@ -1162,28 +1442,38 @@ function Table({
           ) : (
             list.map((car) => {
               const editing =
-                editTarget.id === car._id
+                editTarget.id ===
+                car._id
                   ? editTarget.field
                   : null;
               const refCb = editing
                 ? (el) => {
-                    if (el) activeRef.current = el;
+                    if (el)
+                      activeRef.current =
+                        el;
                   }
                 : null;
 
               return (
                 <tr
                   key={car._id}
-                  data-id={car._id}
-                  className={
-                    isSold(car) ? "row--sold" : ""
+                  data-id={
+                    car._id
                   }
-                  ref={refCb}
+                  className={
+                    isSold(car)
+                      ? "row--sold"
+                      : ""
+                  }
+                  ref={
+                    refCb
+                  }
                 >
                   {/* CAR */}
                   <td
                     onDoubleClick={() =>
-                      editing !== "car" &&
+                      editing !==
+                        "car" &&
                       startEdit(
                         car,
                         "car",
@@ -1191,49 +1481,85 @@ function Table({
                       )
                     }
                     className={
-                      editing === "car"
+                      editing ===
+                      "car"
                         ? "is-editing"
                         : ""
                     }
                   >
-                    {editing === "car" ? (
+                    {editing ===
+                    "car" ? (
                       <div className="edit-cell-group">
                         <input
                           className="input input--compact"
                           name="make"
-                          value={editData.make}
-                          onChange={handleChange}
-                          onKeyUp={rememberCaret}
-                          onClick={rememberCaret}
+                          value={
+                            editData.make
+                          }
+                          onChange={
+                            handleChange
+                          }
+                          onKeyUp={
+                            rememberCaret
+                          }
+                          onClick={
+                            rememberCaret
+                          }
                           placeholder="Make"
                         />
                         <input
                           className="input input--compact"
                           name="model"
-                          value={editData.model}
-                          onChange={handleChange}
-                          onKeyUp={rememberCaret}
-                          onClick={rememberCaret}
+                          value={
+                            editData.model
+                          }
+                          onChange={
+                            handleChange
+                          }
+                          onKeyUp={
+                            rememberCaret
+                          }
+                          onClick={
+                            rememberCaret
+                          }
                           placeholder="Model"
                         />
                         <div className="edit-inline">
                           <input
                             className="input input--compact"
                             name="badge"
-                            value={editData.badge}
-                            maxLength={4}
-                            onChange={handleChange}
-                            onKeyUp={rememberCaret}
-                            onClick={rememberCaret}
+                            value={
+                              editData.badge
+                            }
+                            maxLength={
+                              4
+                            }
+                            onChange={
+                              handleChange
+                            }
+                            onKeyUp={
+                              rememberCaret
+                            }
+                            onClick={
+                              rememberCaret
+                            }
                             placeholder="Badge"
                           />
                           <input
                             className="input input--compact"
                             name="year"
-                            value={editData.year}
-                            onChange={handleChange}
-                            onKeyUp={rememberCaret}
-                            onClick={rememberCaret}
+                            value={
+                              editData.year
+                            }
+                            onChange={
+                              handleChange
+                            }
+                            onKeyUp={
+                              rememberCaret
+                            }
+                            onClick={
+                              rememberCaret
+                            }
                             placeholder="Year"
                           />
                         </div>
@@ -1243,18 +1569,32 @@ function Table({
                           value={
                             editData.description
                           }
-                          onChange={handleChange}
-                          onKeyUp={rememberCaret}
-                          onClick={rememberCaret}
+                          onChange={
+                            handleChange
+                          }
+                          onKeyUp={
+                            rememberCaret
+                          }
+                          onClick={
+                            rememberCaret
+                          }
                           placeholder="Description"
                         />
                         <input
                           className="input input--compact"
                           name="rego"
-                          value={editData.rego}
-                          onChange={handleChange}
-                          onKeyUp={rememberCaret}
-                          onClick={rememberCaret}
+                          value={
+                            editData.rego
+                          }
+                          onChange={
+                            handleChange
+                          }
+                          onKeyUp={
+                            rememberCaret
+                          }
+                          onClick={
+                            rememberCaret
+                          }
                           placeholder="REGO"
                           style={{
                             textTransform:
@@ -1273,10 +1613,12 @@ function Table({
                           <button
                             className="btn"
                             onClick={() =>
-                              setEditTarget({
-                                id: null,
-                                field: null,
-                              })
+                              setEditTarget(
+                                {
+                                  id: null,
+                                  field: null,
+                                }
+                              )
                             }
                           >
                             Cancel
@@ -1286,9 +1628,14 @@ function Table({
                     ) : (
                       <span
                         className="cell"
-                        title={carString(car)}
+                        title={carString(
+                          car
+                        )}
                       >
-                        {carString(car) || "-"}
+                        {carString(
+                          car
+                        ) ||
+                          "-"}
                       </span>
                     )}
                   </td>
@@ -1305,7 +1652,8 @@ function Table({
                       )
                     }
                     className={
-                      editing === "location"
+                      editing ===
+                      "location"
                         ? "is-editing"
                         : ""
                     }
@@ -1349,7 +1697,8 @@ function Table({
                           ""
                         }
                       >
-                        {car.location || "-"}
+                        {car.location ||
+                          "-"}
                       </span>
                     )}
                   </td>
@@ -1382,7 +1731,9 @@ function Table({
                       {Array.isArray(
                         car.nextLocations
                       ) &&
-                      car.nextLocations.length
+                      car
+                        .nextLocations
+                        .length
                         ? car.nextLocations.join(
                             ", "
                           )
@@ -1421,7 +1772,9 @@ function Table({
                       {Array.isArray(
                         car.checklist
                       ) &&
-                      car.checklist.length
+                      car
+                        .checklist
+                        .length
                         ? car.checklist.join(
                             ", "
                           )
@@ -1441,7 +1794,8 @@ function Table({
                       )
                     }
                     className={
-                      editing === "notes"
+                      editing ===
+                      "notes"
                         ? "is-editing"
                         : ""
                     }
@@ -1452,7 +1806,9 @@ function Table({
                         <textarea
                           className="input input--compact textarea--wider"
                           name="notes"
-                          rows={2}
+                          rows={
+                            2
+                          }
                           value={
                             editData.notes
                           }
@@ -1482,10 +1838,12 @@ function Table({
                       <span
                         className="cell"
                         title={
-                          car.notes || ""
+                          car.notes ||
+                          ""
                         }
                       >
-                        {car.notes || "-"}
+                        {car.notes ||
+                          "-"}
                       </span>
                     )}
                   </td>
@@ -1502,7 +1860,8 @@ function Table({
                       )
                     }
                     className={
-                      editing === "stage"
+                      editing ===
+                      "stage"
                         ? "is-editing"
                         : ""
                     }
@@ -1516,7 +1875,9 @@ function Table({
                           value={
                             editData.stage
                           }
-                          onChange={(e) => {
+                          onChange={(
+                            e
+                          ) => {
                             stageDirtyRef.current = true;
                             return handleChange(
                               e
@@ -1528,34 +1889,53 @@ function Table({
                             )
                               saveChanges();
                             else
-                              setEditTarget({
-                                id: null,
-                                field: null,
-                              });
+                              setEditTarget(
+                                {
+                                  id: null,
+                                  field: null,
+                                }
+                              );
                           }}
-                          onClick={(e) =>
+                          onClick={(
+                            e
+                          ) =>
                             e.stopPropagation()
                           }
-                          onMouseDown={(e) =>
+                          onMouseDown={(
+                            e
+                          ) =>
                             e.stopPropagation()
                           }
-                          onTouchStart={(e) =>
+                          onTouchStart={(
+                            e
+                          ) =>
                             e.stopPropagation()
                           }
                         >
-                          {STAGES.map((s) => (
-                            <option
-                              key={s}
-                              value={s}
-                            >
-                              {s}
-                            </option>
-                          ))}
+                          {STAGES.map(
+                            (
+                              s
+                            ) => (
+                              <option
+                                key={
+                                  s
+                                }
+                                value={
+                                  s
+                                }
+                              >
+                                {
+                                  s
+                                }
+                              </option>
+                            )
+                          )}
                         </select>
                       </div>
                     ) : (
                       <span className="cell">
-                        {car.stage || "-"}
+                        {car.stage ||
+                          "-"}
                       </span>
                     )}
                   </td>
@@ -1565,7 +1945,8 @@ function Table({
                     <div
                       className="actions"
                       style={{
-                        display: "flex",
+                        display:
+                          "flex",
                         gap: 6,
                       }}
                     >
@@ -1573,8 +1954,12 @@ function Table({
                         className="btn btn--kebab btn--xs"
                         title="Open car profile"
                         onClick={() => {
-                          setSelectedCar(car);
-                          setProfileOpen(true);
+                          setSelectedCar(
+                            car
+                          );
+                          setProfileOpen(
+                            true
+                          );
                         }}
                       >
                         ⋯
