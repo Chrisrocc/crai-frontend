@@ -41,18 +41,30 @@ function isFormData(x) {
 async function request(method, path, body, opts = {}) {
   const url = toUrl(path);
 
-  // headers: don't set Content-Type for FormData (browser sets boundary)
   const extra = opts.headers || {};
-  const headers = { Accept: "application/json", ...extra };
-  if (!isFormData(body)) {
-    headers["Content-Type"] ??= "application/json";
-  } else {
+  const headers = {
+    Accept: "application/json",
+    ...extra,
+  };
+
+  // Only set Content-Type when we actually have a JSON body.
+  // This keeps simple GETs simple → fewer CORS preflights.
+  if (body != null && !isFormData(body)) {
+    if (!headers["Content-Type"] && !headers["content-type"]) {
+      headers["Content-Type"] = "application/json";
+    }
+  }
+
+  // For FormData let the browser set correct multipart boundary.
+  if (isFormData(body)) {
     delete headers["Content-Type"];
     delete headers["content-type"];
   }
 
   const token = getToken();
-  if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
+  if (token && !headers.Authorization) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   const res = await fetch(url, {
     method,
@@ -66,13 +78,13 @@ async function request(method, path, body, opts = {}) {
         : JSON.stringify(body),
   });
 
-  // handle 204/empty
   const ct = res.headers.get("content-type") || "";
-  const hasJson = ct.includes("application/json");
+  const isJson = ct.includes("application/json");
+
   const payload =
     res.status === 204
       ? null
-      : hasJson
+      : isJson
       ? await res.json().catch(() => ({}))
       : await res.text();
 

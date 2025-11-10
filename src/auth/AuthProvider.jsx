@@ -43,17 +43,30 @@ function toApiUrl(path) {
 /** JSON fetch that sends cookies AND Bearer token (hybrid) */
 async function jfetch(path, opts = {}) {
   const url = toApiUrl(path);
-  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+
+  const headers = {
+    ...(opts.headers || {}),
+  };
+
+  // Only set JSON Content-Type when we actually send a body
+  if (opts.body && !headers["Content-Type"] && !headers["content-type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const token = getToken();
-  if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
+  if (token && !headers.Authorization) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   const res = await fetch(url, {
     credentials: "include",
-    headers,
     ...opts,
+    headers,
   });
 
-  const isJSON = (res.headers.get("content-type") || "").includes("application/json");
+  const isJSON = (res.headers.get("content-type") || "").includes(
+    "application/json"
+  );
   let body = {};
   if (isJSON) {
     try {
@@ -66,10 +79,10 @@ async function jfetch(path, opts = {}) {
 
   if (!res.ok) {
     const err = new Error(body?.message || `HTTP ${res.status}`);
-    // attach status/body for callers
     err.response = { data: body, status: res.status };
     throw err;
   }
+
   return body;
 }
 
@@ -99,18 +112,21 @@ export default function AuthProvider({ children }) {
       body: JSON.stringify({ password }),
     });
 
-    // 1) Store bearer token so all future requests are authenticated even if cookies are blocked
+    // Store bearer token so all future requests are authenticated
     if (data?.token) setToken(data.token);
 
-    // 2) Immediately consider user logged in (don’t wait for /me which may depend on cookies)
+    // Immediately consider user logged in
     setUser({ role: "user" });
 
-    // 3) Try to hydrate from /me; if it fails due to cookies, bearer still keeps requests authed
+    // Try to hydrate from /me; if it fails (cookies blocked), Bearer still works
     try {
       const me = await jfetch("/auth/me");
       if (me?.user) setUser(me.user);
     } catch (e) {
-      console.debug("GET /auth/me right after login failed (likely cookies blocked)", e);
+      console.debug(
+        "GET /auth/me right after login failed (likely cookies blocked)",
+        e
+      );
     }
 
     return data; // { message: "ok", token }
