@@ -199,7 +199,6 @@ export default function CarListSplit({
 
   /* ---------- sort: header click handler ---------- */
   const handleSortClick = (key) => {
-    // use functional update so we always read freshest internal state
     setInternalSort((prevInternal) => {
       const curr = sortState || prevInternal;
       const nextDirection =
@@ -211,15 +210,13 @@ export default function CarListSplit({
 
       if (onSortChange) {
         onSortChange(next);
-        // when controlled by parent, keep internal as-is (ignored)
-        return prevInternal;
+        return prevInternal; // controlled
       }
-      // unmanaged: update internal sort
-      return next;
+      return next; // uncontrolled
     });
   };
 
-  /* ---------- editing helpers ---------- */
+  /* ---------- editing helpers (unchanged) ---------- */
   const startEdit = (car, field, focusName = null) => {
     setEditTarget({ id: car._id, field });
     const base = {
@@ -538,13 +535,12 @@ export default function CarListSplit({
     }
   };
 
-  /* ---------- data shaping + sorting ---------- */
-  const [leftList, rightList] = useMemo(() => {
+  /* ---------- data shaping + sold-on-top behavior ---------- */
+  const [soldList, leftList, rightList] = useMemo(() => {
     let list = cars;
 
-    // In embedded mode (inside CarListRegular) we assume
-    // listOverride already filtered + sorted; we only apply
-    // extra filters/search if NOT embedded.
+    // When not embedded, handle stage filter + search here.
+    // When embedded, parent already filtered/sorted the listOverride.
     if (!embedded) {
       // Stage filter
       list =
@@ -572,7 +568,9 @@ export default function CarListSplit({
             )
               ? car.nextLocations
               : [car.nextLocation]),
-            ...(Array.isArray(car.checklist)
+            ...(Array.isArray(
+              car.checklist
+            )
               ? car.checklist
               : []),
           ]
@@ -584,18 +582,16 @@ export default function CarListSplit({
       }
     }
 
-    // Put SOLD first (matches regular)
+    // Split into Sold + Non-sold
     const sold = [];
     const other = [];
     for (const c of list) {
       (isSold(c) ? sold : other).push(c);
     }
-    let ordered = [...sold, ...other];
 
-    // Apply sort if active
-    if (sort?.key && sort?.dir) {
-      const dir = sort.dir;
-      const key = sort.key;
+    const applySort = (items) => {
+      if (!sort?.key || !sort?.dir) return items;
+      const { key, dir } = sort;
       const cmp = (a, b) => {
         switch (key) {
           case "car": {
@@ -665,12 +661,21 @@ export default function CarListSplit({
             return 0;
         }
       };
-      ordered = ordered.slice().sort(cmp);
-    }
+      return items.slice().sort(cmp);
+    };
 
-    // Split into two columns
-    const mid = Math.ceil(ordered.length / 2);
-    return [ordered.slice(0, mid), ordered.slice(mid)];
+    const sortedSold = applySort(sold);
+    const sortedOther = applySort(other);
+
+    // Two-column split ONLY for non-sold
+    const mid = Math.ceil(
+      sortedOther.length / 2
+    );
+    return [
+      sortedSold,
+      sortedOther.slice(0, mid),
+      sortedOther.slice(mid),
+    ];
   }, [
     cars,
     query,
@@ -686,7 +691,7 @@ export default function CarListSplit({
   return (
     <div className="page-pad">
       <style>{`
-        /* Split grid */
+        /* Split grid for non-sold */
         .split-panels{
           display:grid;
           grid-template-columns: 1fr;
@@ -857,6 +862,18 @@ export default function CarListSplit({
         .car-table tr.row--sold:hover td{
           background: var(--sold-bg-hover);
         }
+
+        .sold-section-label{
+          font-size:12px;
+          font-weight:600;
+          color:#93c5fd;
+          margin:0 0 4px 2px;
+          text-transform:uppercase;
+          letter-spacing:0.06em;
+        }
+        .sold-section-wrap{
+          margin-bottom:16px;
+        }
       `}</style>
 
       {/* Header (hidden when embedded inside Regular) */}
@@ -972,7 +989,37 @@ export default function CarListSplit({
         </div>
       )}
 
-      {/* Two tables side by side */}
+      {/* Sold table (always at top, its own table) */}
+      {soldList.length > 0 && (
+        <div className="sold-section-wrap">
+          <div className="sold-section-label">
+            Sold
+          </div>
+          <Table
+            list={soldList}
+            sort={sort}
+            onSortClick={handleSortClick}
+            {...{
+              editTarget,
+              setEditTarget,
+              editData,
+              startEdit,
+              rememberCaret,
+              handleChange,
+              saveChanges,
+              stageDirtyRef,
+              activeRef,
+              setProfileOpen,
+              setSelectedCar,
+              setChecklistModal,
+              setNextModal,
+              handleDelete,
+            }}
+          />
+        </div>
+      )}
+
+      {/* Two tables side by side for non-sold */}
       <div className="split-panels">
         <Table
           list={leftList}
@@ -1018,7 +1065,7 @@ export default function CarListSplit({
         />
       </div>
 
-      {/* Modals */}
+      {/* Modals + paste overlay (unchanged) */}
       {showForm && (
         <CarFormModal
           show={showForm}
@@ -1109,8 +1156,7 @@ export default function CarListSplit({
                   nextLocations: items,
                   nextLocation:
                     items[
-                      items.length -
-                        1
+                      items.length - 1
                     ] ?? "",
                 },
                 {
