@@ -547,11 +547,8 @@ export default function CarListSplit({
     // base list: either coming from parent or local state
     let list = cars;
 
-    // Embedded + listOverride: parent (CarListRegular) already:
-    // - applied filters/search
-    // - applied sorting
-    // - put Sold first (soldFirstList)
-    // Here we ONLY handle "Sold pinned to left column".
+    // Embedded + listOverride: parent already filtered/sorted & sold-first.
+    // Here we only ensure: Sold pinned to left table top.
     if (embedded && listOverride) {
       const sold = list.filter(isSold);
       const other = list.filter((c) => !isSold(c));
@@ -571,9 +568,9 @@ export default function CarListSplit({
       return [left, right];
     }
 
-    // Standalone Split view: we own filters + sorting.
-    // Stage filter
+    // Standalone Split view: own filters + sorting.
     if (!embedded) {
+      // Stage filter
       list =
         stageFilter.size > 0
           ? list.filter((c) =>
@@ -618,8 +615,7 @@ export default function CarListSplit({
       (isSold(c) ? sold : other).push(c);
     }
 
-    // Apply sort (pinned-sold semantics):
-    // sort each group separately so Sold stay together.
+    // Sort each group separately so Sold always remain contiguous (pinned block).
     if (sort?.key && sort?.dir) {
       const { key, dir } = sort;
 
@@ -697,10 +693,10 @@ export default function CarListSplit({
       other = other.slice().sort(cmp);
     }
 
-    // Now distribute rows into two columns:
-    // - all Sold stay in LEFT
-    // - fill left with some "other" rows to balance height
-    // - right only ever contains "other" rows
+    // Distribute into two columns:
+    // - All Sold stay in LEFT (top).
+    // - Fill left with some "other" rows to balance.
+    // - Right only has "other" rows.
     const total = sold.length + other.length;
     const targetLeft = Math.ceil(total / 2);
     const othersOnLeft = Math.max(
@@ -745,16 +741,43 @@ export default function CarListSplit({
 
         .table-wrap{
           position:relative;
-          overflow-x:auto;
-          overflow-y:hidden;
-          -webkit-overflow-scrolling:touch;
           border:1px solid #1d2a3a;
           border-radius:10px;
           background:#0b1220;
+          padding-top:0;
+          max-width:100%;
+        }
+
+        /* Top scrollbar container */
+        .table-scroll-top{
+          overflow-x:auto;
+          overflow-y:hidden;
+          -webkit-overflow-scrolling:touch;
+          margin-bottom:2px;
+        }
+        .table-scroll-top::-webkit-scrollbar{
+          height:8px;
+        }
+        .table-scroll-top::-webkit-scrollbar-track{
+          background:#020817;
+          border-radius:999px;
+        }
+        .table-scroll-top::-webkit-scrollbar-thumb{
+          background:#4B5563;
+          border-radius:999px;
+        }
+
+        /* Main scroll area holding the table */
+        .table-scroll-main{
+          overflow-x:auto;
+          overflow-y:hidden;
+          -webkit-overflow-scrolling:touch;
+          border-radius:8px;
         }
 
         .car-table{
           width:100%;
+          min-width:900px;
           table-layout:fixed;
           border-collapse:separate;
           border-spacing:0;
@@ -813,7 +836,7 @@ export default function CarListSplit({
           background:#1f2937;
         }
 
-        /* Editing */
+        /* Editing visuals */
         td.is-editing{
           background:#0c1a2e;
           box-shadow: inset 0 0 0 1px #2b3b54;
@@ -1074,8 +1097,7 @@ export default function CarListSplit({
                 { checklist: items },
                 {
                   headers: {
-                    "Content-Type":
-                      "application/json",
+                    "Content-Type": "application/json",
                   },
                 }
               );
@@ -1230,9 +1252,8 @@ export default function CarListSplit({
                   fontSize: 13,
                 }}
               >
-                We’ll set cars to <b>Online</b>{" "}
-                only if they’re currently{" "}
-                <b>In Works</b>.
+                We’ll set cars to <b>Online</b> only if
+                they’re currently <b>In Works</b>.
               </p>
             </div>
             <div style={{ padding: 14 }}>
@@ -1306,367 +1327,435 @@ function Table({
       <SortChevron dir={sort.dir} />
     ) : null;
 
+  const mainRef = useRef(null);
+  const topRef = useRef(null);
+
+  const syncScroll = (from, to) => {
+    if (!from || !to) return;
+    const x = from.scrollLeft;
+    if (to.scrollLeft !== x) {
+      to.scrollLeft = x;
+    }
+  };
+
+  const handleMainScroll = () =>
+    syncScroll(mainRef.current, topRef.current);
+
+  const handleTopScroll = () =>
+    syncScroll(topRef.current, mainRef.current);
+
+  // mouse wheel => horizontal scroll when hovering table
+  const handleWheel = (e) => {
+    const el = mainRef.current;
+    if (!el) return;
+
+    const canScrollX = el.scrollWidth > el.clientWidth;
+    if (!canScrollX) return;
+
+    // if vertical scroll is dominant, use it to move horizontally
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }
+  };
+
+  // ensure top scrollbar width matches table scroll width
+  useEffect(() => {
+    const main = mainRef.current;
+    const top = topRef.current;
+    if (!main || !top) return;
+    const inner = top.querySelector(".table-scroll-inner");
+    if (inner) {
+      inner.style.width = `${main.scrollWidth}px`;
+    }
+  }, [list]);
+
   return (
-    <div className="table-wrap">
-      <table className="car-table">
-        <colgroup>
-          <col className="col-car" />
-          <col className="col-loc" />
-          <col className="col-next" />
-          <col className="col-chk" />
-          <col className="col-notes" />
-          <col className="col-stage" />
-          <col className="col-act" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>
-              <button
-                className="thbtn"
-                onClick={() => onSortClick("car")}
-              >
-                Car <Sort col="car" />
-              </button>
-            </th>
-            <th>
-              <button
-                className="thbtn"
-                onClick={() =>
-                  onSortClick("location")
-                }
-              >
-                Location{" "}
-                <Sort col="location" />
-              </button>
-            </th>
-            <th>
-              <button
-                className="thbtn"
-                onClick={() =>
-                  onSortClick("next")
-                }
-              >
-                Next Loc <Sort col="next" />
-              </button>
-            </th>
-            <th>
-              <button
-                className="thbtn"
-                onClick={() =>
-                  onSortClick(
-                    "checklist"
-                  )
-                }
-              >
-                Checklist{" "}
-                <Sort col="checklist" />
-              </button>
-            </th>
-            <th>
-              <button
-                className="thbtn"
-                onClick={() =>
-                  onSortClick("notes")
-                }
-              >
-                Notes <Sort col="notes" />
-              </button>
-            </th>
-            <th>
-              <button
-                className="thbtn"
-                onClick={() =>
-                  onSortClick("stage")
-                }
-              >
-                Stage <Sort col="stage" />
-              </button>
-            </th>
-            <th>Act</th>
-          </tr>
-        </thead>
-        <tbody>
-          {list.length === 0 ? (
+    <div className="table-wrap" onWheel={handleWheel}>
+      {/* top synced scrollbar */}
+      <div
+        className="table-scroll-top"
+        ref={topRef}
+        onScroll={handleTopScroll}
+      >
+        <div className="table-scroll-inner" />
+      </div>
+
+      {/* main scroll area with actual table */}
+      <div
+        className="table-scroll-main"
+        ref={mainRef}
+        onScroll={handleMainScroll}
+      >
+        <table className="car-table">
+          <colgroup>
+            <col className="col-car" />
+            <col className="col-loc" />
+            <col className="col-next" />
+            <col className="col-chk" />
+            <col className="col-notes" />
+            <col className="col-stage" />
+            <col className="col-act" />
+          </colgroup>
+          <thead>
             <tr>
-              <td
-                colSpan={7}
-                className="empty"
-              >
-                No cars.
-              </td>
-            </tr>
-          ) : (
-            list.map((car) => {
-              const editing =
-                editTarget.id === car._id
-                  ? editTarget.field
-                  : null;
-              const refCb = editing
-                ? (el) => {
-                    if (el)
-                      activeRef.current =
-                        el;
-                  }
-                : null;
-
-              return (
-                <tr
-                  key={car._id}
-                  data-id={car._id}
-                  className={
-                    isSold(car)
-                      ? "row--sold"
-                      : ""
-                  }
-                  ref={refCb}
+              <th>
+                <button
+                  className="thbtn"
+                  onClick={() => onSortClick("car")}
                 >
-                  {/* CAR */}
-                  <td
-                    onDoubleClick={() =>
-                      editing !==
-                        "car" &&
-                      startEdit(
-                        car,
-                        "car",
-                        "make"
-                      )
+                  Car <Sort col="car" />
+                </button>
+              </th>
+              <th>
+                <button
+                  className="thbtn"
+                  onClick={() =>
+                    onSortClick("location")
+                  }
+                >
+                  Location <Sort col="location" />
+                </button>
+              </th>
+              <th>
+                <button
+                  className="thbtn"
+                  onClick={() =>
+                    onSortClick("next")
+                  }
+                >
+                  Next Loc <Sort col="next" />
+                </button>
+              </th>
+              <th>
+                <button
+                  className="thbtn"
+                  onClick={() =>
+                    onSortClick("checklist")
+                  }
+                >
+                  Checklist{" "}
+                  <Sort col="checklist" />
+                </button>
+              </th>
+              <th>
+                <button
+                  className="thbtn"
+                  onClick={() =>
+                    onSortClick("notes")
+                  }
+                >
+                  Notes <Sort col="notes" />
+                </button>
+              </th>
+              <th>
+                <button
+                  className="thbtn"
+                  onClick={() =>
+                    onSortClick("stage")
+                  }
+                >
+                  Stage <Sort col="stage" />
+                </button>
+              </th>
+              <th>Act</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="empty"
+                >
+                  No cars.
+                </td>
+              </tr>
+            ) : (
+              list.map((car) => {
+                const editing =
+                  editTarget.id === car._id
+                    ? editTarget.field
+                    : null;
+                const refCb = editing
+                  ? (el) => {
+                      if (el)
+                        activeRef.current =
+                          el;
                     }
-                    className={
-                      editing ===
-                      "car"
-                        ? "is-editing"
-                        : ""
-                    }
-                  >
-                    {editing ===
-                    "car" ? (
-                      <div className="edit-cell-group">
-                        <input
-                          className="input input--compact"
-                          name="make"
-                          value={
-                            editData.make
-                          }
-                          onChange={
-                            handleChange
-                          }
-                          onKeyUp={
-                            rememberCaret
-                          }
-                          onClick={
-                            rememberCaret
-                          }
-                          placeholder="Make"
-                        />
-                        <input
-                          className="input input--compact"
-                          name="model"
-                          value={
-                            editData.model
-                          }
-                          onChange={
-                            handleChange
-                          }
-                          onKeyUp={
-                            rememberCaret
-                          }
-                          onClick={
-                            rememberCaret
-                          }
-                          placeholder="Model"
-                        />
-                        <div className="edit-inline">
-                          <input
-                            className="input input--compact"
-                            name="badge"
-                            value={
-                              editData.badge
-                            }
-                            maxLength={
-                              4
-                            }
-                            onChange={
-                              handleChange
-                            }
-                            onKeyUp={
-                              rememberCaret
-                            }
-                            onClick={
-                              rememberCaret
-                            }
-                            placeholder="Badge"
-                          />
-                          <input
-                            className="input input--compact"
-                            name="year"
-                            value={
-                              editData.year
-                            }
-                            onChange={
-                              handleChange
-                            }
-                            onKeyUp={
-                              rememberCaret
-                            }
-                            onClick={
-                              rememberCaret
-                            }
-                            placeholder="Year"
-                          />
-                        </div>
-                        <input
-                          className="input input--compact"
-                          name="description"
-                          value={
-                            editData.description
-                          }
-                          onChange={
-                            handleChange
-                          }
-                          onKeyUp={
-                            rememberCaret
-                          }
-                          onClick={
-                            rememberCaret
-                          }
-                          placeholder="Description"
-                        />
-                        <input
-                          className="input input--compact"
-                          name="rego"
-                          value={
-                            editData.rego
-                          }
-                          onChange={
-                            handleChange
-                          }
-                          onKeyUp={
-                            rememberCaret
-                          }
-                          onClick={
-                            rememberCaret
-                          }
-                          placeholder="REGO"
-                          style={{
-                            textTransform:
-                              "uppercase",
-                          }}
-                        />
-                        <div className="edit-actions">
-                          <button
-                            className="btn btn--primary"
-                            onClick={
-                              saveChanges
-                            }
-                          >
-                            Save
-                          </button>
-                          <button
-                            className="btn"
-                            onClick={() =>
-                              setEditTarget(
-                                {
-                                  id: null,
-                                  field: null,
-                                }
-                              )
-                            }
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <span
-                        className="cell"
-                        title={carString(
-                          car
-                        )}
-                      >
-                        {carString(
-                          car
-                        ) ||
-                          "-"}
-                      </span>
-                    )}
-                  </td>
+                  : null;
 
-                  {/* LOCATION */}
-                  <td
-                    onDoubleClick={() =>
-                      editing !==
-                        "location" &&
-                      startEdit(
-                        car,
-                        "location",
-                        "location"
-                      )
-                    }
+                return (
+                  <tr
+                    key={car._id}
+                    data-id={car._id}
                     className={
-                      editing ===
-                      "location"
-                        ? "is-editing"
+                      isSold(car)
+                        ? "row--sold"
                         : ""
                     }
+                    ref={refCb}
                   >
-                    {editing ===
-                    "location" ? (
-                      <div className="edit-cell">
-                        <input
-                          className="input input--compact input--wider"
-                          name="location"
-                          value={
-                            editData.location
-                          }
-                          onChange={
-                            handleChange
-                          }
-                          onKeyUp={
-                            rememberCaret
-                          }
-                          onClick={
-                            rememberCaret
-                          }
-                          placeholder="Location"
-                        />
-                        <div className="edit-actions">
-                          <button
-                            className="btn btn--primary"
-                            onClick={
-                              saveChanges
+                    {/* CAR */}
+                    <td
+                      onDoubleClick={() =>
+                        editing !==
+                          "car" &&
+                        startEdit(
+                          car,
+                          "car",
+                          "make"
+                        )
+                      }
+                      className={
+                        editing ===
+                        "car"
+                          ? "is-editing"
+                          : ""
+                      }
+                    >
+                      {editing ===
+                      "car" ? (
+                        <div className="edit-cell-group">
+                          <input
+                            className="input input--compact"
+                            name="make"
+                            value={
+                              editData.make
                             }
-                          >
-                            Save
-                          </button>
+                            onChange={
+                              handleChange
+                            }
+                            onKeyUp={
+                              rememberCaret
+                            }
+                            onClick={
+                              rememberCaret
+                            }
+                            placeholder="Make"
+                          />
+                          <input
+                            className="input input--compact"
+                            name="model"
+                            value={
+                              editData.model
+                            }
+                            onChange={
+                              handleChange
+                            }
+                            onKeyUp={
+                              rememberCaret
+                            }
+                            onClick={
+                              rememberCaret
+                            }
+                            placeholder="Model"
+                          />
+                          <div className="edit-inline">
+                            <input
+                              className="input input--compact"
+                              name="badge"
+                              value={
+                                editData.badge
+                              }
+                              maxLength={
+                                4
+                              }
+                              onChange={
+                                handleChange
+                              }
+                              onKeyUp={
+                                rememberCaret
+                              }
+                              onClick={
+                                rememberCaret
+                              }
+                              placeholder="Badge"
+                            />
+                            <input
+                              className="input input--compact"
+                              name="year"
+                              value={
+                                editData.year
+                              }
+                              onChange={
+                                handleChange
+                              }
+                              onKeyUp={
+                                rememberCaret
+                              }
+                              onClick={
+                                rememberCaret
+                              }
+                              placeholder="Year"
+                            />
+                          </div>
+                          <input
+                            className="input input--compact"
+                            name="description"
+                            value={
+                              editData.description
+                            }
+                            onChange={
+                              handleChange
+                            }
+                            onKeyUp={
+                              rememberCaret
+                            }
+                            onClick={
+                              rememberCaret
+                            }
+                            placeholder="Description"
+                          />
+                          <input
+                            className="input input--compact"
+                            name="rego"
+                            value={
+                              editData.rego
+                            }
+                            onChange={
+                              handleChange
+                            }
+                            onKeyUp={
+                              rememberCaret
+                            }
+                            onClick={
+                              rememberCaret
+                            }
+                            placeholder="REGO"
+                            style={{
+                              textTransform:
+                                "uppercase",
+                            }}
+                          />
+                          <div className="edit-actions">
+                            <button
+                              className="btn btn--primary"
+                              onClick={
+                                saveChanges
+                              }
+                            >
+                              Save
+                            </button>
+                            <button
+                              className="btn"
+                              onClick={() =>
+                                setEditTarget(
+                                  {
+                                    id: null,
+                                    field: null,
+                                  }
+                                )
+                              }
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
+                      ) : (
+                        <span
+                          className="cell"
+                          title={carString(
+                            car
+                          )}
+                        >
+                          {carString(
+                            car
+                          ) ||
+                            "-"}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* LOCATION */}
+                    <td
+                      onDoubleClick={() =>
+                        editing !==
+                          "location" &&
+                        startEdit(
+                          car,
+                          "location",
+                          "location"
+                        )
+                      }
+                      className={
+                        editing ===
+                        "location"
+                          ? "is-editing"
+                          : ""
+                      }
+                    >
+                      {editing ===
+                      "location" ? (
+                        <div className="edit-cell">
+                          <input
+                            className="input input--compact input--wider"
+                            name="location"
+                            value={
+                              editData.location
+                            }
+                            onChange={
+                              handleChange
+                            }
+                            onKeyUp={
+                              rememberCaret
+                            }
+                            onClick={
+                              rememberCaret
+                            }
+                            placeholder="Location"
+                          />
+                          <div className="edit-actions">
+                            <button
+                              className="btn btn--primary"
+                              onClick={
+                                saveChanges
+                              }
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <span
+                          className="cell"
+                          title={
+                            car.location ||
+                            ""
+                          }
+                        >
+                          {car.location ||
+                            "-"}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* NEXT (modal) */}
+                    <td
+                      onDoubleClick={() =>
+                        setNextModal({
+                          open: true,
+                          car,
+                        })
+                      }
+                    >
                       <span
                         className="cell"
                         title={
-                          car.location ||
-                          ""
+                          Array.isArray(
+                            car.nextLocations
+                          ) &&
+                          car
+                            .nextLocations
+                            .length
+                            ? car.nextLocations.join(
+                                ", "
+                              )
+                            : car.nextLocation ||
+                              ""
                         }
                       >
-                        {car.location ||
-                          "-"}
-                      </span>
-                    )}
-                  </td>
-
-                  {/* NEXT (modal) */}
-                  <td
-                    onDoubleClick={() =>
-                      setNextModal({
-                        open: true,
-                        car,
-                      })
-                    }
-                  >
-                    <span
-                      className="cell"
-                      title={
-                        Array.isArray(
+                        {Array.isArray(
                           car.nextLocations
                         ) &&
                         car
@@ -1676,263 +1765,251 @@ function Table({
                               ", "
                             )
                           : car.nextLocation ||
-                            ""
+                            "-"}
+                      </span>
+                    </td>
+
+                    {/* CHECKLIST (modal) */}
+                    <td
+                      onDoubleClick={() =>
+                        setChecklistModal({
+                          open: true,
+                          car,
+                        })
+                      }
+                      onClick={() =>
+                        setChecklistModal({
+                          open: true,
+                          car,
+                        })
                       }
                     >
-                      {Array.isArray(
-                        car.nextLocations
-                      ) &&
-                      car
-                        .nextLocations
-                        .length
-                        ? car.nextLocations.join(
-                            ", "
-                          )
-                        : car.nextLocation ||
-                          "-"}
-                    </span>
-                  </td>
-
-                  {/* CHECKLIST (modal) */}
-                  <td
-                    onDoubleClick={() =>
-                      setChecklistModal({
-                        open: true,
-                        car,
-                      })
-                    }
-                    onClick={() =>
-                      setChecklistModal({
-                        open: true,
-                        car,
-                      })
-                    }
-                  >
-                    <span
-                      className="cell"
-                      title={
-                        Array.isArray(
-                          car.checklist
-                        )
-                          ? car.checklist.join(
-                              ", "
-                            )
-                          : ""
-                      }
-                    >
-                      {Array.isArray(
-                        car.checklist
-                      ) &&
-                      car
-                        .checklist
-                        .length
-                        ? car.checklist.join(
-                            ", "
-                          )
-                        : "-"}
-                    </span>
-                  </td>
-
-                  {/* NOTES */}
-                  <td
-                    onDoubleClick={() =>
-                      editing !==
-                        "notes" &&
-                      startEdit(
-                        car,
-                        "notes",
-                        "notes"
-                      )
-                    }
-                    className={
-                      editing ===
-                      "notes"
-                        ? "is-editing"
-                        : ""
-                    }
-                  >
-                    {editing ===
-                    "notes" ? (
-                      <div className="edit-cell">
-                        <textarea
-                          className="input input--compact textarea--wider"
-                          name="notes"
-                          rows={2}
-                          value={
-                            editData.notes
-                          }
-                          onChange={
-                            handleChange
-                          }
-                          onKeyUp={
-                            rememberCaret
-                          }
-                          onClick={
-                            rememberCaret
-                          }
-                          placeholder="Notes"
-                        />
-                        <div className="edit-actions">
-                          <button
-                            className="btn btn--primary"
-                            onClick={
-                              saveChanges
-                            }
-                          >
-                            Save
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
                       <span
                         className="cell"
                         title={
-                          car.notes ||
-                          ""
+                          Array.isArray(
+                            car.checklist
+                          )
+                            ? car.checklist.join(
+                                ", "
+                              )
+                            : ""
                         }
                       >
-                        {car.notes ||
-                          "-"}
-                      </span>
-                    )}
-                  </td>
-
-                  {/* STAGE */}
-                  <td
-                    onDoubleClick={() =>
-                      editing !==
-                        "stage" &&
-                      startEdit(
-                        car,
-                        "stage",
-                        "stage"
-                      )
-                    }
-                    className={
-                      editing ===
-                      "stage"
-                        ? "is-editing"
-                        : ""
-                    }
-                  >
-                    {editing ===
-                    "stage" ? (
-                      <div className="edit-cell">
-                        <select
-                          className="input input--compact input--select-lg input--wider"
-                          name="stage"
-                          value={
-                            editData.stage
-                          }
-                          onChange={(
-                            e
-                          ) => {
-                            stageDirtyRef.current = true;
-                            return handleChange(
-                              e
-                            );
-                          }}
-                          onBlur={() => {
-                            if (
-                              stageDirtyRef.current
+                        {Array.isArray(
+                          car.checklist
+                        ) &&
+                        car
+                          .checklist
+                          .length
+                          ? car.checklist.join(
+                              ", "
                             )
-                              saveChanges();
-                            else
-                              setEditTarget(
-                                {
-                                  id: null,
-                                  field: null,
-                                }
-                              );
-                          }}
-                          onClick={(
-                            e
-                          ) =>
-                            e.stopPropagation()
-                          }
-                          onMouseDown={(
-                            e
-                          ) =>
-                            e.stopPropagation()
-                          }
-                          onTouchStart={(
-                            e
-                          ) =>
-                            e.stopPropagation()
+                          : "-"}
+                      </span>
+                    </td>
+
+                    {/* NOTES */}
+                    <td
+                      onDoubleClick={() =>
+                        editing !==
+                          "notes" &&
+                        startEdit(
+                          car,
+                          "notes",
+                          "notes"
+                        )
+                      }
+                      className={
+                        editing ===
+                        "notes"
+                          ? "is-editing"
+                          : ""
+                      }
+                    >
+                      {editing ===
+                      "notes" ? (
+                        <div className="edit-cell">
+                          <textarea
+                            className="input input--compact textarea--wider"
+                            name="notes"
+                            rows={2}
+                            value={
+                              editData.notes
+                            }
+                            onChange={
+                              handleChange
+                            }
+                            onKeyUp={
+                              rememberCaret
+                            }
+                            onClick={
+                              rememberCaret
+                            }
+                            placeholder="Notes"
+                          />
+                          <div className="edit-actions">
+                            <button
+                              className="btn btn--primary"
+                              onClick={
+                                saveChanges
+                              }
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <span
+                          className="cell"
+                          title={
+                            car.notes ||
+                            ""
                           }
                         >
-                          {STAGES.map(
-                            (
-                              s
-                            ) => (
-                              <option
-                                key={
-                                  s
-                                }
-                                value={
-                                  s
-                                }
-                              >
-                                {
-                                  s
-                                }
-                              </option>
-                            )
-                          )}
-                        </select>
-                      </div>
-                    ) : (
-                      <span className="cell">
-                        {car.stage ||
-                          "-"}
-                      </span>
-                    )}
-                  </td>
+                          {car.notes ||
+                            "-"}
+                        </span>
+                      )}
+                    </td>
 
-                  {/* ACTIONS */}
-                  <td>
-                    <div
-                      className="actions"
-                      style={{
-                        display:
-                          "flex",
-                        gap: 6,
-                      }}
+                    {/* STAGE */}
+                    <td
+                      onDoubleClick={() =>
+                        editing !==
+                          "stage" &&
+                        startEdit(
+                          car,
+                          "stage",
+                          "stage"
+                        )
+                      }
+                      className={
+                        editing ===
+                        "stage"
+                          ? "is-editing"
+                          : ""
+                      }
                     >
-                      <button
-                        className="btn btn--kebab btn--xs"
-                        title="Open car profile"
-                        onClick={() => {
-                          setSelectedCar(
-                            car
-                          );
-                          setProfileOpen(
-                            true
-                          );
+                      {editing ===
+                      "stage" ? (
+                        <div className="edit-cell">
+                          <select
+                            className="input input--compact input--select-lg input--wider"
+                            name="stage"
+                            value={
+                              editData.stage
+                            }
+                            onChange={(
+                              e
+                            ) => {
+                              stageDirtyRef.current = true;
+                              return handleChange(
+                                e
+                              );
+                            }}
+                            onBlur={() => {
+                              if (
+                                stageDirtyRef.current
+                              )
+                                saveChanges();
+                              else
+                                setEditTarget(
+                                  {
+                                    id: null,
+                                    field: null,
+                                  }
+                                );
+                            }}
+                            onClick={(
+                              e
+                            ) =>
+                              e.stopPropagation()
+                            }
+                            onMouseDown={(
+                              e
+                            ) =>
+                              e.stopPropagation()
+                            }
+                            onTouchStart={(
+                              e
+                            ) =>
+                              e.stopPropagation()
+                            }
+                          >
+                            {STAGES.map(
+                              (
+                                s
+                              ) => (
+                                <option
+                                  key={
+                                    s
+                                  }
+                                  value={
+                                    s
+                                  }
+                                >
+                                  {
+                                    s
+                                  }
+                                </option>
+                              )
+                            )}
+                          </select>
+                        </div>
+                      ) : (
+                        <span className="cell">
+                          {car.stage ||
+                            "-"}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* ACTIONS */}
+                    <td>
+                      <div
+                        className="actions"
+                        style={{
+                          display:
+                            "flex",
+                          gap: 6,
                         }}
                       >
-                        ⋯
-                      </button>
-                      <button
-                        className="btn btn--danger btn--xs btn--icon"
-                        title="Delete car"
-                        aria-label="Delete"
-                        onClick={() =>
-                          handleDelete(
-                            car._id
-                          )
-                        }
-                      >
-                        <TrashIcon />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
+                        <button
+                          className="btn btn--kebab btn--xs"
+                          title="Open car profile"
+                          onClick={() => {
+                            setSelectedCar(
+                              car
+                            );
+                            setProfileOpen(
+                              true
+                            );
+                          }}
+                        >
+                          ⋯
+                        </button>
+                        <button
+                          className="btn btn--danger btn--xs btn--icon"
+                          title="Delete car"
+                          aria-label="Delete"
+                          onClick={() =>
+                            handleDelete(
+                              car._id
+                            )
+                          }
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
