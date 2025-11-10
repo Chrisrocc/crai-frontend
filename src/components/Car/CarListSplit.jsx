@@ -55,6 +55,7 @@ const TrashIcon = ({ size = 16 }) => (
 );
 
 /* ---------- Helpers ---------- */
+
 const isSold = (car = {}) =>
   String(car.stage || "").trim().toLowerCase() === "sold";
 
@@ -149,12 +150,15 @@ export default function CarListSplit({
     car: null,
   });
 
-  // local sort when not controlled by parent
+  // sort: internal when uncontrolled, external when used by CarListRegular
+  const isControlled = !!onSortChange;
   const [internalSort, setInternalSort] = useState({
     key: null,
     dir: null,
   });
-  const sort = sortState || internalSort;
+  const sort = isControlled
+    ? sortState || { key: null, dir: null }
+    : internalSort;
 
   /* ---------- fetch ---------- */
   useEffect(() => {
@@ -199,24 +203,26 @@ export default function CarListSplit({
 
   /* ---------- sort: header click handler ---------- */
   const handleSortClick = (key) => {
-    setInternalSort((prevInternal) => {
-      const curr = sortState || prevInternal;
-      const nextDirection =
-        curr.key === key ? nextDir(curr.dir) : "desc";
+    if (isControlled) {
+      const curr = sort || { key: null, dir: null };
+      const dir = curr.key === key ? nextDir(curr.dir) : "desc";
       const next =
-        nextDirection === null
+        dir === null
           ? { key: null, dir: null }
-          : { key, dir: nextDirection };
-
-      if (onSortChange) {
-        onSortChange(next);
-        return prevInternal; // controlled
-      }
-      return next; // uncontrolled
-    });
+          : { key, dir };
+      onSortChange(next);
+    } else {
+      setInternalSort((prev) => {
+        const dir =
+          prev.key === key ? nextDir(prev.dir) : "desc";
+        return dir === null
+          ? { key: null, dir: null }
+          : { key, dir };
+      });
+    }
   };
 
-  /* ---------- editing helpers (unchanged) ---------- */
+  /* ---------- editing helpers ---------- */
   const startEdit = (car, field, focusName = null) => {
     setEditTarget({ id: car._id, field });
     const base = {
@@ -535,14 +541,39 @@ export default function CarListSplit({
     }
   };
 
-  /* ---------- data shaping + sold-on-top behavior ---------- */
-  const [soldList, leftList, rightList] = useMemo(() => {
+  /* ---------- data shaping + sorting ---------- */
+
+  const [leftList, rightList] = useMemo(() => {
+    // base list: either coming from parent or local state
     let list = cars;
 
-    // When not embedded, handle stage filter + search here.
-    // When embedded, parent already filtered/sorted the listOverride.
+    // Embedded + listOverride: parent (CarListRegular) already:
+    // - applied filters/search
+    // - applied sorting
+    // - put Sold first (soldFirstList)
+    // Here we ONLY handle "Sold pinned to left column".
+    if (embedded && listOverride) {
+      const sold = list.filter(isSold);
+      const other = list.filter((c) => !isSold(c));
+
+      const total = sold.length + other.length;
+      const targetLeft = Math.ceil(total / 2);
+      const othersOnLeft = Math.max(
+        0,
+        targetLeft - sold.length
+      );
+
+      const left = [
+        ...sold,
+        ...other.slice(0, othersOnLeft),
+      ];
+      const right = other.slice(othersOnLeft);
+      return [left, right];
+    }
+
+    // Standalone Split view: we own filters + sorting.
+    // Stage filter
     if (!embedded) {
-      // Stage filter
       list =
         stageFilter.size > 0
           ? list.filter((c) =>
@@ -568,9 +599,7 @@ export default function CarListSplit({
             )
               ? car.nextLocations
               : [car.nextLocation]),
-            ...(Array.isArray(
-              car.checklist
-            )
+            ...(Array.isArray(car.checklist)
               ? car.checklist
               : []),
           ]
@@ -582,16 +611,18 @@ export default function CarListSplit({
       }
     }
 
-    // Split into Sold + Non-sold
-    const sold = [];
-    const other = [];
+    // Split into Sold vs Other
+    let sold = [];
+    let other = [];
     for (const c of list) {
       (isSold(c) ? sold : other).push(c);
     }
 
-    const applySort = (items) => {
-      if (!sort?.key || !sort?.dir) return items;
+    // Apply sort (pinned-sold semantics):
+    // sort each group separately so Sold stay together.
+    if (sort?.key && sort?.dir) {
       const { key, dir } = sort;
+
       const cmp = (a, b) => {
         switch (key) {
           case "car": {
@@ -661,23 +692,32 @@ export default function CarListSplit({
             return 0;
         }
       };
-      return items.slice().sort(cmp);
-    };
 
-    const sortedSold = applySort(sold);
-    const sortedOther = applySort(other);
+      sold = sold.slice().sort(cmp);
+      other = other.slice().sort(cmp);
+    }
 
-    // Two-column split ONLY for non-sold
-    const mid = Math.ceil(
-      sortedOther.length / 2
+    // Now distribute rows into two columns:
+    // - all Sold stay in LEFT
+    // - fill left with some "other" rows to balance height
+    // - right only ever contains "other" rows
+    const total = sold.length + other.length;
+    const targetLeft = Math.ceil(total / 2);
+    const othersOnLeft = Math.max(
+      0,
+      targetLeft - sold.length
     );
-    return [
-      sortedSold,
-      sortedOther.slice(0, mid),
-      sortedOther.slice(mid),
+
+    const left = [
+      ...sold,
+      ...other.slice(0, othersOnLeft),
     ];
+    const right = other.slice(othersOnLeft);
+
+    return [left, right];
   }, [
     cars,
+    listOverride,
     query,
     stageFilter,
     embedded,
@@ -691,7 +731,7 @@ export default function CarListSplit({
   return (
     <div className="page-pad">
       <style>{`
-        /* Split grid for non-sold */
+        /* Split grid */
         .split-panels{
           display:grid;
           grid-template-columns: 1fr;
@@ -862,33 +902,15 @@ export default function CarListSplit({
         .car-table tr.row--sold:hover td{
           background: var(--sold-bg-hover);
         }
-
-        .sold-section-label{
-          font-size:12px;
-          font-weight:600;
-          color:#93c5fd;
-          margin:0 0 4px 2px;
-          text-transform:uppercase;
-          letter-spacing:0.06em;
-        }
-        .sold-section-wrap{
-          margin-bottom:16px;
-        }
       `}</style>
 
       {/* Header (hidden when embedded inside Regular) */}
       {!embedded && (
         <div className="toolbar header-row">
-          <h1
-            className="title"
-            style={{ margin: 0 }}
-          >
+          <h1 className="title" style={{ margin: 0 }}>
             Car Inventory
           </h1>
-          <p
-            className="subtitle"
-            style={{ margin: 0 }}
-          >
+          <p className="subtitle" style={{ margin: 0 }}>
             {cars.length} cars
           </p>
 
@@ -905,20 +927,14 @@ export default function CarListSplit({
               return (
                 <button
                   key={s}
-                  className={`chip ${
-                    on ? "chip--on" : ""
-                  }`}
+                  className={`chip ${on ? "chip--on" : ""}`}
                   onClick={() =>
-                    setStageFilter(
-                      (prev) => {
-                        const next =
-                          new Set(prev);
-                        if (next.has(s))
-                          next.delete(s);
-                        else next.add(s);
-                        return next;
-                      }
-                    )
+                    setStageFilter((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(s)) next.delete(s);
+                      else next.add(s);
+                      return next;
+                    })
                   }
                   title={s}
                 >
@@ -932,9 +948,7 @@ export default function CarListSplit({
             className="input searchbar"
             placeholder="Search cars…"
             value={query}
-            onChange={(e) =>
-              setQuery(e.target.value)
-            }
+            onChange={(e) => setQuery(e.target.value)}
             style={{
               flex: "1 1 360px",
               minWidth: 220,
@@ -960,9 +974,7 @@ export default function CarListSplit({
               onClick={triggerCsv}
               disabled={uploading}
             >
-              {uploading
-                ? "Uploading…"
-                : "Upload CSV"}
+              {uploading ? "Uploading…" : "Upload CSV"}
             </button>
             <input
               ref={fileInputRef}
@@ -973,9 +985,7 @@ export default function CarListSplit({
             />
             <button
               className="btn btn--muted"
-              onClick={() =>
-                setPasteOpen(true)
-              }
+              onClick={() => setPasteOpen(true)}
             >
               Paste Online List
             </button>
@@ -989,37 +999,7 @@ export default function CarListSplit({
         </div>
       )}
 
-      {/* Sold table (always at top, its own table) */}
-      {soldList.length > 0 && (
-        <div className="sold-section-wrap">
-          <div className="sold-section-label">
-            Sold
-          </div>
-          <Table
-            list={soldList}
-            sort={sort}
-            onSortClick={handleSortClick}
-            {...{
-              editTarget,
-              setEditTarget,
-              editData,
-              startEdit,
-              rememberCaret,
-              handleChange,
-              saveChanges,
-              stageDirtyRef,
-              activeRef,
-              setProfileOpen,
-              setSelectedCar,
-              setChecklistModal,
-              setNextModal,
-              handleDelete,
-            }}
-          />
-        </div>
-      )}
-
-      {/* Two tables side by side for non-sold */}
+      {/* Two tables side by side */}
       <div className="split-panels">
         <Table
           list={leftList}
@@ -1065,7 +1045,7 @@ export default function CarListSplit({
         />
       </div>
 
-      {/* Modals + paste overlay (unchanged) */}
+      {/* Modals */}
       {showForm && (
         <CarFormModal
           show={showForm}
@@ -1078,22 +1058,16 @@ export default function CarListSplit({
         <CarProfileModal
           open={profileOpen}
           car={selectedCar}
-          onClose={() =>
-            setProfileOpen(false)
-          }
+          onClose={() => setProfileOpen(false)}
         />
       )}
 
       {checklistModal.open && (
         <ChecklistFormModal
           open
-          items={
-            checklistModal.car
-              ?.checklist ?? []
-          }
+          items={checklistModal.car?.checklist ?? []}
           onSave={async (items) => {
-            if (!checklistModal.car)
-              return;
+            if (!checklistModal.car) return;
             try {
               await api.put(
                 `/cars/${checklistModal.car._id}`,
@@ -1108,8 +1082,7 @@ export default function CarListSplit({
               await refreshCars();
             } catch (e) {
               alert(
-                e.response?.data
-                  ?.message ||
+                e.response?.data?.message ||
                   e.message ||
                   "Error saving checklist"
               );
@@ -1133,18 +1106,10 @@ export default function CarListSplit({
         <NextLocationsFormModal
           open
           items={
-            Array.isArray(
-              nextModal.car
-                ?.nextLocations
-            )
-              ? nextModal.car
-                  .nextLocations
-              : nextModal.car
-                  ?.nextLocation
-              ? [
-                  nextModal.car
-                    .nextLocation,
-                ]
+            Array.isArray(nextModal.car?.nextLocations)
+              ? nextModal.car.nextLocations
+              : nextModal.car?.nextLocation
+              ? [nextModal.car.nextLocation]
               : []
           }
           onSave={async (items) => {
@@ -1155,9 +1120,7 @@ export default function CarListSplit({
                 {
                   nextLocations: items,
                   nextLocation:
-                    items[
-                      items.length - 1
-                    ] ?? "",
+                    items[items.length - 1] ?? "",
                 },
                 {
                   headers: {
@@ -1169,8 +1132,7 @@ export default function CarListSplit({
               await refreshCars();
             } catch (e) {
               alert(
-                e.response?.data
-                  ?.message ||
+                e.response?.data?.message ||
                   e.message ||
                   "Error saving destinations"
               );
@@ -1184,34 +1146,24 @@ export default function CarListSplit({
           onSetCurrent={async (loc) => {
             if (!nextModal.car) return;
             try {
-              const existing =
-                Array.isArray(
-                  nextModal.car
-                    .nextLocations
-                )
-                  ? nextModal.car
-                      .nextLocations
-                  : nextModal.car
-                      .nextLocation
-                  ? [
-                      nextModal.car
-                        .nextLocation,
-                    ]
-                  : [];
-              const remaining =
-                existing.filter(
-                  (s) => s !== loc
-                );
+              const existing = Array.isArray(
+                nextModal.car.nextLocations
+              )
+                ? nextModal.car.nextLocations
+                : nextModal.car.nextLocation
+                ? [nextModal.car.nextLocation]
+                : [];
+              const remaining = existing.filter(
+                (s) => s !== loc
+              );
               await api.put(
                 `/cars/${nextModal.car._id}`,
                 {
                   location: loc,
-                  nextLocations:
-                    remaining,
+                  nextLocations: remaining,
                   nextLocation:
                     remaining[
-                      remaining.length -
-                        1
+                      remaining.length - 1
                     ] ?? "",
                 },
                 {
@@ -1224,8 +1176,7 @@ export default function CarListSplit({
               await refreshCars();
             } catch (e) {
               alert(
-                e.response?.data
-                  ?.message ||
+                e.response?.data?.message ||
                   e.message ||
                   "Error setting current location"
               );
@@ -1245,32 +1196,22 @@ export default function CarListSplit({
           style={{
             position: "fixed",
             inset: 0,
-            background:
-              "rgba(0,0,0,.5)",
+            background: "rgba(0,0,0,.5)",
             display: "flex",
-            alignItems:
-              "center",
-            justifyContent:
-              "center",
+            alignItems: "center",
+            justifyContent: "center",
             zIndex: 1000,
           }}
-          onClick={() =>
-            setPasteOpen(false)
-          }
+          onClick={() => setPasteOpen(false)}
         >
           <div
             style={{
-              background:
-                "#0b1220",
-              border:
-                "1px solid #243041",
+              background: "#0b1220",
+              border: "1px solid #243041",
               borderRadius: 12,
-              width:
-                "min(900px, 92vw)",
+              width: "min(900px, 92vw)",
             }}
-            onClick={(e) =>
-              e.stopPropagation()
-            }
+            onClick={(e) => e.stopPropagation()}
           >
             <div
               style={{
@@ -1279,53 +1220,33 @@ export default function CarListSplit({
                   "1px solid #243041",
               }}
             >
-              <h3
-                style={{
-                  margin: 0,
-                }}
-              >
+              <h3 style={{ margin: 0 }}>
                 Paste Autogate List
               </h3>
               <p
                 style={{
-                  margin:
-                    "4px 0 0",
-                  color:
-                    "#9CA3AF",
+                  margin: "4px 0 0",
+                  color: "#9CA3AF",
                   fontSize: 13,
                 }}
               >
-                We’ll set cars to{" "}
-                <b>
-                  Online
-                </b>{" "}
-                only if they’re
-                currently{" "}
-                <b>
-                  In Works
-                </b>
-                .
+                We’ll set cars to <b>Online</b>{" "}
+                only if they’re currently{" "}
+                <b>In Works</b>.
               </p>
             </div>
-            <div
-              style={{
-                padding: 14,
-              }}
-            >
+            <div style={{ padding: 14 }}>
               <textarea
                 className="input"
                 style={{
                   width: "100%",
                   minHeight: 280,
-                  resize:
-                    "vertical",
+                  resize: "vertical",
                 }}
                 placeholder="Paste the whole Autogate block here…"
                 value={pasteText}
                 onChange={(e) =>
-                  setPasteText(
-                    e.target.value
-                  )
+                  setPasteText(e.target.value)
                 }
               />
               <div
@@ -1340,18 +1261,14 @@ export default function CarListSplit({
                 <button
                   className="btn"
                   onClick={() =>
-                    setPasteOpen(
-                      false
-                    )
+                    setPasteOpen(false)
                   }
                 >
                   Cancel
                 </button>
                 <button
                   className="btn btn--primary"
-                  onClick={
-                    submitPaste
-                  }
+                  onClick={submitPaste}
                 >
                   Process
                 </button>
@@ -1406,9 +1323,7 @@ function Table({
             <th>
               <button
                 className="thbtn"
-                onClick={() =>
-                  onSortClick("car")
-                }
+                onClick={() => onSortClick("car")}
               >
                 Car <Sort col="car" />
               </button>
@@ -1417,9 +1332,7 @@ function Table({
               <button
                 className="thbtn"
                 onClick={() =>
-                  onSortClick(
-                    "location"
-                  )
+                  onSortClick("location")
                 }
               >
                 Location{" "}
@@ -1433,8 +1346,7 @@ function Table({
                   onSortClick("next")
                 }
               >
-                Next Loc{" "}
-                <Sort col="next" />
+                Next Loc <Sort col="next" />
               </button>
             </th>
             <th>
@@ -1457,8 +1369,7 @@ function Table({
                   onSortClick("notes")
                 }
               >
-                Notes{" "}
-                <Sort col="notes" />
+                Notes <Sort col="notes" />
               </button>
             </th>
             <th>
@@ -1468,8 +1379,7 @@ function Table({
                   onSortClick("stage")
                 }
               >
-                Stage{" "}
-                <Sort col="stage" />
+                Stage <Sort col="stage" />
               </button>
             </th>
             <th>Act</th>
@@ -1488,8 +1398,7 @@ function Table({
           ) : (
             list.map((car) => {
               const editing =
-                editTarget.id ===
-                car._id
+                editTarget.id === car._id
                   ? editTarget.field
                   : null;
               const refCb = editing
@@ -1503,17 +1412,13 @@ function Table({
               return (
                 <tr
                   key={car._id}
-                  data-id={
-                    car._id
-                  }
+                  data-id={car._id}
                   className={
                     isSold(car)
                       ? "row--sold"
                       : ""
                   }
-                  ref={
-                    refCb
-                  }
+                  ref={refCb}
                 >
                   {/* CAR */}
                   <td
@@ -1852,9 +1757,7 @@ function Table({
                         <textarea
                           className="input input--compact textarea--wider"
                           name="notes"
-                          rows={
-                            2
-                          }
+                          rows={2}
                           value={
                             editData.notes
                           }
