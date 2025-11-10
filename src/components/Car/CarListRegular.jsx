@@ -793,7 +793,13 @@ export default function CarListRegular() {
           </div>
         </div>
 
-        <CarListSplit embedded listOverride={soldFirstList} sortState={sort} />
+        <CarListSplit
+          embedded
+          listOverride={soldFirstList}
+          sortState={sort}
+          onSortChange={setSort}
+        />
+
 
         <style>{stageChipCss}</style>
         {showForm && <CarFormModal show={showForm} onClose={() => setShowForm(false)} onSave={handleSave} />}
