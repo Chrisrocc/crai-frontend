@@ -1073,7 +1073,8 @@ export default function CarListSplit({
                 { checklist: items },
                 {
                   headers: {
-                    "Content-Type": "application/json",
+                    "Content-Type":
+                      "application/json",
                   },
                 }
               );
@@ -1122,7 +1123,8 @@ export default function CarListSplit({
                 },
                 {
                   headers: {
-                    "Content-Type": "application/json",
+                    "Content-Type":
+                      "application/json",
                   },
                 }
               );
@@ -1165,7 +1167,8 @@ export default function CarListSplit({
                 },
                 {
                   headers: {
-                    "Content-Type": "application/json",
+                    "Content-Type":
+                      "application/json",
                   },
                 }
               );
@@ -1302,63 +1305,113 @@ function Table({
       <SortChevron dir={sort.dir} />
     ) : null;
 
-  // drag-to-scroll for mouse users
+  // drag-to-scroll with threshold so double-click still works
   const wrapRef = useRef(null);
   const dragRef = useRef({
-    active: false,
+    tracking: false, // pointer down seen
+    active: false, // drag actually started
     startX: 0,
     scrollLeft: 0,
     pointerId: null,
+    justDragged: false,
   });
   const [dragging, setDragging] = useState(false);
 
+  const isFormElement = (el) => {
+    if (!el) return false;
+    const tag = el.tagName;
+    if (!tag) return false;
+    const t = tag.toUpperCase();
+    if (
+      [
+        "INPUT",
+        "TEXTAREA",
+        "SELECT",
+        "BUTTON",
+        "OPTION",
+        "LABEL",
+      ].includes(t)
+    ) {
+      return true;
+    }
+    if (el.closest(".is-editing")) return true;
+    return false;
+  };
+
   const onPointerDown = (e) => {
-    // Only left button for mouse; allow touch/pen too
-    if (e.button !== 0 && e.pointerType === "mouse") return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+
     const el = wrapRef.current;
     if (!el) return;
 
+    if (isFormElement(e.target)) return;
+
     dragRef.current = {
-      active: true,
+      tracking: true,
+      active: false,
       startX: e.clientX,
       scrollLeft: el.scrollLeft,
       pointerId: e.pointerId,
+      justDragged: false,
     };
-    setDragging(true);
-    try {
-      el.setPointerCapture(e.pointerId);
-    } catch {
-      // ignore if not supported
-    }
   };
 
   const onPointerMove = (e) => {
     const st = dragRef.current;
-    if (!st.active) return;
+    if (!st.tracking) return;
     const el = wrapRef.current;
     if (!el) return;
 
     const dx = e.clientX - st.startX;
+
+    if (!st.active) {
+      if (Math.abs(dx) > 5) {
+        st.active = true;
+        setDragging(true);
+        try {
+          el.setPointerCapture(st.pointerId);
+        } catch {
+          // ignore
+        }
+      } else {
+        return;
+      }
+    }
+
     el.scrollLeft = st.scrollLeft - dx;
   };
 
   const endDrag = () => {
-  const st = dragRef.current;
-  if (!st.active) return;
-  const el = wrapRef.current;
-  st.active = false;
-  setDragging(false);
-  if (el && st.pointerId != null) {
-    try {
-      if (el.hasPointerCapture(st.pointerId)) {
-        el.releasePointerCapture(st.pointerId);
-      }
-    } catch {
-      // ignore
-    }
-  }
-};
+    const st = dragRef.current;
+    if (!st.tracking) return;
 
+    const el = wrapRef.current;
+    const wasActive = st.active;
+
+    st.tracking = false;
+    st.active = false;
+    setDragging(false);
+
+    if (el && st.pointerId != null) {
+      try {
+        if (el.hasPointerCapture(st.pointerId)) {
+          el.releasePointerCapture(st.pointerId);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    st.justDragged = !!wasActive;
+  };
+
+  const onClickCapture = (e) => {
+    if (dragRef.current.justDragged) {
+      e.stopPropagation();
+      e.preventDefault();
+      dragRef.current.justDragged = false;
+    }
+  };
 
   return (
     <div
@@ -1370,6 +1423,7 @@ function Table({
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerLeave={endDrag}
+      onClickCapture={onClickCapture}
     >
       <table className="car-table">
         <colgroup>
@@ -1887,9 +1941,7 @@ function Table({
                           value={
                             editData.stage
                           }
-                          onChange={(
-                            e
-                          ) => {
+                          onChange={(e) => {
                             stageDirtyRef.current = true;
                             return handleChange(
                               e
