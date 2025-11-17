@@ -12,6 +12,7 @@ export default function ReconditionerAppointmentList() {
   const [appointments, setAppointments] = useState([]);
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
   // filter: 'all' | 'on' | 'off'
   const [catTab, setCatTab] = useState("all");
@@ -32,6 +33,7 @@ export default function ReconditionerAppointmentList() {
 
   useEffect(() => {
     const fetchAll = async () => {
+      setErr("");
       setLoading(true);
       try {
         const [cat, apps, carList] = await Promise.all([
@@ -43,8 +45,7 @@ export default function ReconditionerAppointmentList() {
         setAppointments(apps.data?.data || []);
         setCars(carList.data?.data || []);
       } catch (e) {
-        // silent: log only
-        console.error("[RA] load failed:", e?.response?.data || e);
+        setErr(e.response?.data?.message || e.message || "Failed to load data");
       } finally {
         setLoading(false);
       }
@@ -57,7 +58,7 @@ export default function ReconditionerAppointmentList() {
       const res = await api.get("/reconditioner-appointments", { headers });
       setAppointments(res.data?.data || []);
     } catch (e) {
-      console.error("[RA] refresh failed:", e?.response?.data || e);
+      setErr(e.response?.data?.message || e.message);
     }
   };
 
@@ -68,7 +69,7 @@ export default function ReconditionerAppointmentList() {
       const notesList = a.cars.map((c) => c?.notes || "").filter((n) => n !== "");
       if (notesList.length) {
         const allSame = notesList.every((n) => n === notesList[0]);
-        notesDefault = allSame ? notesList[0] : notesList[0];
+        notesDefault = allSame ? notesList[0] : notesList[0]; // keep first if mixed
       }
     }
 
@@ -90,6 +91,7 @@ export default function ReconditionerAppointmentList() {
   const saveChanges = async () => {
     if (!editRow || savingRef.current) return;
     savingRef.current = true;
+    setErr("");
 
     try {
       const original = appointments.find((a) => a._id === editRow) || { cars: [] };
@@ -105,7 +107,7 @@ export default function ReconditionerAppointmentList() {
 
       const payload = {
         name: (editData.name || "").trim(),
-        dateTime: (editData.dateTime || "").trim(),
+        dateTime: (editData.dateTime || "").trim(), // blank allowed
         cars: [...preservedTextRows, ...identifiedRows],
       };
 
@@ -144,10 +146,8 @@ export default function ReconditionerAppointmentList() {
 
       cancelEdit();
     } catch (e) {
-      // silent: revert with refresh if something blew up
-      console.error("[RA] update failed:", e?.response?.data || e);
+      setErr(e.response?.data?.message || e.message || "Update failed");
       await refreshAppointments();
-      cancelEdit();
     } finally {
       savingRef.current = false;
     }
@@ -162,15 +162,18 @@ export default function ReconditionerAppointmentList() {
     };
     if (editRow) document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-  }, [editRow, editData, pickerOpen]); // eslint-disable-line
+  }, [editRow, editData, pickerOpen]);
 
   const deleteAppointment = async (id) => {
-    // no confirm — delete immediately, silent on fail
+    // No prompts/confirmations. Optimistic remove, revert on error.
+    setErr("");
+    const before = appointments;
+    setAppointments((prev) => prev.filter((a) => a._id !== id));
     try {
       await api.delete(`/reconditioner-appointments/${id}`);
-      await refreshAppointments();
     } catch (e) {
-      console.error("[RA] delete failed:", e?.response?.data || e);
+      setErr(e.response?.data?.message || e.message || "Delete failed");
+      setAppointments(before); // revert
     }
   };
 
@@ -186,6 +189,13 @@ export default function ReconditionerAppointmentList() {
   };
   const addCarId = (id) => id && setEditData((p) => (p.carIds.includes(id) ? p : { ...p, carIds: [...p.carIds, id] }));
   const removeCarId = (id) => setEditData((p) => ({ ...p, carIds: p.carIds.filter((x) => x !== id) }));
+
+  // --- datetime render/highlight guards ---
+  const renderDayTime = (raw) => {
+    if (!raw || !String(raw).trim()) return "—";
+    const { label } = standardizeDayTime(raw);
+    return label ?? String(raw).trim();
+  };
 
   if (loading) {
     return (
@@ -205,12 +215,6 @@ export default function ReconditionerAppointmentList() {
     : catTab === "off" ? categories.filter((c) => !c.onPremises)
     : categories;
 
-  const renderDayTime = (raw) => {
-    const { label } = standardizeDayTime(raw);
-    return label || (raw || "—");
-    // NOTE: lock happens inside standardizeDayTime; just render label
-  };
-
   const fmtDateShort = (d) =>
     d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
 
@@ -225,6 +229,8 @@ export default function ReconditionerAppointmentList() {
           <p className="cal-sub">Double-click a row to edit. Add cars with the picker.</p>
         </div>
       </header>
+
+      {err ? <div className="cal-alert">{err}</div> : null}
 
       {/* Category manager (collapsed by default) */}
       <ReconditionerCategoryManager categories={categories} setCategories={setCategories} />
@@ -298,7 +304,11 @@ export default function ReconditionerAppointmentList() {
                     ) : (
                       catApps.map((a) => {
                         const isEditing = editRow === a._id;
-                        const rowCls = dayTimeHighlightClass(a.dateTime);
+                        const rowCls =
+                          !a.dateTime || !String(a.dateTime).trim()
+                            ? ""
+                            : dayTimeHighlightClass(a.dateTime);
+
                         return (
                           <tr
                             key={a._id}
@@ -332,7 +342,9 @@ export default function ReconditionerAppointmentList() {
                                   placeholder="e.g. Sat 10:30, tomorrow 2pm, 27/9 09:00"
                                 />
                               ) : (
-                                <div className="one-line">{renderDayTime(a.dateTime)}</div>
+                                <div className="one-line">
+                                  {renderDayTime(a.dateTime)}
+                                </div>
                               )}
                             </td>
 
@@ -382,7 +394,9 @@ export default function ReconditionerAppointmentList() {
                                   placeholder="Optional notes for all cars"
                                 />
                               ) : a.cars && a.cars.length ? (
-                                <div className="stack">{a.cars.map((c, i) => <div key={"n"+i} className="two-line">{c.notes || "—"}</div>)}</div>
+                                <div className="stack">
+                                  {a.cars.map((c, i) => <div key={"n"+i} className="two-line">{c.notes || "—"}</div>)}
+                                </div>
                               ) : "—"}
                             </td>
 
@@ -419,7 +433,7 @@ export default function ReconditionerAppointmentList() {
         );
       })}
 
-      {/* Create modal (kept for functionality; not a warning/confirm popup) */}
+      {/* Create modal */}
       <ReconditionerAppointmentFormModal
         show={showForm}
         onClose={() => { setShowForm(false); setFormCategoryId(null); }}
@@ -428,7 +442,7 @@ export default function ReconditionerAppointmentList() {
         categoryId={formCategoryId}
       />
 
-      {/* Car picker for inline edit (functional modal, not a blocking warning) */}
+      {/* Car picker for inline edit */}
       <CarPickerModal
         show={pickerOpen}
         cars={cars}
@@ -472,6 +486,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-head h1 { margin:0 0 2px; font-size:22px; letter-spacing:.2px; }
 .cal-sub { margin:0; color:var(--muted); font-size:12px; }
 .cal-head-titles { display:flex; flex-direction:column; gap:4px; }
+.cal-alert { background:#3B0D0D; border:1px solid #7F1D1D; color:#FECACA; padding:10px 12px; border-radius:12px; margin-bottom:12px; }
 
 .ra-tabs { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
 .ra-tab {
@@ -513,6 +528,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
 .table-scroll{ scrollbar-color:#59637C #0B1220; scrollbar-width:thin; }
 
+/* regular table */
 .cal-table{
   width:100%;
   border-collapse:separate;
@@ -537,6 +553,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-table tbody tr:hover{ background:#0B1428; }
 .cal-empty{ text-align:center; padding:20px; color:#9CA3AF; }
 
+/* No weird vertical character stacking */
 .one-line{
   white-space:nowrap;
   overflow:hidden;
@@ -552,6 +569,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 }
 .stack{ display:flex; flex-direction:column; gap:4px; }
 
+/* inputs in edit mode */
 .cal-input{
   width:100%;
   padding:8px 10px;
@@ -566,6 +584,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 
 .cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
 
+/* chips in edit mode */
 .chipbox{ display:flex; flex-direction:column; gap:8px; }
 .chipbox-actions{ display:flex; gap:8px; }
 .chip{ display:inline-flex; align-items:center; gap:6px; background:#111827; border:1px solid #243041; padding:6px 8px; border-radius:12px; margin:0 8px 8px 0; }
@@ -573,6 +592,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .muted{ color:#9CA3AF; }
 .hint{ color:#9CA3AF; font-size:12px; }
 
+/* Highlight rows (only when dateTime present) */
 .cal-table tbody tr.is-today td {
   background:#0f2a12 !important;
   box-shadow: inset 0 0 0 1px #1e3a23;
