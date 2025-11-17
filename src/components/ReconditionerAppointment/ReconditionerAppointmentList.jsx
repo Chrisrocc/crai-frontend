@@ -12,7 +12,6 @@ export default function ReconditionerAppointmentList() {
   const [appointments, setAppointments] = useState([]);
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
 
   // filter: 'all' | 'on' | 'off'
   const [catTab, setCatTab] = useState("all");
@@ -33,7 +32,6 @@ export default function ReconditionerAppointmentList() {
 
   useEffect(() => {
     const fetchAll = async () => {
-      setErr("");
       setLoading(true);
       try {
         const [cat, apps, carList] = await Promise.all([
@@ -45,7 +43,8 @@ export default function ReconditionerAppointmentList() {
         setAppointments(apps.data?.data || []);
         setCars(carList.data?.data || []);
       } catch (e) {
-        setErr(e.response?.data?.message || e.message || "Failed to load data");
+        // silent: log only
+        console.error("[RA] load failed:", e?.response?.data || e);
       } finally {
         setLoading(false);
       }
@@ -58,7 +57,7 @@ export default function ReconditionerAppointmentList() {
       const res = await api.get("/reconditioner-appointments", { headers });
       setAppointments(res.data?.data || []);
     } catch (e) {
-      setErr(e.response?.data?.message || e.message);
+      console.error("[RA] refresh failed:", e?.response?.data || e);
     }
   };
 
@@ -145,8 +144,10 @@ export default function ReconditionerAppointmentList() {
 
       cancelEdit();
     } catch (e) {
-      alert("Error updating appointment: " + (e.response?.data?.message || e.message));
+      // silent: revert with refresh if something blew up
+      console.error("[RA] update failed:", e?.response?.data || e);
       await refreshAppointments();
+      cancelEdit();
     } finally {
       savingRef.current = false;
     }
@@ -161,15 +162,15 @@ export default function ReconditionerAppointmentList() {
     };
     if (editRow) document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-  }, [editRow, editData, pickerOpen]);
+  }, [editRow, editData, pickerOpen]); // eslint-disable-line
 
   const deleteAppointment = async (id) => {
-    if (!window.confirm("Delete this appointment?")) return;
+    // no confirm — delete immediately, silent on fail
     try {
       await api.delete(`/reconditioner-appointments/${id}`);
       await refreshAppointments();
     } catch (e) {
-      setErr(e.response?.data?.message || e.message || "Delete failed");
+      console.error("[RA] delete failed:", e?.response?.data || e);
     }
   };
 
@@ -207,6 +208,7 @@ export default function ReconditionerAppointmentList() {
   const renderDayTime = (raw) => {
     const { label } = standardizeDayTime(raw);
     return label || (raw || "—");
+    // NOTE: lock happens inside standardizeDayTime; just render label
   };
 
   const fmtDateShort = (d) =>
@@ -223,8 +225,6 @@ export default function ReconditionerAppointmentList() {
           <p className="cal-sub">Double-click a row to edit. Add cars with the picker.</p>
         </div>
       </header>
-
-      {err ? <div className="cal-alert">{err}</div> : null}
 
       {/* Category manager (collapsed by default) */}
       <ReconditionerCategoryManager categories={categories} setCategories={setCategories} />
@@ -419,7 +419,7 @@ export default function ReconditionerAppointmentList() {
         );
       })}
 
-      {/* Create modal */}
+      {/* Create modal (kept for functionality; not a warning/confirm popup) */}
       <ReconditionerAppointmentFormModal
         show={showForm}
         onClose={() => { setShowForm(false); setFormCategoryId(null); }}
@@ -428,7 +428,7 @@ export default function ReconditionerAppointmentList() {
         categoryId={formCategoryId}
       />
 
-      {/* Car picker for inline edit */}
+      {/* Car picker for inline edit (functional modal, not a blocking warning) */}
       <CarPickerModal
         show={pickerOpen}
         cars={cars}
@@ -472,7 +472,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-head h1 { margin:0 0 2px; font-size:22px; letter-spacing:.2px; }
 .cal-sub { margin:0; color:var(--muted); font-size:12px; }
 .cal-head-titles { display:flex; flex-direction:column; gap:4px; }
-.cal-alert { background:#3B0D0D; border:1px solid #7F1D1D; color:#FECACA; padding:10px 12px; border-radius:12px; margin-bottom:12px; }
 
 .ra-tabs { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
 .ra-tab {
@@ -500,7 +499,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   border:1px solid var(--line);
   border-radius:14px;
   background:var(--panel);
-  overflow-x:auto;   /* ← only the table scrolls horizontally on phones */
+  overflow-x:auto;
   overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
   padding-bottom:10px;
@@ -514,13 +513,12 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
 .table-scroll{ scrollbar-color:#59637C #0B1220; scrollbar-width:thin; }
 
-/* regular table */
 .cal-table{
   width:100%;
   border-collapse:separate;
   border-spacing:0;
-  table-layout:fixed;          /* predictable widths + ellipsis */
-  min-width: 980px;            /* forces horizontal scroll on narrow screens instead of squashing letters */
+  table-layout:fixed;
+  min-width: 980px;
 }
 
 .cal-table thead th{
@@ -539,7 +537,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-table tbody tr:hover{ background:#0B1428; }
 .cal-empty{ text-align:center; padding:20px; color:#9CA3AF; }
 
-/* No weird vertical character stacking */
 .one-line{
   white-space:nowrap;
   overflow:hidden;
@@ -555,7 +552,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 }
 .stack{ display:flex; flex-direction:column; gap:4px; }
 
-/* inputs in edit mode */
 .cal-input{
   width:100%;
   padding:8px 10px;
@@ -570,7 +566,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 
 .cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
 
-/* chips in edit mode */
 .chipbox{ display:flex; flex-direction:column; gap:8px; }
 .chipbox-actions{ display:flex; gap:8px; }
 .chip{ display:inline-flex; align-items:center; gap:6px; background:#111827; border:1px solid #243041; padding:6px 8px; border-radius:12px; margin:0 8px 8px 0; }
@@ -578,7 +573,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .muted{ color:#9CA3AF; }
 .hint{ color:#9CA3AF; font-size:12px; }
 
-/* Highlight rows (same palette) */
 .cal-table tbody tr.is-today td {
   background:#0f2a12 !important;
   box-shadow: inset 0 0 0 1px #1e3a23;
