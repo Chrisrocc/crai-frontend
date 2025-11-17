@@ -1,3 +1,4 @@
+// src/components/CustomerAppointment/CustomerAppointmentList.jsx
 import { useEffect, useRef, useState } from "react";
 import api from "../../lib/api";
 import CustomerAppointmentFormModal from "./CustomerAppointmentFormModal";
@@ -9,7 +10,6 @@ export default function CustomerAppointmentList() {
   const [appointments, setAppointments] = useState([]);
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
 
   // Inline editing
@@ -31,7 +31,8 @@ export default function CustomerAppointmentList() {
         setAppointments(a.data?.data || []);
         setCars(c.data?.data || []);
       } catch (e) {
-        setError("Error fetching appointments: " + (e.response?.data?.message || e.message));
+        // silent fail UI (no popups); keep console for dev
+        console.error("Init fetch failed:", e.response?.data || e.message);
       } finally {
         setLoading(false);
       }
@@ -39,8 +40,12 @@ export default function CustomerAppointmentList() {
   }, []);
 
   const refreshAppointments = async () => {
-    const res = await api.get("/customer-appointments", { headers: { "Cache-Control": "no-cache" } });
-    setAppointments(res.data?.data || []);
+    try {
+      const res = await api.get("/customer-appointments", { headers: { "Cache-Control": "no-cache" } });
+      setAppointments(res.data?.data || []);
+    } catch (e) {
+      console.error("Refresh failed:", e.response?.data || e.message);
+    }
   };
 
   const enterEdit = (appointment) => {
@@ -60,60 +65,70 @@ export default function CustomerAppointmentList() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this appointment?")) return;
-    await api.delete(`/customer-appointments/${id}`);
-    await refreshAppointments();
-    alert("Appointment deleted successfully!");
+    if (savingRef.current) return;
+    savingRef.current = true;
+
+    // optimistic remove
+    const prev = appointments;
+    setAppointments((p) => p.filter((x) => x._id !== id));
+
+    try {
+      await api.delete(`/customer-appointments/${id}`);
+    } catch (e) {
+      console.error("Delete failed:", e.response?.data || e.message);
+      // revert on failure
+      setAppointments(prev);
+    } finally {
+      savingRef.current = false;
+    }
   };
 
   const saveChanges = async () => {
     if (!editRow || savingRef.current) return;
     savingRef.current = true;
+
+    // optimistic update
+    const prev = appointments;
+    const payload = {
+      name: (editData.name ?? "").trim(),
+      dateTime: (editData.dateTime ?? "").trim(),
+      notes: editData.notes ?? "",
+      car: editData.car || null, // explicit null clears
+      // keep dayTime mirror for BE if used
+      dayTime: (editData.dateTime ?? "").trim(),
+    };
+
+    const chosen = cars.find((c) => c._id === editData.car) || null;
+
+    setAppointments((p) =>
+      p.map((a) =>
+        a._id === editRow
+          ? {
+              ...a,
+              name: payload.name,
+              dateTime: payload.dateTime,
+              notes: payload.notes,
+              car: chosen ? { _id: chosen._id, rego: chosen.rego, make: chosen.make, model: chosen.model } : null,
+              carText: chosen ? "" : a.carText,
+            }
+          : a
+      )
+    );
+
     try {
-      const payload = {
-        name: (editData.name ?? "").trim(),
-        dateTime: (editData.dateTime ?? "").trim(),
-        notes: editData.notes ?? "",
-        // IMPORTANT: always include car (null clears)
-        car: editData.car || null,
-      };
-      payload.dayTime = payload.dateTime;
-
-      // optimistic — update the car object immediately
-      const chosen = cars.find((c) => c._id === editData.car) || null;
-      setAppointments((prev) =>
-        prev.map((a) =>
-          a._id === editRow
-            ? {
-                ...a,
-                name: payload.name,
-                dateTime: payload.dateTime,
-                notes: payload.notes,
-                car: chosen
-                  ? { _id: chosen._id, rego: chosen.rego, make: chosen.make, model: chosen.model }
-                  : null,
-                carText: chosen ? "" : a.carText,
-              }
-            : a
-        )
-      );
-
       const res = await api.put(`/customer-appointments/${editRow}`, payload, {
         headers: { "Content-Type": "application/json" },
       });
-
       if (res.data?.data) {
-        setAppointments((prev) => prev.map((a) => (a._id === editRow ? res.data.data : a)));
+        setAppointments((p) => p.map((a) => (a._id === editRow ? res.data.data : a)));
       } else {
         await refreshAppointments();
       }
-
       setEditRow(null);
-      alert(res.data?.message || "Saved");
     } catch (e) {
-      console.error("Save failed", e.response?.data || e.message);
-      alert("Error updating appointment: " + (e.response?.data?.message || e.message));
-      await refreshAppointments();
+      console.error("Save failed:", e.response?.data || e.message);
+      // revert on failure
+      setAppointments(prev);
     } finally {
       savingRef.current = false;
     }
@@ -122,28 +137,24 @@ export default function CustomerAppointmentList() {
   const moveToDelivery = async (appointment) => {
     if (savingRef.current) return;
     savingRef.current = true;
+
+    // optimistic move
+    const prev = appointments;
+    const payload = { isDelivery: true, originalDateTime: appointment.dateTime || "", dateTime: "TBC" };
+    setAppointments((p) => p.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a)));
+
     try {
-      const payload = {
-        isDelivery: true,
-        originalDateTime: appointment.dateTime || "",
-        dateTime: "TBC",
-      };
-
-      setAppointments((prev) => prev.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a)));
-
       const res = await api.put(`/customer-appointments/${appointment._id}`, payload, {
         headers: { "Content-Type": "application/json" },
       });
-
       if (res.data?.data) {
-        setAppointments((prev) => prev.map((a) => (a._id === appointment._id ? res.data.data : a)));
+        setAppointments((p) => p.map((a) => (a._id === appointment._id ? res.data.data : a)));
       } else {
         await refreshAppointments();
       }
     } catch (e) {
-      console.error("Move to delivery failed", e.response?.data || e.message);
-      alert("Error: " + (e.response?.data?.message || e.message));
-      await refreshAppointments();
+      console.error("Move to delivery failed:", e.response?.data || e.message);
+      setAppointments(prev); // revert
     } finally {
       savingRef.current = false;
     }
@@ -152,25 +163,26 @@ export default function CustomerAppointmentList() {
   const undoDelivery = async (appointment) => {
     if (savingRef.current) return;
     savingRef.current = true;
+
+    const prev = appointments;
+    const restoredTime = appointment.originalDateTime || "";
+    const payload = { isDelivery: false, dateTime: restoredTime, originalDateTime: "" };
+
+    // optimistic undo
+    setAppointments((p) => p.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a)));
+
     try {
-      const restoredTime = appointment.originalDateTime || "";
-      const payload = { isDelivery: false, dateTime: restoredTime, originalDateTime: "" };
-
-      setAppointments((prev) => prev.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a)));
-
       const res = await api.put(`/customer-appointments/${appointment._id}`, payload, {
         headers: { "Content-Type": "application/json" },
       });
-
       if (res.data?.data) {
-        setAppointments((prev) => prev.map((a) => (a._id === appointment._id ? res.data.data : a)));
+        setAppointments((p) => p.map((a) => (a._id === appointment._id ? res.data.data : a)));
       } else {
         await refreshAppointments();
       }
     } catch (e) {
-      console.error("Undo delivery failed", e.response?.data || e.message);
-      alert("Error: " + (e.response?.data?.message || e.message));
-      await refreshAppointments();
+      console.error("Undo delivery failed:", e.response?.data || e.message);
+      setAppointments(prev); // revert
     } finally {
       savingRef.current = false;
     }
@@ -228,7 +240,6 @@ export default function CustomerAppointmentList() {
   const renderDayTime = (raw) => {
     const { label } = standardizeDayTime(raw);
     return label || (raw || "—");
-    // (list view shows the label as-is)
   };
 
   const rowClassFor = (raw) => dayTimeHighlightClass(raw);
@@ -248,12 +259,6 @@ export default function CustomerAppointmentList() {
           + New Appointment
         </button>
       </header>
-
-      {error && (
-        <div className="cal-alert" role="alert">
-          {error}
-        </div>
-      )}
 
       <CustomerAppointmentFormModal show={showForm} onClose={() => setShowForm(false)} onSave={refreshAppointments} cars={cars} />
 
@@ -290,9 +295,7 @@ export default function CustomerAppointmentList() {
               <tbody>
                 {apptRows.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="cal-empty">
-                      No appointments found.
-                    </td>
+                    <td colSpan="6" className="cal-empty">No appointments found.</td>
                   </tr>
                 ) : (
                   apptRows.map((a) => {
@@ -308,7 +311,13 @@ export default function CustomerAppointmentList() {
                           enterEdit(a);
                         }}
                       >
-                        <td>{isEditing ? <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus /> : a.name || "—"}</td>
+                        <td>
+                          {isEditing ? (
+                            <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus />
+                          ) : (
+                            a.name || "—"
+                          )}
+                        </td>
                         <td>
                           {isEditing ? (
                             <input name="dateTime" value={editData.dateTime} onChange={handleChange} className="cal-input" placeholder="e.g. Thu 10:00" />
@@ -326,25 +335,25 @@ export default function CustomerAppointmentList() {
                           {isEditing ? (
                             <div className="car-edit">
                               <input className="cal-input" value={carLabelFromId(editData.car)} readOnly placeholder="No Car" />
-                              <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>
-                                Pick
-                              </button>
+                              <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>Pick</button>
                             </div>
                           ) : (
                             renderCarCell(a)
                           )}
                         </td>
-                        <td>{isEditing ? <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" /> : a.notes || "—"}</td>
+                        <td>
+                          {isEditing ? (
+                            <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" />
+                          ) : (
+                            a.notes || "—"
+                          )}
+                        </td>
                         <td>{fmtDateShort(a.dateCreated)}</td>
                         <td className="cal-actions">
                           {isEditing ? (
                             <>
-                              <button className="btn btn--primary btn--sm" onClick={saveChanges}>
-                                Save
-                              </button>
-                              <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>
-                                Cancel
-                              </button>
+                              <button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
+                              <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>Cancel</button>
                             </>
                           ) : (
                             <>
@@ -396,9 +405,7 @@ export default function CustomerAppointmentList() {
               <tbody>
                 {deliveryRows.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="cal-empty">
-                      No deliveries.
-                    </td>
+                    <td colSpan="6" className="cal-empty">No deliveries.</td>
                   </tr>
                 ) : (
                   deliveryRows.map((a) => {
@@ -414,7 +421,13 @@ export default function CustomerAppointmentList() {
                           enterEdit(a);
                         }}
                       >
-                        <td>{isEditing ? <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus /> : a.name || "—"}</td>
+                        <td>
+                          {isEditing ? (
+                            <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus />
+                          ) : (
+                            a.name || "—"
+                          )}
+                        </td>
                         <td>
                           {isEditing ? (
                             <input name="dateTime" value={editData.dateTime} onChange={handleChange} className="cal-input" placeholder="TBC or set a time" />
@@ -432,25 +445,25 @@ export default function CustomerAppointmentList() {
                           {isEditing ? (
                             <div className="car-edit">
                               <input className="cal-input" value={carLabelFromId(editData.car)} readOnly placeholder="No Car" />
-                              <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>
-                                Pick
-                              </button>
+                              <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>Pick</button>
                             </div>
                           ) : (
                             renderCarCell(a)
                           )}
                         </td>
-                        <td>{isEditing ? <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" /> : a.notes || "—"}</td>
+                        <td>
+                          {isEditing ? (
+                            <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" />
+                          ) : (
+                            a.notes || "—"
+                          )}
+                        </td>
                         <td>{fmtDateShort(a.dateCreated)}</td>
                         <td className="cal-actions">
                           {isEditing ? (
                             <>
-                              <button className="btn btn--primary btn--sm" onClick={saveChanges}>
-                                Save
-                              </button>
-                              <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>
-                                Cancel
-                              </button>
+                              <button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
+                              <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>Cancel</button>
                             </>
                           ) : (
                             <>
@@ -487,7 +500,7 @@ function TrashIconSmall() {
   );
 }
 
-/* ---------- Styles (unchanged from your version) ---------- */
+/* ---------- Styles (unchanged) ---------- */
 const css = `
 :root { color-scheme: dark; }
 html, body, #root { background: #0B1220; }
@@ -517,7 +530,6 @@ html, body, #root { background: #0B1220; }
 .cal-head h1 { margin:0 0 2px; font-size:22px; letter-spacing:0.2px; }
 .cal-sub { margin:0; color:var(--muted); font-size:12px; }
 .cal-head-titles { display:flex; flex-direction:column; gap:4px; }
-.cal-alert { background:#3B0D0D; border:1px solid #7F1D1D; color:#FECACA; padding:10px 12px; border-radius:12px; margin-bottom:12px; }
 
 .btn { border:1px solid transparent; border-radius:12px; padding:10px 14px; cursor:pointer; font-weight:600; transition:transform .05s, box-shadow .2s, border-color .2s, background .2s; }
 .btn:active { transform: translateY(1px); }
