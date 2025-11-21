@@ -1,4 +1,3 @@
-// src/components/CustomerAppointment/CustomerAppointmentList.jsx
 import { useEffect, useRef, useState } from "react";
 import api from "../../lib/api";
 import CustomerAppointmentFormModal from "./CustomerAppointmentFormModal";
@@ -31,7 +30,6 @@ export default function CustomerAppointmentList() {
         setAppointments(a.data?.data || []);
         setCars(c.data?.data || []);
       } catch (e) {
-        // silent fail UI (no popups); keep console for dev
         console.error("Init fetch failed:", e.response?.data || e.message);
       } finally {
         setLoading(false);
@@ -68,7 +66,6 @@ export default function CustomerAppointmentList() {
     if (savingRef.current) return;
     savingRef.current = true;
 
-    // optimistic remove
     const prev = appointments;
     setAppointments((p) => p.filter((x) => x._id !== id));
 
@@ -76,7 +73,6 @@ export default function CustomerAppointmentList() {
       await api.delete(`/customer-appointments/${id}`);
     } catch (e) {
       console.error("Delete failed:", e.response?.data || e.message);
-      // revert on failure
       setAppointments(prev);
     } finally {
       savingRef.current = false;
@@ -87,28 +83,36 @@ export default function CustomerAppointmentList() {
     if (!editRow || savingRef.current) return;
     savingRef.current = true;
 
-    // optimistic update
     const prev = appointments;
+
+    // 🔒 NORMALIZE ONCE + LOCK
+    const rawDateTime = (editData.dateTime ?? "").trim();
+    const norm = standardizeDayTime(rawDateTime);
+    const finalDateTime = norm.label || rawDateTime;
+
     const payload = {
       name: (editData.name ?? "").trim(),
-      dateTime: (editData.dateTime ?? "").trim(),
+      dateTime: finalDateTime,
       notes: editData.notes ?? "",
-      car: editData.car || null, // explicit null clears
-      // keep dayTime mirror for BE if used
-      dayTime: (editData.dateTime ?? "").trim(),
+      car: editData.car || null,
+      // mirror for legacy BE expectations
+      dayTime: finalDateTime,
     };
 
     const chosen = cars.find((c) => c._id === editData.car) || null;
 
+    // optimistic update
     setAppointments((p) =>
       p.map((a) =>
         a._id === editRow
           ? {
               ...a,
               name: payload.name,
-              dateTime: payload.dateTime,
+              dateTime: finalDateTime, // ⬅ store locked label in local state
               notes: payload.notes,
-              car: chosen ? { _id: chosen._id, rego: chosen.rego, make: chosen.make, model: chosen.model } : null,
+              car: chosen
+                ? { _id: chosen._id, rego: chosen.rego, make: chosen.make, model: chosen.model }
+                : null,
               carText: chosen ? "" : a.carText,
             }
           : a
@@ -119,15 +123,18 @@ export default function CustomerAppointmentList() {
       const res = await api.put(`/customer-appointments/${editRow}`, payload, {
         headers: { "Content-Type": "application/json" },
       });
+
       if (res.data?.data) {
         setAppointments((p) => p.map((a) => (a._id === editRow ? res.data.data : a)));
       } else {
         await refreshAppointments();
       }
+
+      // also update editData to the locked value so if you re-open edit, you see the frozen label
+      setEditData((prev) => ({ ...prev, dateTime: finalDateTime }));
       setEditRow(null);
     } catch (e) {
       console.error("Save failed:", e.response?.data || e.message);
-      // revert on failure
       setAppointments(prev);
     } finally {
       savingRef.current = false;
@@ -138,9 +145,13 @@ export default function CustomerAppointmentList() {
     if (savingRef.current) return;
     savingRef.current = true;
 
-    // optimistic move
     const prev = appointments;
-    const payload = { isDelivery: true, originalDateTime: appointment.dateTime || "", dateTime: "TBC" };
+    const payload = {
+      isDelivery: true,
+      originalDateTime: appointment.dateTime || "",
+      dateTime: "TBC",
+    };
+
     setAppointments((p) => p.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a)));
 
     try {
@@ -154,7 +165,7 @@ export default function CustomerAppointmentList() {
       }
     } catch (e) {
       console.error("Move to delivery failed:", e.response?.data || e.message);
-      setAppointments(prev); // revert
+      setAppointments(prev);
     } finally {
       savingRef.current = false;
     }
@@ -166,9 +177,12 @@ export default function CustomerAppointmentList() {
 
     const prev = appointments;
     const restoredTime = appointment.originalDateTime || "";
-    const payload = { isDelivery: false, dateTime: restoredTime, originalDateTime: "" };
+    const payload = {
+      isDelivery: false,
+      dateTime: restoredTime,
+      originalDateTime: "",
+    };
 
-    // optimistic undo
     setAppointments((p) => p.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a)));
 
     try {
@@ -182,7 +196,7 @@ export default function CustomerAppointmentList() {
       }
     } catch (e) {
       console.error("Undo delivery failed:", e.response?.data || e.message);
-      setAppointments(prev); // revert
+      setAppointments(prev);
     } finally {
       savingRef.current = false;
     }
@@ -193,6 +207,7 @@ export default function CustomerAppointmentList() {
     if (editRow !== appointment._id) enterEdit(appointment);
     setCarPicker({ open: true, forId: appointment._id });
   };
+
   const onCarPicked = (carOrNull) => {
     setEditData((prev) => ({ ...prev, car: carOrNull?._id || "" }));
     setCarPicker({ open: false, forId: null });
@@ -208,7 +223,7 @@ export default function CustomerAppointmentList() {
     };
     if (editRow) document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-  }, [editRow, editData, carPicker.open]);
+  }, [editRow, editData, carPicker.open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -260,9 +275,19 @@ export default function CustomerAppointmentList() {
         </button>
       </header>
 
-      <CustomerAppointmentFormModal show={showForm} onClose={() => setShowForm(false)} onSave={refreshAppointments} cars={cars} />
+      <CustomerAppointmentFormModal
+        show={showForm}
+        onClose={() => setShowForm(false)}
+        onSave={refreshAppointments}
+        cars={cars}
+      />
 
-      <CarPickerModal show={carPicker.open} cars={cars} onClose={() => setCarPicker({ open: false, forId: null })} onSelect={onCarPicked} />
+      <CarPickerModal
+        show={carPicker.open}
+        cars={cars}
+        onClose={() => setCarPicker({ open: false, forId: null })}
+        onSelect={onCarPicked}
+      />
 
       <main className="cal-grid">
         {/* LEFT: Appointments */}
@@ -295,7 +320,9 @@ export default function CustomerAppointmentList() {
               <tbody>
                 {apptRows.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="cal-empty">No appointments found.</td>
+                    <td colSpan="6" className="cal-empty">
+                      No appointments found.
+                    </td>
                   </tr>
                 ) : (
                   apptRows.map((a) => {
@@ -313,14 +340,26 @@ export default function CustomerAppointmentList() {
                       >
                         <td>
                           {isEditing ? (
-                            <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus />
+                            <input
+                              name="name"
+                              value={editData.name}
+                              onChange={handleChange}
+                              className="cal-input"
+                              autoFocus
+                            />
                           ) : (
                             a.name || "—"
                           )}
                         </td>
                         <td>
                           {isEditing ? (
-                            <input name="dateTime" value={editData.dateTime} onChange={handleChange} className="cal-input" placeholder="e.g. Thu 10:00" />
+                            <input
+                              name="dateTime"
+                              value={editData.dateTime}
+                              onChange={handleChange}
+                              className="cal-input"
+                              placeholder="e.g. Thu 10:00 or tomorrow 3pm"
+                            />
                           ) : (
                             renderDayTime(a.dateTime)
                           )}
@@ -334,8 +373,19 @@ export default function CustomerAppointmentList() {
                         >
                           {isEditing ? (
                             <div className="car-edit">
-                              <input className="cal-input" value={carLabelFromId(editData.car)} readOnly placeholder="No Car" />
-                              <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>Pick</button>
+                              <input
+                                className="cal-input"
+                                value={carLabelFromId(editData.car)}
+                                readOnly
+                                placeholder="No Car"
+                              />
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                type="button"
+                                onClick={() => openCarPicker(a)}
+                              >
+                                Pick
+                              </button>
                             </div>
                           ) : (
                             renderCarCell(a)
@@ -343,7 +393,12 @@ export default function CustomerAppointmentList() {
                         </td>
                         <td>
                           {isEditing ? (
-                            <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" />
+                            <input
+                              name="notes"
+                              value={editData.notes}
+                              onChange={handleChange}
+                              className="cal-input"
+                            />
                           ) : (
                             a.notes || "—"
                           )}
@@ -352,15 +407,38 @@ export default function CustomerAppointmentList() {
                         <td className="cal-actions">
                           {isEditing ? (
                             <>
-                              <button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
-                              <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>Cancel</button>
+                              <button
+                                className="btn btn--primary btn--sm"
+                                type="button"
+                                onClick={saveChanges}
+                              >
+                                Save
+                              </button>
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                type="button"
+                                onClick={() => setEditRow(null)}
+                              >
+                                Cancel
+                              </button>
                             </>
                           ) : (
                             <>
-                              <button className="btn btn--primary btn--sm" onClick={() => moveToDelivery(a)} title="Move to Delivery (sets time to TBC)">
+                              <button
+                                className="btn btn--primary btn--sm"
+                                type="button"
+                                onClick={() => moveToDelivery(a)}
+                                title="Move to Delivery (sets time to TBC)"
+                              >
                                 Delivery
                               </button>
-                              <button className="btn btn--danger btn--sm btn--icon" onClick={() => handleDelete(a._id)} title="Delete" aria-label="Delete appointment">
+                              <button
+                                className="btn btn--danger btn--sm btn--icon"
+                                type="button"
+                                onClick={() => handleDelete(a._id)}
+                                title="Delete"
+                                aria-label="Delete appointment"
+                              >
                                 <TrashIconSmall />
                               </button>
                             </>
@@ -379,7 +457,10 @@ export default function CustomerAppointmentList() {
         <section className="cal-panel" aria-label="Delivery">
           <div className="cal-panel-head">
             <h2>Delivery</h2>
-            <p className="cal-sub">Double-click to edit. Double-click the car cell to pick a car. “Undo” sends it back with the original time.</p>
+            <p className="cal-sub">
+              Double-click to edit. Double-click the car cell to pick a car. “Undo” sends it back with the original
+              time.
+            </p>
           </div>
 
           <div className="cal-table-scroll">
@@ -405,7 +486,9 @@ export default function CustomerAppointmentList() {
               <tbody>
                 {deliveryRows.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="cal-empty">No deliveries.</td>
+                    <td colSpan="6" className="cal-empty">
+                      No deliveries.
+                    </td>
                   </tr>
                 ) : (
                   deliveryRows.map((a) => {
@@ -423,14 +506,26 @@ export default function CustomerAppointmentList() {
                       >
                         <td>
                           {isEditing ? (
-                            <input name="name" value={editData.name} onChange={handleChange} className="cal-input" autoFocus />
+                            <input
+                              name="name"
+                              value={editData.name}
+                              onChange={handleChange}
+                              className="cal-input"
+                              autoFocus
+                            />
                           ) : (
                             a.name || "—"
                           )}
                         </td>
                         <td>
                           {isEditing ? (
-                            <input name="dateTime" value={editData.dateTime} onChange={handleChange} className="cal-input" placeholder="TBC or set a time" />
+                            <input
+                              name="dateTime"
+                              value={editData.dateTime}
+                              onChange={handleChange}
+                              className="cal-input"
+                              placeholder="TBC or set a time"
+                            />
                           ) : (
                             renderDayTime(a.dateTime)
                           )}
@@ -444,8 +539,19 @@ export default function CustomerAppointmentList() {
                         >
                           {isEditing ? (
                             <div className="car-edit">
-                              <input className="cal-input" value={carLabelFromId(editData.car)} readOnly placeholder="No Car" />
-                              <button className="btn btn--ghost btn--sm" onClick={() => openCarPicker(a)}>Pick</button>
+                              <input
+                                className="cal-input"
+                                value={carLabelFromId(editData.car)}
+                                readOnly
+                                placeholder="No Car"
+                              />
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                type="button"
+                                onClick={() => openCarPicker(a)}
+                              >
+                                Pick
+                              </button>
                             </div>
                           ) : (
                             renderCarCell(a)
@@ -453,7 +559,12 @@ export default function CustomerAppointmentList() {
                         </td>
                         <td>
                           {isEditing ? (
-                            <input name="notes" value={editData.notes} onChange={handleChange} className="cal-input" />
+                            <input
+                              name="notes"
+                              value={editData.notes}
+                              onChange={handleChange}
+                              className="cal-input"
+                            />
                           ) : (
                             a.notes || "—"
                           )}
@@ -462,15 +573,38 @@ export default function CustomerAppointmentList() {
                         <td className="cal-actions">
                           {isEditing ? (
                             <>
-                              <button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
-                              <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>Cancel</button>
+                              <button
+                                className="btn btn--primary btn--sm"
+                                type="button"
+                                onClick={saveChanges}
+                              >
+                                Save
+                              </button>
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                type="button"
+                                onClick={() => setEditRow(null)}
+                              >
+                                Cancel
+                              </button>
                             </>
                           ) : (
                             <>
-                              <button className="btn btn--ghost btn--sm" onClick={() => undoDelivery(a)} title="Send back to Appointments with original time">
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                type="button"
+                                onClick={() => undoDelivery(a)}
+                                title="Send back to Appointments with original time"
+                              >
                                 Undo
                               </button>
-                              <button className="btn btn--danger btn--sm btn--icon" onClick={() => handleDelete(a._id)} title="Delete" aria-label="Delete delivery">
+                              <button
+                                className="btn btn--danger btn--sm btn--icon"
+                                type="button"
+                                onClick={() => handleDelete(a._id)}
+                                title="Delete"
+                                aria-label="Delete delivery"
+                              >
                                 <TrashIconSmall />
                               </button>
                             </>
@@ -494,7 +628,13 @@ function TrashIconSmall() {
     <svg className="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
       <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path
+        d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+      />
       <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );

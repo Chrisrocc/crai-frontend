@@ -1,7 +1,7 @@
-// src/components/CustomerAppointment/CustomerAppointmentFormModal.jsx
 import { useEffect, useState, useRef, useMemo } from "react";
-import api from "../../lib/api"; // ✅ use configured axios instance (env-based)
+import api from "../../lib/api";
 import CarPickerModal from "../CarPicker/CarPickerModal";
+import { standardizeDayTime } from "../utils/dateTime";
 
 export default function CustomerAppointmentFormModal({ show, onClose, onSave, cars = [] }) {
   const [formData, setFormData] = useState({ name: "", dayTime: "", car: "", notes: "" });
@@ -45,7 +45,6 @@ export default function CustomerAppointmentFormModal({ show, onClose, onSave, ca
     e.preventDefault();
     if (submitting) return;
 
-    // Require a car selection
     if (!formData.car) {
       alert("Please select a car.");
       setPickerOpen(true);
@@ -54,12 +53,15 @@ export default function CustomerAppointmentFormModal({ show, onClose, onSave, ca
 
     setSubmitting(true);
     try {
-      // Back-compat: server may expect both `dateTime` and/or `dayTime`
+      const rawDayTime = (formData.dayTime || "").trim();
+      const norm = standardizeDayTime(rawDayTime);
+      const finalDateTime = norm.label || rawDayTime; // 🔒 lock normalized label
+
       const payload = {
         name: (formData.name || "").trim(),
-        dateTime: (formData.dayTime || "").trim(),
-        dayTime: (formData.dayTime || "").trim(),
-        car: formData.car, // car _id
+        dateTime: finalDateTime,
+        dayTime: finalDateTime, // mirror
+        car: formData.car,
         notes: (formData.notes || "").trim(),
       };
 
@@ -67,8 +69,8 @@ export default function CustomerAppointmentFormModal({ show, onClose, onSave, ca
         headers: { "Content-Type": "application/json" },
       });
 
-      onSave?.();   // refresh parent list
-      onClose?.();  // close modal
+      onSave?.();
+      onClose?.();
     } catch (error) {
       console.error("Error creating appointment:", error.response?.data || error.message);
       alert("Error creating appointment: " + (error.response?.data?.message || error.message));
@@ -83,7 +85,6 @@ export default function CustomerAppointmentFormModal({ show, onClose, onSave, ca
     <div className="cam-wrap" onClick={onClose}>
       <style>{css}</style>
 
-      {/* Car Picker */}
       <CarPickerModal
         show={pickerOpen}
         cars={cars}
@@ -106,12 +107,16 @@ export default function CustomerAppointmentFormModal({ show, onClose, onSave, ca
             <h3 id="cam-title">Add New Appointment</h3>
             <p className="cam-sub">Create a booking and link it to a car.</p>
           </div>
-          <button className="cam-x" onClick={onClose} aria-label="Close">×</button>
+          <button className="cam-x" onClick={onClose} aria-label="Close">
+            ×
+          </button>
         </header>
 
         <form className="cam-form" onSubmit={handleSubmit}>
           {/* Name */}
-          <label className="cam-label" htmlFor="cam-name">Name</label>
+          <label className="cam-label" htmlFor="cam-name">
+            Name
+          </label>
           <input
             ref={firstFieldRef}
             id="cam-name"
@@ -125,21 +130,25 @@ export default function CustomerAppointmentFormModal({ show, onClose, onSave, ca
           />
 
           {/* Day/Time */}
-          <label className="cam-label" htmlFor="cam-daytime">Day/Time</label>
+          <label className="cam-label" htmlFor="cam-daytime">
+            Day/Time
+          </label>
           <input
             id="cam-daytime"
             className="cam-input"
             name="dayTime"
             type="text"
-            placeholder="e.g. next Saturday 9am"
+            placeholder="e.g. tomorrow 9am, Fri 10:30, 21/11 2pm"
             value={formData.dayTime}
             onChange={handleChange}
             required
           />
 
-          {/* Car (opens CarPicker) */}
+          {/* Car */}
           <div className="cam-row">
-            <label className="cam-label" htmlFor="cam-car-display">Car</label>
+            <label className="cam-label" htmlFor="cam-car-display">
+              Car
+            </label>
             <span className="cam-hint">Double-click or use Pick</span>
           </div>
           <div className="cam-carpicker">
@@ -174,7 +183,9 @@ export default function CustomerAppointmentFormModal({ show, onClose, onSave, ca
           </div>
 
           {/* Notes */}
-          <label className="cam-label" htmlFor="cam-notes">Notes (optional)</label>
+          <label className="cam-label" htmlFor="cam-notes">
+            Notes (optional)
+          </label>
           <input
             id="cam-notes"
             className="cam-input"
