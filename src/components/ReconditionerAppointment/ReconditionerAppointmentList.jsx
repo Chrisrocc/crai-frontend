@@ -23,7 +23,12 @@ export default function ReconditionerAppointmentList() {
 
   // inline edit (whole row on dbl-click)
   const [editRow, setEditRow] = useState(null);
-  const [editData, setEditData] = useState({ name: "", dateTime: "", carIds: [], notesAll: "" });
+  const [editData, setEditData] = useState({
+    name: "",
+    dateTime: "",
+    carIds: [],
+    notesAll: "",
+  });
   const savingRef = useRef(false);
 
   // car picker for editing
@@ -77,12 +82,17 @@ export default function ReconditionerAppointmentList() {
     setEditData({
       name: a.name || "",
       dateTime: a.dateTime || "",
-      carIds: Array.isArray(a.cars) ? a.cars.map((c) => c?.car?._id || c?.car || null).filter(Boolean) : [],
+      carIds: Array.isArray(a.cars)
+        ? a.cars
+            .map((c) => c?.car?._id || c?.car || null)
+            .filter(Boolean)
+        : [],
       notesAll: notesDefault,
     });
   };
 
-  const handleChange = (e) => setEditData((p) => ({ ...p, [e.target.name]: e.target.value }));
+  const handleChange = (e) =>
+    setEditData((p) => ({ ...p, [e.target.name]: e.target.value }));
   const cancelEdit = () => {
     setEditRow(null);
     setEditData({ name: "", dateTime: "", carIds: [], notesAll: "" });
@@ -94,20 +104,38 @@ export default function ReconditionerAppointmentList() {
     setErr("");
 
     try {
-      const original = appointments.find((a) => a._id === editRow) || { cars: [] };
+      const original =
+        appointments.find((a) => a._id === editRow) || { cars: [] };
+
+      // 🔒 LOCK THE DATE/TIME WHEN EDITING
+      const normalized = standardizeDayTime(editData.dateTime || "");
+      const finalDateTime =
+        normalized && normalized.label && normalized.shouldReplaceRaw
+          ? normalized.label
+          : (editData.dateTime || "").trim();
 
       const preservedTextRows = (original.cars || [])
         .filter((x) => !x.car && x.carText)
-        .map((x) => ({ carText: x.carText, notes: editData.notesAll !== "" ? editData.notesAll : x.notes || "" }));
+        .map((x) => ({
+          carText: x.carText,
+          notes:
+            editData.notesAll !== "" ? editData.notesAll : x.notes || "",
+        }));
 
       const identifiedRows = (editData.carIds || []).map((id) => {
-        const prev = (original.cars || []).find((c) => (c.car?._id || c.car) === id);
-        return { car: id, notes: editData.notesAll !== "" ? editData.notesAll : (prev?.notes || "") };
+        const prev = (original.cars || []).find(
+          (c) => (c.car?._id || c.car) === id
+        );
+        return {
+          car: id,
+          notes:
+            editData.notesAll !== "" ? editData.notesAll : prev?.notes || "",
+        };
       });
 
       const payload = {
         name: (editData.name || "").trim(),
-        dateTime: (editData.dateTime || "").trim(), // blank allowed
+        dateTime: finalDateTime, // blank allowed
         cars: [...preservedTextRows, ...identifiedRows],
       };
 
@@ -123,7 +151,14 @@ export default function ReconditionerAppointmentList() {
                   if (cp.car) {
                     const carObj = cars.find((c) => c._id === cp.car);
                     return {
-                      car: carObj ? { _id: cp.car, rego: carObj.rego, make: carObj.make, model: carObj.model } : cp.car,
+                      car: carObj
+                        ? {
+                            _id: cp.car,
+                            rego: carObj.rego,
+                            make: carObj.make,
+                            model: carObj.model,
+                          }
+                        : cp.car,
                       notes: cp.notes,
                     };
                   }
@@ -134,12 +169,18 @@ export default function ReconditionerAppointmentList() {
         )
       );
 
-      const res = await api.put(`/reconditioner-appointments/${editRow}`, payload, {
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await api.put(
+        `/reconditioner-appointments/${editRow}`,
+        payload,
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
 
       if (res.data?.data) {
-        setAppointments((prev) => prev.map((a) => (a._id === editRow ? res.data.data : a)));
+        setAppointments((prev) =>
+          prev.map((a) => (a._id === editRow ? res.data.data : a))
+        );
       } else {
         await refreshAppointments();
       }
@@ -162,7 +203,7 @@ export default function ReconditionerAppointmentList() {
     };
     if (editRow) document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-  }, [editRow, editData, pickerOpen]);
+  }, [editRow, editData, pickerOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const deleteAppointment = async (id) => {
     // No prompts/confirmations. Optimistic remove, revert on error.
@@ -187,8 +228,16 @@ export default function ReconditionerAppointmentList() {
     const c = cars.find((x) => x._id === id);
     return c ? `${c.rego} • ${c.make} ${c.model}` : "";
   };
-  const addCarId = (id) => id && setEditData((p) => (p.carIds.includes(id) ? p : { ...p, carIds: [...p.carIds, id] }));
-  const removeCarId = (id) => setEditData((p) => ({ ...p, carIds: p.carIds.filter((x) => x !== id) }));
+  const addCarId = (id) =>
+    id &&
+    setEditData((p) =>
+      p.carIds.includes(id) ? p : { ...p, carIds: [...p.carIds, id] }
+    );
+  const removeCarId = (id) =>
+    setEditData((p) => ({
+      ...p,
+      carIds: p.carIds.filter((x) => x !== id),
+    }));
 
   // --- datetime render/highlight guards ---
   const renderDayTime = (raw) => {
@@ -211,12 +260,20 @@ export default function ReconditionerAppointmentList() {
   const onCount = categories.filter((c) => !!c.onPremises).length;
   const offCount = categories.filter((c) => !c.onPremises).length;
   const filteredCategories =
-    catTab === "on" ? categories.filter((c) => !!c.onPremises)
-    : catTab === "off" ? categories.filter((c) => !c.onPremises)
-    : categories;
+    catTab === "on"
+      ? categories.filter((c) => !!c.onPremises)
+      : catTab === "off"
+      ? categories.filter((c) => !c.onPremises)
+      : categories;
 
   const fmtDateShort = (d) =>
-    d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
+    d
+      ? new Date(d).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "2-digit",
+        })
+      : "—";
 
   return (
     <div className="ra-wrap with-ham">
@@ -226,14 +283,19 @@ export default function ReconditionerAppointmentList() {
       <header className="cal-head">
         <div className="cal-head-titles">
           <h1>Reconditioner Appointments</h1>
-          <p className="cal-sub">Double-click a row to edit. Add cars with the picker.</p>
+          <p className="cal-sub">
+            Double-click a row to edit. Add cars with the picker.
+          </p>
         </div>
       </header>
 
       {err ? <div className="cal-alert">{err}</div> : null}
 
       {/* Category manager (collapsed by default) */}
-      <ReconditionerCategoryManager categories={categories} setCategories={setCategories} />
+      <ReconditionerCategoryManager
+        categories={categories}
+        setCategories={setCategories}
+      />
 
       {/* PAGE FILTER TABS */}
       <div className="ra-tabs" role="tablist" aria-label="Category filter">
@@ -265,18 +327,29 @@ export default function ReconditionerAppointmentList() {
 
       {/* Category sections (filtered) */}
       {filteredCategories.map((cat) => {
-        const catApps = appointments.filter((a) => (a.category?._id || a.category) === cat._id);
+        const catApps = appointments.filter(
+          (a) => (a.category?._id || a.category) === cat._id
+        );
         return (
           <section key={cat._id} className="cal-panel">
             <div className="cal-panel-head">
-              <h2 className="cal-title" title={cat.name}>{cat.name}</h2>
-              <button className="btn btn--primary btn--sm" onClick={() => openCreateForCategory(cat._id)}>
+              <h2 className="cal-title" title={cat.name}>
+                {cat.name}
+              </h2>
+              <button
+                className="btn btn--primary btn--sm"
+                onClick={() => openCreateForCategory(cat._id)}
+              >
                 + Add Appointment
               </button>
             </div>
 
             <div className="table-clip">
-              <div className="table-scroll" role="region" aria-label={`${cat.name} appointments`}>
+              <div
+                className="table-scroll"
+                role="region"
+                aria-label={`${cat.name} appointments`}
+              >
                 <table className="cal-table" role="grid">
                   <colgroup>
                     <col style={{ width: "18%" }} />
@@ -299,7 +372,9 @@ export default function ReconditionerAppointmentList() {
                   <tbody>
                     {catApps.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="cal-empty">No appointments.</td>
+                        <td colSpan="6" className="cal-empty">
+                          No appointments.
+                        </td>
                       </tr>
                     ) : (
                       catApps.map((a) => {
@@ -314,7 +389,10 @@ export default function ReconditionerAppointmentList() {
                             key={a._id}
                             data-id={a._id}
                             className={rowCls}
-                            onDoubleClick={(e) => { e.stopPropagation(); enterEdit(a); }}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              enterEdit(a);
+                            }}
                           >
                             {/* NAME */}
                             <td>
@@ -327,7 +405,9 @@ export default function ReconditionerAppointmentList() {
                                   autoFocus
                                 />
                               ) : (
-                                <div className="one-line">{a.name || "—"}</div>
+                                <div className="one-line">
+                                  {a.name || "—"}
+                                </div>
                               )}
                             </td>
 
@@ -352,35 +432,97 @@ export default function ReconditionerAppointmentList() {
                             <td>
                               {isEditing ? (
                                 <div className="chipbox">
-                                  {editData.carIds.length === 0 && <div className="muted">No cars selected.</div>}
+                                  {editData.carIds.length === 0 && (
+                                    <div className="muted">
+                                      No cars selected.
+                                    </div>
+                                  )}
                                   {editData.carIds.map((id) => (
                                     <span key={id} className="chip">
                                       {carLabelFromId(id)}
-                                      <button className="chip-x" onClick={() => removeCarId(id)} aria-label="Remove">×</button>
+                                      <button
+                                        className="chip-x"
+                                        onClick={() => removeCarId(id)}
+                                        aria-label="Remove"
+                                      >
+                                        ×
+                                      </button>
                                     </span>
                                   ))}
                                   <div className="chipbox-actions">
-                                    <button type="button" className="btn btn--ghost btn--sm" onClick={() => setPickerOpen(true)}>+ Add Car</button>
+                                    <button
+                                      type="button"
+                                      className="btn btn--ghost btn--sm"
+                                      onClick={() => setPickerOpen(true)}
+                                    >
+                                      + Add Car
+                                    </button>
                                     {editData.carIds.length > 0 && (
-                                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditData((p) => ({ ...p, carIds: [] }))}>Clear</button>
+                                      <button
+                                        type="button"
+                                        className="btn btn--ghost btn--sm"
+                                        onClick={() =>
+                                          setEditData((p) => ({
+                                            ...p,
+                                            carIds: [],
+                                          }))
+                                        }
+                                      >
+                                        Clear
+                                      </button>
                                     )}
                                   </div>
-                                  {Array.isArray(a.cars) && a.cars.some((x) => !x.car && x.carText) && (
-                                    <div className="hint">Text-only vehicles will be preserved.</div>
-                                  )}
+                                  {Array.isArray(a.cars) &&
+                                    a.cars.some(
+                                      (x) => !x.car && x.carText
+                                    ) && (
+                                      <div className="hint">
+                                        Text-only vehicles will be preserved.
+                                      </div>
+                                    )}
                                 </div>
                               ) : a.cars && a.cars.length ? (
                                 <div className="stack">
                                   {a.cars.map((c, i) => {
                                     if (c.car && typeof c.car === "object") {
-                                      const label = [c.car.rego, c.car.make, c.car.model].filter(Boolean).join(" • ");
-                                      return <div key={(c.car?._id || c.car) + i} className="two-line">{label}</div>;
+                                      const label = [
+                                        c.car.rego,
+                                        c.car.make,
+                                        c.car.model,
+                                      ]
+                                        .filter(Boolean)
+                                        .join(" • ");
+                                      return (
+                                        <div
+                                          key={(c.car?._id || c.car) + i}
+                                          className="two-line"
+                                        >
+                                          {label}
+                                        </div>
+                                      );
                                     }
-                                    if (c.carText) return <div key={"t" + i} className="two-line">{c.carText}</div>;
-                                    return <div key={"u" + i} className="two-line">[Unidentified]</div>;
+                                    if (c.carText)
+                                      return (
+                                        <div
+                                          key={"t" + i}
+                                          className="two-line"
+                                        >
+                                          {c.carText}
+                                        </div>
+                                      );
+                                    return (
+                                      <div
+                                        key={"u" + i}
+                                        className="two-line"
+                                      >
+                                        [Unidentified]
+                                      </div>
+                                    );
                                   })}
                                 </div>
-                              ) : "—"}
+                              ) : (
+                                "—"
+                              )}
                             </td>
 
                             {/* NOTES */}
@@ -395,20 +537,43 @@ export default function ReconditionerAppointmentList() {
                                 />
                               ) : a.cars && a.cars.length ? (
                                 <div className="stack">
-                                  {a.cars.map((c, i) => <div key={"n"+i} className="two-line">{c.notes || "—"}</div>)}
+                                  {a.cars.map((c, i) => (
+                                    <div
+                                      key={"n" + i}
+                                      className="two-line"
+                                    >
+                                      {c.notes || "—"}
+                                    </div>
+                                  ))}
                                 </div>
-                              ) : "—"}
+                              ) : (
+                                "—"
+                              )}
                             </td>
 
                             {/* CREATED */}
-                            <td><div className="one-line">{fmtDateShort(a.createdAt)}</div></td>
+                            <td>
+                              <div className="one-line">
+                                {fmtDateShort(a.createdAt)}
+                              </div>
+                            </td>
 
                             {/* ACTIONS */}
                             <td className="cal-actions">
                               {isEditing ? (
                                 <>
-                                  <button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
-                                  <button className="btn btn--ghost btn--sm" onClick={cancelEdit}>Cancel</button>
+                                  <button
+                                    className="btn btn--primary btn--sm"
+                                    onClick={saveChanges}
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    className="btn btn--ghost btn--sm"
+                                    onClick={cancelEdit}
+                                  >
+                                    Cancel
+                                  </button>
                                 </>
                               ) : (
                                 <button
@@ -436,8 +601,15 @@ export default function ReconditionerAppointmentList() {
       {/* Create modal */}
       <ReconditionerAppointmentFormModal
         show={showForm}
-        onClose={() => { setShowForm(false); setFormCategoryId(null); }}
-        onSaved={async () => { setShowForm(false); setFormCategoryId(null); await refreshAppointments(); }}
+        onClose={() => {
+          setShowForm(false);
+          setFormCategoryId(null);
+        }}
+        onSaved={async () => {
+          setShowForm(false);
+          setFormCategoryId(null);
+          await refreshAppointments();
+        }}
         cars={cars}
         categoryId={formCategoryId}
       />
@@ -447,7 +619,10 @@ export default function ReconditionerAppointmentList() {
         show={pickerOpen}
         cars={cars}
         onClose={() => setPickerOpen(false)}
-        onSelect={(carOrNull) => { setPickerOpen(false); if (carOrNull?._id) addCarId(carOrNull._id); }}
+        onSelect={(carOrNull) => {
+          setPickerOpen(false);
+          if (carOrNull?._id) addCarId(carOrNull._id);
+        }}
       />
     </div>
   );
@@ -455,11 +630,39 @@ export default function ReconditionerAppointmentList() {
 
 function TrashIcon() {
   return (
-    <svg className="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
-      <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <svg
+      className="icon"
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M3 6h18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M10 11v6M14 11v6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

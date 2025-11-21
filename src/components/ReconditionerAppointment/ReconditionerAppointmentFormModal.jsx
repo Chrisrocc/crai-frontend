@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "../../lib/api"; // ✅ env-based axios instance
 import CarPickerModal from "../CarPicker/CarPickerModal";
+import { standardizeDayTime } from "../utils/dateTime";
 
 /**
  * Create appointment modal.
@@ -19,8 +20,8 @@ export default function ReconditionerAppointmentFormModal({
   const [dateTime, setDateTime] = useState("");
 
   // selected cars + per-car notes
-  const [carIds, setCarIds] = useState([]);            // string[] of Car._id
-  const [carNotes, setCarNotes] = useState({});         // { [carId]: string }
+  const [carIds, setCarIds] = useState([]); // string[] of Car._id
+  const [carNotes, setCarNotes] = useState({}); // { [carId]: string }
 
   // optional typed vehicle (no Car ref) + its note
   const [textCar, setTextCar] = useState("");
@@ -32,7 +33,7 @@ export default function ReconditionerAppointmentFormModal({
   // car picker
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // quick lookup for labels and rego matching (future-friendly)
+  // quick lookup for labels
   const idToLabel = useMemo(() => {
     const map = new Map();
     for (const c of cars) {
@@ -85,23 +86,35 @@ export default function ReconditionerAppointmentFormModal({
     setErr("");
 
     const vErr = validate();
-    if (vErr) { setErr(vErr); return; }
+    if (vErr) {
+      setErr(vErr);
+      return;
+    }
+
+    // 🔒 LOCK THE DATE/TIME ON FIRST SAVE
+    const normalized = standardizeDayTime(dateTime || "");
+    const finalDateTime =
+      normalized && normalized.label && normalized.shouldReplaceRaw
+        ? normalized.label
+        : (dateTime || "").trim();
 
     // Build one payload PER vehicle (car or typed)
     const payloads = [
       ...carIds.map((id) => ({
         category: categoryId,
         name: name.trim(),
-        dateTime: (dateTime || "").trim(),
+        dateTime: finalDateTime,
         cars: [{ car: id, notes: (carNotes[id] || "").trim() }],
       })),
       ...(textCar.trim()
-        ? [{
-            category: categoryId,
-            name: name.trim(),
-            dateTime: (dateTime || "").trim(),
-            cars: [{ carText: textCar.trim(), notes: textCarNotes.trim() }],
-          }]
+        ? [
+            {
+              category: categoryId,
+              name: name.trim(),
+              dateTime: finalDateTime,
+              cars: [{ carText: textCar.trim(), notes: textCarNotes.trim() }],
+            },
+          ]
         : []),
     ];
 
@@ -118,7 +131,12 @@ export default function ReconditionerAppointmentFormModal({
       onSaved && onSaved();
     } catch (e2) {
       setSaving(false);
-      setErr(e2.response?.data?.message || e2.response?.data?.error || e2.message || "Failed to create appointment(s)");
+      setErr(
+        e2.response?.data?.message ||
+          e2.response?.data?.error ||
+          e2.message ||
+          "Failed to create appointment(s)"
+      );
     }
   };
 
@@ -130,11 +148,17 @@ export default function ReconditionerAppointmentFormModal({
           <h3>New Appointment</h3>
         </header>
 
-        {err ? <div className="cal-alert" style={{ marginBottom: 8 }}>{err}</div> : null}
+        {err ? (
+          <div className="cal-alert" style={{ marginBottom: 8 }}>
+            {err}
+          </div>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="ra-form">
           <div className="ra-row">
-            <label>Name <span className="req">*</span></label>
+            <label>
+              Name <span className="req">*</span>
+            </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -149,7 +173,7 @@ export default function ReconditionerAppointmentFormModal({
               value={dateTime}
               onChange={(e) => setDateTime(e.target.value)}
               className="cal-input"
-              placeholder="e.g. 2025-09-30 10:30 (optional)"
+              placeholder="e.g. tomorrow 10am, Sat 9:30, 27/09 09:00"
             />
           </div>
 
@@ -181,14 +205,21 @@ export default function ReconditionerAppointmentFormModal({
               ))}
 
               <div className="chipbox-actions">
-                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setPickerOpen(true)}>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => setPickerOpen(true)}
+                >
                   + Add Car
                 </button>
                 {carIds.length > 0 && (
                   <button
                     type="button"
                     className="btn btn--ghost btn--sm"
-                    onClick={() => { setCarIds([]); setCarNotes({}); }}
+                    onClick={() => {
+                      setCarIds([]);
+                      setCarNotes({});
+                    }}
                   >
                     Clear
                   </button>
@@ -216,10 +247,19 @@ export default function ReconditionerAppointmentFormModal({
           </div>
 
           <footer className="ra-modal-actions">
-            <button type="button" className="btn btn--ghost btn--sm" onClick={onClose} disabled={saving}>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={onClose}
+              disabled={saving}
+            >
               Cancel
             </button>
-            <button type="submit" className="btn btn--primary btn--sm" disabled={saving}>
+            <button
+              type="submit"
+              className="btn btn--primary btn--sm"
+              disabled={saving}
+            >
               {saving ? "Saving…" : "Create"}
             </button>
           </footer>
@@ -267,7 +307,7 @@ const css = `
 .btn { border:1px solid transparent; border-radius:12px; padding:10px 14px; cursor:pointer; font-weight:600; }
 .btn--primary { background:#2563EB; color:#fff; }
 .btn--ghost { background:#111827; color:#E5E7EB; border-color:#243041; }
-.btn--sm { padding:6px 10px; border-radius:10px; font-size:12px; }
+.btn--sm { padding:6px 10px; font-size:12px; border-radius:10px; }
 
 .cal-alert { background:#3B0D0D; border:1px solid #7F1D1D; color:#FECACA; padding:10px 12px; border-radius:12px; }
 
