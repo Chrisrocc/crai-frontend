@@ -37,6 +37,9 @@ export default function ReconditionerAppointmentList() {
   // local "actioned" toggle (per appointment row)
   const [actionedMap, setActionedMap] = useState({});
 
+  // photo cache: carId -> signed URL
+  const [photoCache, setPhotoCache] = useState({});
+
   const headers = useMemo(() => ({ "Cache-Control": "no-cache" }), []);
 
   useEffect(() => {
@@ -54,7 +57,7 @@ export default function ReconditionerAppointmentList() {
         setAppointments(appData);
         setCars(carList.data?.data || []);
 
-        // initialise actioned map if backend already sends a flag (optional)
+        // initialise actioned map if backend later provides it
         setActionedMap((prev) => {
           const next = { ...prev };
           appData.forEach((a) => {
@@ -272,6 +275,25 @@ export default function ReconditionerAppointmentList() {
     }));
   };
 
+  // --- photo fetch (same idea as CarPickerModal) ---
+  const fetchPhotoForCar = async (car) => {
+    if (!car?._id) return "";
+    const id = car._id;
+    if (photoCache[id]) return photoCache[id];
+
+    try {
+      const res = await api.get(`/cars/${id}/photo-preview`);
+      const url = res?.data?.data || "";
+      if (url) {
+        setPhotoCache((p) => ({ ...p, [id]: url }));
+        return url;
+      }
+    } catch (e) {
+      console.warn(`❌ Error loading photo for ${car.rego}`, e);
+    }
+    return "";
+  };
+
   // --- datetime render/highlight guards ---
   const renderDayTime = (raw) => {
     if (!raw || !String(raw).trim()) return "—";
@@ -469,7 +491,7 @@ export default function ReconditionerAppointmentList() {
                               )}
                             </td>
 
-                            {/* CARS */}
+                            {/* CARS (with photo + location) */}
                             <td>
                               {isEditing ? (
                                 <div className="chipbox">
@@ -524,42 +546,20 @@ export default function ReconditionerAppointmentList() {
                                 </div>
                               ) : a.cars && a.cars.length ? (
                                 <div className="stack">
-                                  {a.cars.map((c, i) => {
-                                    if (c.car && typeof c.car === "object") {
-                                      const label = [
-                                        c.car.rego,
-                                        c.car.make,
-                                        c.car.model,
-                                      ]
-                                        .filter(Boolean)
-                                        .join(" • ");
-                                      return (
-                                        <div
-                                          key={(c.car?._id || c.car) + i}
-                                          className="two-line"
-                                        >
-                                          {label}
-                                        </div>
-                                      );
-                                    }
-                                    if (c.carText)
-                                      return (
-                                        <div
-                                          key={"t" + i}
-                                          className="two-line"
-                                        >
-                                          {c.carText}
-                                        </div>
-                                      );
-                                    return (
-                                      <div
-                                        key={"u" + i}
-                                        className="two-line"
-                                      >
-                                        [Unidentified]
-                                      </div>
-                                    );
-                                  })}
+                                  {a.cars.map((c, i) => (
+                                    <CarPreview
+                                      key={
+                                        (c.car?._id ||
+                                          c.car ||
+                                          c.carText ||
+                                          "u") + i
+                                      }
+                                      entry={c}
+                                      cars={cars}
+                                      photoCache={photoCache}
+                                      fetchPhotoForCar={fetchPhotoForCar}
+                                    />
+                                  ))}
                                 </div>
                               ) : (
                                 "—"
@@ -677,6 +677,62 @@ export default function ReconditionerAppointmentList() {
           if (carOrNull?._id) addCarId(carOrNull._id);
         }}
       />
+    </div>
+  );
+}
+
+function CarPreview({ entry, cars, photoCache, fetchPhotoForCar }) {
+  const [photoUrl, setPhotoUrl] = useState("");
+
+  // find full car doc (for location + photos)
+  const carId = entry?.car?._id || entry?.car || null;
+  let carDoc = null;
+  if (carId) {
+    carDoc = cars.find((c) => c._id === carId) || null;
+  }
+
+  const label = carDoc
+    ? [carDoc.rego, carDoc.make, carDoc.model].filter(Boolean).join(" • ")
+    : entry.carText
+    ? entry.carText
+    : "[Unidentified]";
+
+  const location = carDoc?.location || "";
+
+  useEffect(() => {
+    let active = true;
+    if (!carDoc || !carDoc.photos || !carDoc.photos.length || !carId) return;
+
+    const cached = photoCache[carId];
+    if (cached) {
+      setPhotoUrl(cached);
+      return;
+    }
+
+    fetchPhotoForCar(carDoc).then((url) => {
+      if (active && url) setPhotoUrl(url);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [carDoc, carId, photoCache, fetchPhotoForCar]);
+
+  return (
+    <div className="car-preview-row">
+      <div className="car-preview-thumb">
+        {photoUrl ? (
+          <img src={photoUrl} alt={label} />
+        ) : (
+          <div className="car-thumb-empty" />
+        )}
+      </div>
+      <div className="car-preview-text">
+        <div className="two-line">{label}</div>
+        {location ? (
+          <div className="car-location">{location}</div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -824,6 +880,39 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   word-break:normal;
 }
 .stack{ display:flex; flex-direction:column; gap:4px; }
+
+/* car preview (photo + location) */
+.car-preview-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.car-preview-thumb{
+  flex:0 0 52px;
+  height:40px;
+  border-radius:6px;
+  overflow:hidden;
+  background:#111827;
+}
+.car-preview-thumb img{
+  width:52px;
+  height:40px;
+  object-fit:cover;
+  display:block;
+}
+.car-thumb-empty{
+  width:52px;
+  height:40px;
+  border-radius:6px;
+  background:#111827;
+}
+.car-preview-text{
+  min-width:0;
+}
+.car-location{
+  font-size:12px;
+  color:#9CA3AF;
+}
 
 /* inputs in edit mode */
 .cal-input{
