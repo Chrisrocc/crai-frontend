@@ -28,6 +28,7 @@ export default function ReconditionerAppointmentList() {
     dateTime: "",
     carIds: [],
     notesAll: "",
+    clearedCars: false, // track when user hit "Clear"
   });
   const savingRef = useRef(false);
 
@@ -106,24 +107,35 @@ export default function ReconditionerAppointmentList() {
       }
     }
 
+    const existingIds = Array.isArray(a.cars)
+      ? a.cars
+          .map((c) => c?.car?._id || c?.car || null)
+          .filter(Boolean)
+      : [];
+    const firstId = existingIds[0] ? [existingIds[0]] : [];
+
     setEditRow(a._id);
     setEditData({
       name: a.name || "",
       dateTime: a.dateTime || "",
-      carIds: Array.isArray(a.cars)
-        ? a.cars
-            .map((c) => c?.car?._id || c?.car || null)
-            .filter(Boolean)
-        : [],
+      carIds: firstId, // only one car per appointment
       notesAll: notesDefault,
+      clearedCars: false,
     });
   };
 
   const handleChange = (e) =>
     setEditData((p) => ({ ...p, [e.target.name]: e.target.value }));
+
   const cancelEdit = () => {
     setEditRow(null);
-    setEditData({ name: "", dateTime: "", carIds: [], notesAll: "" });
+    setEditData({
+      name: "",
+      dateTime: "",
+      carIds: [],
+      notesAll: "",
+      clearedCars: false,
+    });
   };
 
   const saveChanges = async () => {
@@ -142,31 +154,43 @@ export default function ReconditionerAppointmentList() {
           ? normalized.label
           : (editData.dateTime || "").trim();
 
-      const preservedTextRows = (original.cars || [])
-        .filter((x) => !x.car && x.carText)
-        .map((x) => ({
-          carText: x.carText,
-          notes:
-            editData.notesAll !== "" ? editData.notesAll : x.notes || "",
-        }));
-
-      const identifiedRows = (editData.carIds || []).map((id) => {
-        const prev = (original.cars || []).find(
-          (c) => (c.car?._id || c.car) === id
-        );
-        return {
-          car: id,
-          notes:
-            editData.notesAll !== "" ? editData.notesAll : prev?.notes || "",
-        };
-      });
+      const originalCars = original.cars || [];
+      const hasSelectedCar =
+        Array.isArray(editData.carIds) && editData.carIds.length > 0;
+      const chosenId = hasSelectedCar ? editData.carIds[0] : null;
 
       const payload = {
         name: (editData.name || "").trim(),
         dateTime: finalDateTime, // blank allowed
-        cars: [...preservedTextRows, ...identifiedRows],
+        cars: [],
         // if you later wire this to backend, include actioned: !!actionedMap[editRow],
       };
+
+      if (hasSelectedCar) {
+        // exactly one identified car; drop any old text-only entry
+        const prev = originalCars.find(
+          (c) => (c.car?._id || c.car) === chosenId
+        );
+        payload.cars = [
+          {
+            car: chosenId,
+            carText: "",
+            notes:
+              editData.notesAll !== "" ? editData.notesAll : prev?.notes || "",
+          },
+        ];
+      } else if (editData.clearedCars) {
+        // user hit Clear → remove all cars
+        payload.cars = [];
+      } else {
+        // keep whatever was there, maybe override notes
+        payload.cars = originalCars.map((c) => ({
+          car: c.car || null,
+          carText: c.carText || "",
+          notes:
+            editData.notesAll !== "" ? editData.notesAll : c.notes || "",
+        }));
+      }
 
       // optimistic UI
       setAppointments((prev) =>
@@ -186,6 +210,8 @@ export default function ReconditionerAppointmentList() {
                             rego: carObj.rego,
                             make: carObj.make,
                             model: carObj.model,
+                            location: carObj.location,
+                            photos: carObj.photos,
                           }
                         : cp.car,
                       notes: cp.notes,
@@ -257,11 +283,15 @@ export default function ReconditionerAppointmentList() {
     const c = cars.find((x) => x._id === id);
     return c ? `${c.rego} • ${c.make} ${c.model}` : "";
   };
+
   const addCarId = (id) =>
     id &&
-    setEditData((p) =>
-      p.carIds.includes(id) ? p : { ...p, carIds: [...p.carIds, id] }
-    );
+    setEditData((p) => ({
+      ...p,
+      carIds: [id], // only one car at a time
+      clearedCars: false,
+    }));
+
   const removeCarId = (id) =>
     setEditData((p) => ({
       ...p,
@@ -528,6 +558,7 @@ export default function ReconditionerAppointmentList() {
                                           setEditData((p) => ({
                                             ...p,
                                             carIds: [],
+                                            clearedCars: true,
                                           }))
                                         }
                                       >
@@ -540,7 +571,8 @@ export default function ReconditionerAppointmentList() {
                                       (x) => !x.car && x.carText
                                     ) && (
                                       <div className="hint">
-                                        Text-only vehicles will be preserved.
+                                        Existing text-only vehicles will be
+                                        kept unless you choose a car or clear.
                                       </div>
                                     )}
                                 </div>
