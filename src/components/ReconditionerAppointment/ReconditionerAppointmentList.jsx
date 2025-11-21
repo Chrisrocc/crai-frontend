@@ -34,6 +34,9 @@ export default function ReconditionerAppointmentList() {
   // car picker for editing
   const [pickerOpen, setPickerOpen] = useState(false);
 
+  // local "actioned" toggle (per appointment row)
+  const [actionedMap, setActionedMap] = useState({});
+
   const headers = useMemo(() => ({ "Cache-Control": "no-cache" }), []);
 
   useEffect(() => {
@@ -46,9 +49,21 @@ export default function ReconditionerAppointmentList() {
           api.get("/reconditioner-appointments", { headers }),
           api.get("/cars", { headers }),
         ]);
+        const appData = apps.data?.data || [];
         setCategories(cat.data?.data || []);
-        setAppointments(apps.data?.data || []);
+        setAppointments(appData);
         setCars(carList.data?.data || []);
+
+        // initialise actioned map if backend already sends a flag (optional)
+        setActionedMap((prev) => {
+          const next = { ...prev };
+          appData.forEach((a) => {
+            if (typeof a.actioned === "boolean" && !(a._id in next)) {
+              next[a._id] = a.actioned;
+            }
+          });
+          return next;
+        });
       } catch (e) {
         setErr(e.response?.data?.message || e.message || "Failed to load data");
       } finally {
@@ -61,7 +76,17 @@ export default function ReconditionerAppointmentList() {
   const refreshAppointments = async () => {
     try {
       const res = await api.get("/reconditioner-appointments", { headers });
-      setAppointments(res.data?.data || []);
+      const appData = res.data?.data || [];
+      setAppointments(appData);
+      setActionedMap((prev) => {
+        const next = { ...prev };
+        appData.forEach((a) => {
+          if (typeof a.actioned === "boolean" && !(a._id in next)) {
+            next[a._id] = a.actioned;
+          }
+        });
+        return next;
+      });
     } catch (e) {
       setErr(e.response?.data?.message || e.message);
     }
@@ -137,6 +162,7 @@ export default function ReconditionerAppointmentList() {
         name: (editData.name || "").trim(),
         dateTime: finalDateTime, // blank allowed
         cars: [...preservedTextRows, ...identifiedRows],
+        // if you later wire this to backend, include actioned: !!actionedMap[editRow],
       };
 
       // optimistic UI
@@ -238,6 +264,13 @@ export default function ReconditionerAppointmentList() {
       ...p,
       carIds: p.carIds.filter((x) => x !== id),
     }));
+
+  const toggleActioned = (id) => {
+    setActionedMap((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   // --- datetime render/highlight guards ---
   const renderDayTime = (raw) => {
@@ -353,10 +386,11 @@ export default function ReconditionerAppointmentList() {
                 <table className="cal-table" role="grid">
                   <colgroup>
                     <col style={{ width: "18%" }} />
-                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "16%" }} />
                     <col style={{ width: "30%" }} />
                     <col style={{ width: "24%" }} />
-                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "12%" }} />
                     <col style={{ width: "90px" }} />
                   </colgroup>
                   <thead>
@@ -365,6 +399,7 @@ export default function ReconditionerAppointmentList() {
                       <th>Date/Time</th>
                       <th>Car(s)</th>
                       <th>Notes</th>
+                      <th>Actioned</th>
                       <th>Created</th>
                       <th>Actions</th>
                     </tr>
@@ -372,17 +407,23 @@ export default function ReconditionerAppointmentList() {
                   <tbody>
                     {catApps.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="cal-empty">
+                        <td colSpan="7" className="cal-empty">
                           No appointments.
                         </td>
                       </tr>
                     ) : (
                       catApps.map((a) => {
                         const isEditing = editRow === a._id;
-                        const rowCls =
-                          !a.dateTime || !String(a.dateTime).trim()
-                            ? ""
-                            : dayTimeHighlightClass(a.dateTime);
+
+                        let rowCls = "";
+                        if (a.dateTime && String(a.dateTime).trim()) {
+                          rowCls = dayTimeHighlightClass(a.dateTime);
+                        }
+                        if (actionedMap[a._id]) {
+                          rowCls = rowCls
+                            ? `${rowCls} is-actioned`
+                            : "is-actioned";
+                        }
 
                         return (
                           <tr
@@ -549,6 +590,18 @@ export default function ReconditionerAppointmentList() {
                               ) : (
                                 "—"
                               )}
+                            </td>
+
+                            {/* ACTIONED */}
+                            <td className="cal-actioned">
+                              <label className="actioned-toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={!!actionedMap[a._id]}
+                                  onChange={() => toggleActioned(a._id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </label>
                             </td>
 
                             {/* CREATED */}
@@ -787,6 +840,16 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 
 .cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
 
+/* actioned column */
+.cal-actioned{
+  text-align:center;
+}
+.actioned-toggle input{
+  width:14px;
+  height:14px;
+  cursor:pointer;
+}
+
 /* chips in edit mode */
 .chipbox{ display:flex; flex-direction:column; gap:8px; }
 .chipbox-actions{ display:flex; gap:8px; }
@@ -803,5 +866,11 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-table tbody tr.is-tomorrow td {
   background:#2a210f !important;
   box-shadow: inset 0 0 0 1px #3a2e1e;
+}
+
+/* actioned highlight (light blue) */
+.cal-table tbody tr.is-actioned td {
+  background:#0B2340 !important;
+  box-shadow: inset 0 0 0 1px #1D4ED8;
 }
 `;
