@@ -644,32 +644,34 @@ export default function ReconditionerAppointmentList() {
                             </td>
 
                             {/* ACTIONS */}
-                            <td className="cal-actions">
-                              {isEditing ? (
-                                <>
+                            <td>
+                              <div className="cal-actions">
+                                {isEditing ? (
+                                  <>
+                                    <button
+                                      className="btn btn--primary btn--sm"
+                                      onClick={saveChanges}
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      className="btn btn--ghost btn--sm"
+                                      onClick={cancelEdit}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </>
+                                ) : (
                                   <button
-                                    className="btn btn--primary btn--sm"
-                                    onClick={saveChanges}
+                                    className="btn btn--danger btn--sm btn--icon"
+                                    onClick={() => deleteAppointment(a._id)}
+                                    title="Delete"
+                                    aria-label="Delete appointment"
                                   >
-                                    Save
+                                    <TrashIcon />
                                   </button>
-                                  <button
-                                    className="btn btn--ghost btn--sm"
-                                    onClick={cancelEdit}
-                                  >
-                                    Cancel
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  className="btn btn--danger btn--sm btn--icon"
-                                  onClick={() => deleteAppointment(a._id)}
-                                  title="Delete"
-                                  aria-label="Delete appointment"
-                                >
-                                  <TrashIcon />
-                                </button>
-                              )}
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -875,7 +877,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 /* regular table */
 .cal-table{
   width:100%;
-  border-collapse:collapse;   /* 🔧 ensure borders line up perfectly */
+  border-collapse:separate;
   border-spacing:0;
   table-layout:fixed;
   min-width: 980px;
@@ -891,8 +893,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-table tbody td{
   padding:12px 12px;
   border-bottom:1px solid var(--line);
-  font-size:14px; color:#E5E7EB;
-  vertical-align:middle;      /* 🔧 keep all cells aligned the same */
+  font-size:14px; color:#E5E7EB; vertical-align:middle;
 }
 
 .cal-table tbody tr:hover{ background:#0B1428; }
@@ -960,7 +961,14 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 }
 .cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
 
-.cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
+/* Actions wrapper (inside TD) */
+.cal-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  white-space:nowrap;
+}
 
 /* actioned column */
 .cal-actioned{
