@@ -96,7 +96,7 @@ export default function ReconditionerAppointmentList() {
     }
   };
 
-  // ----- edit helpers ----- //
+  // ----- edit helpers -----
   const enterEdit = (a) => {
     let notesDefault = "";
     if (Array.isArray(a.cars) && a.cars.length) {
@@ -437,13 +437,13 @@ export default function ReconditionerAppointmentList() {
               >
                 <table className="cal-table" role="grid">
                   <colgroup>
-                    <col style={{ width: "18%" }} /> {/* Name */}
-                    <col style={{ width: "16%" }} /> {/* Date/Time */}
-                    <col style={{ width: "28%" }} /> {/* Car(s) */}
-                    <col style={{ width: "24%" }} /> {/* Notes */}
-                    <col style={{ width: "4%" }} />  {/* Actioned */}
-                    <col style={{ width: "6%" }} />  {/* Created */}
-                    <col style={{ width: "4%" }} />  {/* Actions */}
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "16%" }} />
+                    <col style={{ width: "30%" }} />
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "90px" }} />
                   </colgroup>
                   <thead>
                     <tr>
@@ -875,7 +875,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 /* regular table */
 .cal-table{
   width:100%;
-  border-collapse:separate;
+  border-collapse:collapse;   /* 🔧 ensure borders line up perfectly */
   border-spacing:0;
   table-layout:fixed;
   min-width: 980px;
@@ -891,7 +891,8 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-table tbody td{
   padding:12px 12px;
   border-bottom:1px solid var(--line);
-  font-size:14px; color:#E5E7EB; vertical-align:middle;
+  font-size:14px; color:#E5E7EB;
+  vertical-align:middle;      /* 🔧 keep all cells aligned the same */
 }
 
 .cal-table tbody tr:hover{ background:#0B1428; }
