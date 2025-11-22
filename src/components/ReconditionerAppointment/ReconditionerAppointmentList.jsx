@@ -28,7 +28,7 @@ export default function ReconditionerAppointmentList() {
     dateTime: "",
     carIds: [],
     notesAll: "",
-    clearedCars: false, // track when user hit "Clear"
+    clearedCars: false,
   });
   const savingRef = useRef(false);
 
@@ -58,7 +58,6 @@ export default function ReconditionerAppointmentList() {
         setAppointments(appData);
         setCars(carList.data?.data || []);
 
-        // initialise actioned map if backend later provides it
         setActionedMap((prev) => {
           const next = { ...prev };
           appData.forEach((a) => {
@@ -103,7 +102,7 @@ export default function ReconditionerAppointmentList() {
       const notesList = a.cars.map((c) => c?.notes || "").filter((n) => n !== "");
       if (notesList.length) {
         const allSame = notesList.every((n) => n === notesList[0]);
-        notesDefault = allSame ? notesList[0] : notesList[0]; // keep first if mixed
+        notesDefault = allSame ? notesList[0] : notesList[0];
       }
     }
 
@@ -147,7 +146,6 @@ export default function ReconditionerAppointmentList() {
       const original =
         appointments.find((a) => a._id === editRow) || { cars: [] };
 
-      // 🔒 LOCK THE DATE/TIME WHEN EDITING
       const normalized = standardizeDayTime(editData.dateTime || "");
       const finalDateTime =
         normalized && normalized.label && normalized.shouldReplaceRaw
@@ -161,13 +159,11 @@ export default function ReconditionerAppointmentList() {
 
       const payload = {
         name: (editData.name || "").trim(),
-        dateTime: finalDateTime, // blank allowed
+        dateTime: finalDateTime,
         cars: [],
-        // if you later wire this to backend, include actioned: !!actionedMap[editRow],
       };
 
       if (hasSelectedCar) {
-        // exactly one identified car; drop any old text-only entry
         const prev = originalCars.find(
           (c) => (c.car?._id || c.car) === chosenId
         );
@@ -180,10 +176,8 @@ export default function ReconditionerAppointmentList() {
           },
         ];
       } else if (editData.clearedCars) {
-        // user hit Clear → remove all cars
         payload.cars = [];
       } else {
-        // keep whatever was there, maybe override notes
         payload.cars = originalCars.map((c) => ({
           car: c.car || null,
           carText: c.carText || "",
@@ -261,7 +255,6 @@ export default function ReconditionerAppointmentList() {
   }, [editRow, editData, pickerOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const deleteAppointment = async (id) => {
-    // No prompts/confirmations. Optimistic remove, revert on error.
     setErr("");
     const before = appointments;
     setAppointments((prev) => prev.filter((a) => a._id !== id));
@@ -269,7 +262,7 @@ export default function ReconditionerAppointmentList() {
       await api.delete(`/reconditioner-appointments/${id}`);
     } catch (e) {
       setErr(e.response?.data?.message || e.message || "Delete failed");
-      setAppointments(before); // revert
+      setAppointments(before);
     }
   };
 
@@ -305,7 +298,7 @@ export default function ReconditionerAppointmentList() {
     }));
   };
 
-  // --- photo fetch (same idea as CarPickerModal) ---
+  // --- photo fetch ---
   const fetchPhotoForCar = async (car) => {
     if (!car?._id) return "";
     const id = car._id;
@@ -324,7 +317,6 @@ export default function ReconditionerAppointmentList() {
     return "";
   };
 
-  // --- datetime render/highlight guards ---
   const renderDayTime = (raw) => {
     if (!raw || !String(raw).trim()) return "—";
     const { label } = standardizeDayTime(raw);
@@ -341,7 +333,6 @@ export default function ReconditionerAppointmentList() {
     );
   }
 
-  // page tab filters
   const onCount = categories.filter((c) => !!c.onPremises).length;
   const offCount = categories.filter((c) => !c.onPremises).length;
   const filteredCategories =
@@ -376,7 +367,6 @@ export default function ReconditionerAppointmentList() {
 
       {err ? <div className="cal-alert">{err}</div> : null}
 
-      {/* Category manager (collapsed by default) */}
       <ReconditionerCategoryManager
         categories={categories}
         setCategories={setCategories}
@@ -443,7 +433,8 @@ export default function ReconditionerAppointmentList() {
                     <col style={{ width: "24%" }} />
                     <col style={{ width: "6%" }} />
                     <col style={{ width: "12%" }} />
-                    <col style={{ width: "90px" }} />
+                    <col style={{ width: "140px" }} />{" "}
+                    {/* wider so Save/Cancel are clearly inside */}
                   </colgroup>
                   <thead>
                     <tr>
@@ -483,6 +474,13 @@ export default function ReconditionerAppointmentList() {
                             data-id={a._id}
                             className={rowCls}
                             onDoubleClick={(e) => {
+                              // DON'T enter edit when interacting with inputs/buttons (e.g. Actioned checkbox)
+                              if (
+                                e.target.closest("button") ||
+                                e.target.closest("input")
+                              ) {
+                                return;
+                              }
                               e.stopPropagation();
                               enterEdit(a);
                             }}
@@ -521,7 +519,7 @@ export default function ReconditionerAppointmentList() {
                               )}
                             </td>
 
-                            {/* CARS (with photo + location) */}
+                            {/* CARS */}
                             <td>
                               {isEditing ? (
                                 <div className="chipbox">
@@ -611,10 +609,7 @@ export default function ReconditionerAppointmentList() {
                               ) : a.cars && a.cars.length ? (
                                 <div className="stack">
                                   {a.cars.map((c, i) => (
-                                    <div
-                                      key={"n" + i}
-                                      className="two-line"
-                                    >
+                                    <div key={"n" + i} className="two-line">
                                       {c.notes || "—"}
                                     </div>
                                   ))}
@@ -644,34 +639,32 @@ export default function ReconditionerAppointmentList() {
                             </td>
 
                             {/* ACTIONS */}
-                            <td>
-                              <div className="cal-actions">
-                                {isEditing ? (
-                                  <>
-                                    <button
-                                      className="btn btn--primary btn--sm"
-                                      onClick={saveChanges}
-                                    >
-                                      Save
-                                    </button>
-                                    <button
-                                      className="btn btn--ghost btn--sm"
-                                      onClick={cancelEdit}
-                                    >
-                                      Cancel
-                                    </button>
-                                  </>
-                                ) : (
+                            <td className="cal-actions">
+                              {isEditing ? (
+                                <>
                                   <button
-                                    className="btn btn--danger btn--sm btn--icon"
-                                    onClick={() => deleteAppointment(a._id)}
-                                    title="Delete"
-                                    aria-label="Delete appointment"
+                                    className="btn btn--primary btn--sm"
+                                    onClick={saveChanges}
                                   >
-                                    <TrashIcon />
+                                    Save
                                   </button>
-                                )}
-                              </div>
+                                  <button
+                                    className="btn btn--ghost btn--sm"
+                                    onClick={cancelEdit}
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  className="btn btn--danger btn--sm btn--icon"
+                                  onClick={() => deleteAppointment(a._id)}
+                                  title="Delete"
+                                  aria-label="Delete appointment"
+                                >
+                                  <TrashIcon />
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -718,7 +711,6 @@ export default function ReconditionerAppointmentList() {
 function CarPreview({ entry, cars, photoCache, fetchPhotoForCar }) {
   const [photoUrl, setPhotoUrl] = useState("");
 
-  // find full car doc (for location + photos)
   const carId = entry?.car?._id || entry?.car || null;
   let carDoc = null;
   if (carId) {
@@ -763,9 +755,7 @@ function CarPreview({ entry, cars, photoCache, fetchPhotoForCar }) {
       </div>
       <div className="car-preview-text">
         <div className="two-line">{label}</div>
-        {location ? (
-          <div className="car-location">{location}</div>
-        ) : null}
+        {location ? <div className="car-location">{location}</div> : null}
       </div>
     </div>
   );
@@ -899,7 +889,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-table tbody tr:hover{ background:#0B1428; }
 .cal-empty{ text-align:center; padding:20px; color:#9CA3AF; }
 
-/* No weird vertical character stacking */
+/* text helpers */
 .one-line{
   white-space:nowrap;
   overflow:hidden;
@@ -961,7 +951,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 }
 .cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
 
-/* Actions wrapper (inside TD) */
 .cal-actions{
   display:flex;
   align-items:center;
