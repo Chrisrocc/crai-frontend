@@ -96,7 +96,7 @@ export default function ReconditionerAppointmentList() {
     }
   };
 
-  // ----- edit helpers ----- //
+  // ----- edit helpers -----
   const enterEdit = (a) => {
     let notesDefault = "";
     if (Array.isArray(a.cars) && a.cars.length) {
@@ -147,7 +147,7 @@ export default function ReconditionerAppointmentList() {
       const original =
         appointments.find((a) => a._id === editRow) || { cars: [] };
 
-      // 🔒 Normalise date/time
+      // 🔒 LOCK THE DATE/TIME WHEN EDITING
       const normalized = standardizeDayTime(editData.dateTime || "");
       const finalDateTime =
         normalized && normalized.label && normalized.shouldReplaceRaw
@@ -163,7 +163,7 @@ export default function ReconditionerAppointmentList() {
         name: (editData.name || "").trim(),
         dateTime: finalDateTime, // blank allowed
         cars: [],
-        // if you wire it later, add: actioned: !!actionedMap[editRow],
+        // if you later wire this to backend, include actioned: !!actionedMap[editRow],
       };
 
       if (hasSelectedCar) {
@@ -305,7 +305,7 @@ export default function ReconditionerAppointmentList() {
     }));
   };
 
-  // --- photo fetch (same idea as CarPickerModal) --- //
+  // --- photo fetch (same idea as CarPickerModal) ---
   const fetchPhotoForCar = async (car) => {
     if (!car?._id) return "";
     const id = car._id;
@@ -324,7 +324,7 @@ export default function ReconditionerAppointmentList() {
     return "";
   };
 
-  // --- datetime render/highlight guards --- //
+  // --- datetime render/highlight guards ---
   const renderDayTime = (raw) => {
     if (!raw || !String(raw).trim()) return "—";
     const { label } = standardizeDayTime(raw);
@@ -441,9 +441,9 @@ export default function ReconditionerAppointmentList() {
                     <col style={{ width: "16%" }} />
                     <col style={{ width: "30%" }} />
                     <col style={{ width: "24%" }} />
-                    <col style={{ width: "6%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "90px" }} />
+                    <col style={{ width: "6%" }} />   {/* Actioned */}
+                    <col style={{ width: "12%" }} />  {/* Created */}
+                    <col style={{ width: "10%" }} />  {/* Actions */}
                   </colgroup>
                   <thead>
                     <tr>
@@ -623,15 +623,15 @@ export default function ReconditionerAppointmentList() {
 
                             {/* ACTIONED */}
                             <td className="cal-actioned">
-                              <label className="actioned-toggle">
+                              <label
+                                className="actioned-toggle"
+                                onClick={(e) => e.stopPropagation()}
+                                onDoubleClick={(e) => e.stopPropagation()}
+                              >
                                 <input
                                   type="checkbox"
                                   checked={!!actionedMap[a._id]}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    toggleActioned(a._id);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={() => toggleActioned(a._id)}
                                 />
                               </label>
                             </td>
@@ -892,7 +892,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   font-size:14px; color:#E5E7EB; vertical-align:middle;
 }
 
-.cal-table tbody tr:hover td{ background:#0B1428; }
+.cal-table tbody tr:hover{ background:#0B1428; }
 .cal-empty{ text-align:center; padding:20px; color:#9CA3AF; }
 
 /* No weird vertical character stacking */
@@ -986,16 +986,16 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 /* Highlight rows (only when dateTime present) */
 .cal-table tbody tr.is-today td {
   background:#0f2a12 !important;
-  border-bottom-color:#1e3a23;
+  box-shadow: inset 0 0 0 1px #1e3a23;
 }
 .cal-table tbody tr.is-tomorrow td {
   background:#2a210f !important;
-  border-bottom-color:#3a2e1e;
+  box-shadow: inset 0 0 0 1px #3a2e1e;
 }
 
-/* actioned highlight – keep borders perfectly aligned */
+/* actioned highlight (light blue) */
 .cal-table tbody tr.is-actioned td {
   background:#0B2340 !important;
-  border-bottom-color:#1D4ED8;
+  box-shadow: inset 0 0 0 1px #1D4ED8;
 }
 `;
