@@ -96,7 +96,7 @@ export default function ReconditionerAppointmentList() {
     }
   };
 
-  // ----- edit helpers -----
+  // ----- edit helpers ----- //
   const enterEdit = (a) => {
     let notesDefault = "";
     if (Array.isArray(a.cars) && a.cars.length) {
@@ -437,13 +437,13 @@ export default function ReconditionerAppointmentList() {
               >
                 <table className="cal-table" role="grid">
                   <colgroup>
-                    <col style={{ width: "18%" }} />
-                    <col style={{ width: "16%" }} />
-                    <col style={{ width: "30%" }} />
-                    <col style={{ width: "24%" }} />
-                    <col style={{ width: "6%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "90px" }} />
+                    <col style={{ width: "18%" }} /> {/* Name */}
+                    <col style={{ width: "16%" }} /> {/* Date/Time */}
+                    <col style={{ width: "28%" }} /> {/* Car(s) */}
+                    <col style={{ width: "24%" }} /> {/* Notes */}
+                    <col style={{ width: "4%" }} />  {/* Actioned */}
+                    <col style={{ width: "6%" }} />  {/* Created */}
+                    <col style={{ width: "4%" }} />  {/* Actions */}
                   </colgroup>
                   <thead>
                     <tr>
