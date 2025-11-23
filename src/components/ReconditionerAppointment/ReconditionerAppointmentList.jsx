@@ -28,7 +28,7 @@ export default function ReconditionerAppointmentList() {
     dateTime: "",
     carIds: [],
     notesAll: "",
-    clearedCars: false, // track when user hit "Clear"
+    clearedCars: false,
   });
   const savingRef = useRef(false);
 
@@ -58,7 +58,6 @@ export default function ReconditionerAppointmentList() {
         setAppointments(appData);
         setCars(carList.data?.data || []);
 
-        // initialise actioned map if backend later provides it
         setActionedMap((prev) => {
           const next = { ...prev };
           appData.forEach((a) => {
@@ -147,7 +146,6 @@ export default function ReconditionerAppointmentList() {
       const original =
         appointments.find((a) => a._id === editRow) || { cars: [] };
 
-      // 🔒 LOCK THE DATE/TIME WHEN EDITING
       const normalized = standardizeDayTime(editData.dateTime || "");
       const finalDateTime =
         normalized && normalized.label && normalized.shouldReplaceRaw
@@ -161,13 +159,11 @@ export default function ReconditionerAppointmentList() {
 
       const payload = {
         name: (editData.name || "").trim(),
-        dateTime: finalDateTime, // blank allowed
+        dateTime: finalDateTime,
         cars: [],
-        // if you later wire this to backend, include actioned: !!actionedMap[editRow],
       };
 
       if (hasSelectedCar) {
-        // exactly one identified car; drop any old text-only entry
         const prev = originalCars.find(
           (c) => (c.car?._id || c.car) === chosenId
         );
@@ -180,10 +176,8 @@ export default function ReconditionerAppointmentList() {
           },
         ];
       } else if (editData.clearedCars) {
-        // user hit Clear → remove all cars
         payload.cars = [];
       } else {
-        // keep whatever was there, maybe override notes
         payload.cars = originalCars.map((c) => ({
           car: c.car || null,
           carText: c.carText || "",
@@ -261,7 +255,6 @@ export default function ReconditionerAppointmentList() {
   }, [editRow, editData, pickerOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const deleteAppointment = async (id) => {
-    // No prompts/confirmations. Optimistic remove, revert on error.
     setErr("");
     const before = appointments;
     setAppointments((prev) => prev.filter((a) => a._id !== id));
@@ -269,7 +262,7 @@ export default function ReconditionerAppointmentList() {
       await api.delete(`/reconditioner-appointments/${id}`);
     } catch (e) {
       setErr(e.response?.data?.message || e.message || "Delete failed");
-      setAppointments(before); // revert
+      setAppointments(before);
     }
   };
 
@@ -288,7 +281,7 @@ export default function ReconditionerAppointmentList() {
     id &&
     setEditData((p) => ({
       ...p,
-      carIds: [id], // only one car at a time
+      carIds: [id],
       clearedCars: false,
     }));
 
@@ -341,7 +334,6 @@ export default function ReconditionerAppointmentList() {
     );
   }
 
-  // page tab filters
   const onCount = categories.filter((c) => !!c.onPremises).length;
   const offCount = categories.filter((c) => !c.onPremises).length;
   const filteredCategories =
@@ -376,7 +368,6 @@ export default function ReconditionerAppointmentList() {
 
       {err ? <div className="cal-alert">{err}</div> : null}
 
-      {/* Category manager (collapsed by default) */}
       <ReconditionerCategoryManager
         categories={categories}
         setCategories={setCategories}
@@ -410,7 +401,7 @@ export default function ReconditionerAppointmentList() {
         </button>
       </div>
 
-      {/* Category sections (filtered) */}
+      {/* Category sections */}
       {filteredCategories.map((cat) => {
         const catApps = appointments.filter(
           (a) => (a.category?._id || a.category) === cat._id
@@ -437,13 +428,13 @@ export default function ReconditionerAppointmentList() {
               >
                 <table className="cal-table" role="grid">
                   <colgroup>
-                    <col style={{ width: "18%" }} />
-                    <col style={{ width: "16%" }} />
-                    <col style={{ width: "30%" }} />
-                    <col style={{ width: "24%" }} />
-                    <col style={{ width: "6%" }} />   {/* Actioned */}
-                    <col style={{ width: "12%" }} />  {/* Created */}
-                    <col style={{ width: "10%" }} />  {/* Actions */}
+                    <col style={{ width: "18%" }} /> {/* Name */}
+                    <col style={{ width: "16%" }} /> {/* Date/Time */}
+                    <col style={{ width: "30%" }} /> {/* Car(s) */}
+                    <col style={{ width: "24%" }} /> {/* Notes */}
+                    <col style={{ width: "6%" }} /> {/* Actioned */}
+                    <col style={{ width: "10%" }} /> {/* Created */}
+                    <col style={{ width: "8%" }} /> {/* Actions */}
                   </colgroup>
                   <thead>
                     <tr>
@@ -521,7 +512,7 @@ export default function ReconditionerAppointmentList() {
                               )}
                             </td>
 
-                            {/* CARS (with photo + location) */}
+                            {/* CARS */}
                             <td>
                               {isEditing ? (
                                 <div className="chipbox">
@@ -535,7 +526,10 @@ export default function ReconditionerAppointmentList() {
                                       {carLabelFromId(id)}
                                       <button
                                         className="chip-x"
-                                        onClick={() => removeCarId(id)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          removeCarId(id);
+                                        }}
                                         aria-label="Remove"
                                       >
                                         ×
@@ -546,7 +540,10 @@ export default function ReconditionerAppointmentList() {
                                     <button
                                       type="button"
                                       className="btn btn--ghost btn--sm"
-                                      onClick={() => setPickerOpen(true)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPickerOpen(true);
+                                      }}
                                     >
                                       + Add Car
                                     </button>
@@ -554,13 +551,14 @@ export default function ReconditionerAppointmentList() {
                                       <button
                                         type="button"
                                         className="btn btn--ghost btn--sm"
-                                        onClick={() =>
+                                        onClick={(e) => {
+                                          e.stopPropagation();
                                           setEditData((p) => ({
                                             ...p,
                                             carIds: [],
                                             clearedCars: true,
-                                          }))
-                                        }
+                                          }));
+                                        }}
                                       >
                                         Clear
                                       </button>
@@ -623,15 +621,15 @@ export default function ReconditionerAppointmentList() {
 
                             {/* ACTIONED */}
                             <td className="cal-actioned">
-                              <label
-                                className="actioned-toggle"
-                                onClick={(e) => e.stopPropagation()}
-                                onDoubleClick={(e) => e.stopPropagation()}
-                              >
+                              <label className="actioned-toggle">
                                 <input
                                   type="checkbox"
                                   checked={!!actionedMap[a._id]}
-                                  onChange={() => toggleActioned(a._id)}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    toggleActioned(a._id);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
                                 />
                               </label>
                             </td>
@@ -649,13 +647,19 @@ export default function ReconditionerAppointmentList() {
                                 <>
                                   <button
                                     className="btn btn--primary btn--sm"
-                                    onClick={saveChanges}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      saveChanges();
+                                    }}
                                   >
                                     Save
                                   </button>
                                   <button
                                     className="btn btn--ghost btn--sm"
-                                    onClick={cancelEdit}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      cancelEdit();
+                                    }}
                                   >
                                     Cancel
                                   </button>
@@ -663,7 +667,10 @@ export default function ReconditionerAppointmentList() {
                               ) : (
                                 <button
                                   className="btn btn--danger btn--sm btn--icon"
-                                  onClick={() => deleteAppointment(a._id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteAppointment(a._id);
+                                  }}
                                   title="Delete"
                                   aria-label="Delete appointment"
                                 >
@@ -716,7 +723,6 @@ export default function ReconditionerAppointmentList() {
 function CarPreview({ entry, cars, photoCache, fetchPhotoForCar }) {
   const [photoUrl, setPhotoUrl] = useState("");
 
-  // find full car doc (for location + photos)
   const carId = entry?.car?._id || entry?.car || null;
   let carDoc = null;
   if (carId) {
@@ -820,7 +826,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   overflow-x:hidden;
 }
 
-/* keep header clear of fixed hamburger */
 .with-ham .cal-head{ padding-left:56px; }
 @media (max-width:480px){ .with-ham .cal-head{ padding-left:48px; } }
 
@@ -863,7 +868,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
 }
 
-/* visible scrollbar */
+/* scrollbar */
 .table-scroll::-webkit-scrollbar{ height:12px; }
 .table-scroll::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
 .table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
@@ -892,10 +897,10 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   font-size:14px; color:#E5E7EB; vertical-align:middle;
 }
 
-.cal-table tbody tr:hover{ background:#0B1428; }
+.cal-table tbody tr:hover td{ background:#0B1428; }
 .cal-empty{ text-align:center; padding:20px; color:#9CA3AF; }
 
-/* No weird vertical character stacking */
+/* text helpers */
 .one-line{
   white-space:nowrap;
   overflow:hidden;
@@ -911,7 +916,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 }
 .stack{ display:flex; flex-direction:column; gap:4px; }
 
-/* car preview (photo + location) */
+/* car preview */
 .car-preview-row{
   display:flex;
   align-items:center;
@@ -957,6 +962,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 }
 .cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
 
+/* actions cell */
 .cal-actions{
   display:flex;
   align-items:center;
@@ -983,7 +989,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .muted{ color:#9CA3AF; }
 .hint{ color:#9CA3AF; font-size:12px; }
 
-/* Highlight rows (only when dateTime present) */
+/* date-based highlight */
 .cal-table tbody tr.is-today td {
   background:#0f2a12 !important;
   box-shadow: inset 0 0 0 1px #1e3a23;
@@ -993,9 +999,10 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   box-shadow: inset 0 0 0 1px #3a2e1e;
 }
 
-/* actioned highlight (light blue) */
+/* actioned highlight (blue) */
 .cal-table tbody tr.is-actioned td {
   background:#0B2340 !important;
   box-shadow: inset 0 0 0 1px #1D4ED8;
 }
 `;
+
