@@ -444,14 +444,39 @@ export default function ReconditionerAppointmentList() {
                   ) : (
                     catApps.map((a) => {
                       const isEditing = editRow === a._id;
+                      const isActioned = !!actionedMap[a._id];
 
+                      // Day/time highlight (today / tomorrow)
                       let rowCls = "cal-row";
                       let hl = "";
                       if (a.dateTime && String(a.dateTime).trim()) {
                         hl = dayTimeHighlightClass(a.dateTime);
                       }
+                      const hasHighlight = !!hl;
                       if (hl) rowCls += ` ${hl}`;
-                      if (actionedMap[a._id]) rowCls += " is-actioned";
+
+                      // Age-based highlight: older than 3 full days
+                      let isOld = false;
+                      if (a.createdAt) {
+                        const createdMs = new Date(a.createdAt).getTime();
+                        if (!Number.isNaN(createdMs)) {
+                          const ageDays =
+                            (Date.now() - createdMs) / (1000 * 60 * 60 * 24);
+                          if (ageDays >= 3) isOld = true;
+                        }
+                      }
+
+                      // Priority:
+                      // 1) today/tomorrow (green/yellow) -> ignore old/actioned colours
+                      // 2) actioned (blue)
+                      // 3) old (red)
+                      if (!hasHighlight) {
+                        if (isActioned) {
+                          rowCls += " is-actioned";
+                        } else if (isOld) {
+                          rowCls += " is-old";
+                        }
+                      }
 
                       return (
                         <div
@@ -826,30 +851,27 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   width:100%;
   border-radius:14px;
   background:var(--panel);
-  overflow-x:auto;       /* <-- always allow horizontal scroll */
+  overflow-x:auto;
   overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
   padding-bottom:10px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
 }
 
-/* Horizontal scrollbar appearance */
 .table-scroll::-webkit-scrollbar{ height:12px; }
 .table-scroll::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
 .table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
 .table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
 .table-scroll{ scrollbar-color:#59637C #0B1220; scrollbar-width:thin; }
 
-/* Grid wrapper: full width on desktop, but with a min-width so mobile scrolls instead of cramping */
 .cal-grid{
   width:100%;
-  min-width:980px;   /* <-- forces horizontal scroll on smaller screens */
+  min-width:980px;
   border:1px solid var(--line);
   border-radius:14px;
   overflow:hidden;
 }
 
-/* Column template uses fr units so it fills the width nicely */
 .cal-row{
   display:grid;
   grid-template-columns: 1.4fr 1.1fr 2.2fr 2.3fr 0.6fr 0.9fr 0.7fr;
@@ -881,19 +903,16 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   min-width:0;
 }
 
-/* header cells */
 .cal-head-cell{
   font-size:12px;
   font-weight:600;
   color:#9CA3AF;
 }
 
-/* hover */
 .cal-grid .cal-row:not(.cal-row-head):hover{
   background:#0B1428;
 }
 
-/* text helpers */
 .one-line{
   white-space:nowrap;
   overflow:hidden;
@@ -909,7 +928,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 }
 .stack{ display:flex; flex-direction:column; gap:4px; }
 
-/* car preview */
 .car-preview-row{
   display:flex;
   align-items:center;
@@ -937,7 +955,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .car-preview-text{ min-width:0; }
 .car-location{ font-size:12px; color:#9CA3AF; }
 
-/* inputs in edit mode */
 .cal-input{
   width:100%;
   padding:8px 10px;
@@ -965,7 +982,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   cursor:pointer;
 }
 
-/* chips in edit mode */
 .chipbox{ display:flex; flex-direction:column; gap:8px; }
 .chipbox-actions{ display:flex; gap:8px; }
 .chip{
@@ -990,13 +1006,17 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .hint{ color:#9CA3AF; font-size:12px; }
 
 /* row highlights */
+.cal-row.is-old{
+  background:#2a0f10 !important;  /* red-ish for overdue */
+}
 .cal-row.is-today{
-  background:#0f2a12 !important;
+  background:#0f2a12 !important;  /* green */
 }
 .cal-row.is-tomorrow{
-  background:#2a210f !important;
+  background:#2a210f !important;  /* yellow/orange */
 }
 .cal-row.is-actioned{
-  background:#0B2340 !important;
+  background:#0B2340 !important;  /* blue */
 }
 `;
+
