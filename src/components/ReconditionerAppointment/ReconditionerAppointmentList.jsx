@@ -778,7 +778,7 @@ function TrashIcon() {
   );
 }
 
-/* ---------- Styles: full-width grid so there’s no dead space ---------- */
+/* ---------- Styles: desktop full-width, mobile scroll ---------- */
 const css = `
 :root { color-scheme: dark; }
 html, body, #root { background:#0B1220; overflow-x:hidden; }
@@ -826,7 +826,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   width:100%;
   border-radius:14px;
   background:var(--panel);
-  overflow-x:auto;
+  overflow-x:auto;       /* <-- always allow horizontal scroll */
   overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
   padding-bottom:10px;
@@ -840,16 +840,16 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
 .table-scroll{ scrollbar-color:#59637C #0B1220; scrollbar-width:thin; }
 
-/* Grid wrapper: always full width of panel */
+/* Grid wrapper: full width on desktop, but with a min-width so mobile scrolls instead of cramping */
 .cal-grid{
   width:100%;
-  min-width:0;
+  min-width:980px;   /* <-- forces horizontal scroll on smaller screens */
   border:1px solid var(--line);
   border-radius:14px;
   overflow:hidden;
 }
 
-/* Rows share the same column template using fr units so it fills the width */
+/* Column template uses fr units so it fills the width nicely */
 .cal-row{
   display:grid;
   grid-template-columns: 1.4fr 1.1fr 2.2fr 2.3fr 0.6fr 0.9fr 0.7fr;
