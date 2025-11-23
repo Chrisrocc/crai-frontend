@@ -58,6 +58,7 @@ export default function ReconditionerAppointmentList() {
         setAppointments(appData);
         setCars(carList.data?.data || []);
 
+        // initialise actioned map if backend later provides it
         setActionedMap((prev) => {
           const next = { ...prev };
           appData.forEach((a) => {
@@ -1005,4 +1006,3 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   box-shadow: inset 0 0 0 1px #1D4ED8;
 }
 `;
-
