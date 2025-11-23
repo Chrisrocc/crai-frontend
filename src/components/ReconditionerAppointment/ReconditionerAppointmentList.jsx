@@ -28,7 +28,7 @@ export default function ReconditionerAppointmentList() {
     dateTime: "",
     carIds: [],
     notesAll: "",
-    clearedCars: false, // track when user hit "Clear"
+    clearedCars: false,
   });
   const savingRef = useRef(false);
 
@@ -58,7 +58,6 @@ export default function ReconditionerAppointmentList() {
         setAppointments(appData);
         setCars(carList.data?.data || []);
 
-        // initialise actioned map if backend later provides it
         setActionedMap((prev) => {
           const next = { ...prev };
           appData.forEach((a) => {
@@ -96,14 +95,13 @@ export default function ReconditionerAppointmentList() {
     }
   };
 
-  // ----- edit helpers ----- //
   const enterEdit = (a) => {
     let notesDefault = "";
     if (Array.isArray(a.cars) && a.cars.length) {
       const notesList = a.cars.map((c) => c?.notes || "").filter((n) => n !== "");
       if (notesList.length) {
         const allSame = notesList.every((n) => n === notesList[0]);
-        notesDefault = allSame ? notesList[0] : notesList[0]; // keep first if mixed
+        notesDefault = allSame ? notesList[0] : notesList[0];
       }
     }
 
@@ -118,7 +116,7 @@ export default function ReconditionerAppointmentList() {
     setEditData({
       name: a.name || "",
       dateTime: a.dateTime || "",
-      carIds: firstId, // only one car per appointment
+      carIds: firstId,
       notesAll: notesDefault,
       clearedCars: false,
     });
@@ -147,7 +145,6 @@ export default function ReconditionerAppointmentList() {
       const original =
         appointments.find((a) => a._id === editRow) || { cars: [] };
 
-      // 🔒 LOCK THE DATE/TIME WHEN EDITING
       const normalized = standardizeDayTime(editData.dateTime || "");
       const finalDateTime =
         normalized && normalized.label && normalized.shouldReplaceRaw
@@ -161,13 +158,11 @@ export default function ReconditionerAppointmentList() {
 
       const payload = {
         name: (editData.name || "").trim(),
-        dateTime: finalDateTime, // blank allowed
+        dateTime: finalDateTime,
         cars: [],
-        // if you later wire this to backend, include actioned: !!actionedMap[editRow],
       };
 
       if (hasSelectedCar) {
-        // exactly one identified car; drop any old text-only entry
         const prev = originalCars.find(
           (c) => (c.car?._id || c.car) === chosenId
         );
@@ -180,10 +175,8 @@ export default function ReconditionerAppointmentList() {
           },
         ];
       } else if (editData.clearedCars) {
-        // user hit Clear → remove all cars
         payload.cars = [];
       } else {
-        // keep whatever was there, maybe override notes
         payload.cars = originalCars.map((c) => ({
           car: c.car || null,
           carText: c.carText || "",
@@ -192,7 +185,6 @@ export default function ReconditionerAppointmentList() {
         }));
       }
 
-      // optimistic UI
       setAppointments((prev) =>
         prev.map((a) =>
           a._id === editRow
@@ -249,7 +241,6 @@ export default function ReconditionerAppointmentList() {
     }
   };
 
-  // click-outside save (disabled while picker open)
   useEffect(() => {
     const onDown = (e) => {
       if (!editRow || pickerOpen) return;
@@ -261,7 +252,6 @@ export default function ReconditionerAppointmentList() {
   }, [editRow, editData, pickerOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const deleteAppointment = async (id) => {
-    // No prompts/confirmations. Optimistic remove, revert on error.
     setErr("");
     const before = appointments;
     setAppointments((prev) => prev.filter((a) => a._id !== id));
@@ -269,7 +259,7 @@ export default function ReconditionerAppointmentList() {
       await api.delete(`/reconditioner-appointments/${id}`);
     } catch (e) {
       setErr(e.response?.data?.message || e.message || "Delete failed");
-      setAppointments(before); // revert
+      setAppointments(before);
     }
   };
 
@@ -278,7 +268,6 @@ export default function ReconditionerAppointmentList() {
     setShowForm(true);
   };
 
-  // helpers
   const carLabelFromId = (id) => {
     const c = cars.find((x) => x._id === id);
     return c ? `${c.rego} • ${c.make} ${c.model}` : "";
@@ -288,7 +277,7 @@ export default function ReconditionerAppointmentList() {
     id &&
     setEditData((p) => ({
       ...p,
-      carIds: [id], // only one car at a time
+      carIds: [id],
       clearedCars: false,
     }));
 
@@ -305,7 +294,6 @@ export default function ReconditionerAppointmentList() {
     }));
   };
 
-  // --- photo fetch (same idea as CarPickerModal) ---
   const fetchPhotoForCar = async (car) => {
     if (!car?._id) return "";
     const id = car._id;
@@ -324,7 +312,6 @@ export default function ReconditionerAppointmentList() {
     return "";
   };
 
-  // --- datetime render/highlight guards ---
   const renderDayTime = (raw) => {
     if (!raw || !String(raw).trim()) return "—";
     const { label } = standardizeDayTime(raw);
@@ -341,7 +328,6 @@ export default function ReconditionerAppointmentList() {
     );
   }
 
-  // page tab filters
   const onCount = categories.filter((c) => !!c.onPremises).length;
   const offCount = categories.filter((c) => !c.onPremises).length;
   const filteredCategories =
@@ -376,13 +362,11 @@ export default function ReconditionerAppointmentList() {
 
       {err ? <div className="cal-alert">{err}</div> : null}
 
-      {/* Category manager (collapsed by default) */}
       <ReconditionerCategoryManager
         categories={categories}
         setCategories={setCategories}
       />
 
-      {/* PAGE FILTER TABS */}
       <div className="ra-tabs" role="tablist" aria-label="Category filter">
         <button
           role="tab"
@@ -410,7 +394,6 @@ export default function ReconditionerAppointmentList() {
         </button>
       </div>
 
-      {/* Category sections (filtered) */}
       {filteredCategories.map((cat) => {
         const catApps = appointments.filter(
           (a) => (a.category?._id || a.category) === cat._id
@@ -437,13 +420,13 @@ export default function ReconditionerAppointmentList() {
               >
                 <table className="cal-table" role="grid">
                   <colgroup>
-                    <col style={{ width: "18%" }} /> {/* Name */}
-                    <col style={{ width: "16%" }} /> {/* Date/Time */}
-                    <col style={{ width: "28%" }} /> {/* Car(s) */}
-                    <col style={{ width: "24%" }} /> {/* Notes */}
-                    <col style={{ width: "4%" }} />  {/* Actioned */}
-                    <col style={{ width: "6%" }} />  {/* Created */}
-                    <col style={{ width: "4%" }} />  {/* Actions */}
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "16%" }} />
+                    <col style={{ width: "28%" }} />
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "4%" }} />
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "4%" }} />
                   </colgroup>
                   <thead>
                     <tr>
@@ -487,7 +470,6 @@ export default function ReconditionerAppointmentList() {
                               enterEdit(a);
                             }}
                           >
-                            {/* NAME */}
                             <td>
                               {isEditing ? (
                                 <input
@@ -504,7 +486,6 @@ export default function ReconditionerAppointmentList() {
                               )}
                             </td>
 
-                            {/* DATE/TIME */}
                             <td>
                               {isEditing ? (
                                 <input
@@ -521,7 +502,6 @@ export default function ReconditionerAppointmentList() {
                               )}
                             </td>
 
-                            {/* CARS (with photo + location) */}
                             <td>
                               {isEditing ? (
                                 <div className="chipbox">
@@ -598,7 +578,6 @@ export default function ReconditionerAppointmentList() {
                               )}
                             </td>
 
-                            {/* NOTES */}
                             <td>
                               {isEditing ? (
                                 <input
@@ -611,10 +590,7 @@ export default function ReconditionerAppointmentList() {
                               ) : a.cars && a.cars.length ? (
                                 <div className="stack">
                                   {a.cars.map((c, i) => (
-                                    <div
-                                      key={"n" + i}
-                                      className="two-line"
-                                    >
+                                    <div key={"n" + i} className="two-line">
                                       {c.notes || "—"}
                                     </div>
                                   ))}
@@ -624,7 +600,6 @@ export default function ReconditionerAppointmentList() {
                               )}
                             </td>
 
-                            {/* ACTIONED */}
                             <td className="cal-actioned">
                               <label className="actioned-toggle">
                                 <input
@@ -636,14 +611,12 @@ export default function ReconditionerAppointmentList() {
                               </label>
                             </td>
 
-                            {/* CREATED */}
                             <td>
                               <div className="one-line">
                                 {fmtDateShort(a.createdAt)}
                               </div>
                             </td>
 
-                            {/* ACTIONS */}
                             <td className="cal-actions">
                               {isEditing ? (
                                 <>
@@ -683,7 +656,6 @@ export default function ReconditionerAppointmentList() {
         );
       })}
 
-      {/* Create modal */}
       <ReconditionerAppointmentFormModal
         show={showForm}
         onClose={() => {
@@ -699,7 +671,6 @@ export default function ReconditionerAppointmentList() {
         categoryId={formCategoryId}
       />
 
-      {/* Car picker for inline edit */}
       <CarPickerModal
         show={pickerOpen}
         cars={cars}
@@ -716,7 +687,6 @@ export default function ReconditionerAppointmentList() {
 function CarPreview({ entry, cars, photoCache, fetchPhotoForCar }) {
   const [photoUrl, setPhotoUrl] = useState("");
 
-  // find full car doc (for location + photos)
   const carId = entry?.car?._id || entry?.car || null;
   let carDoc = null;
   if (carId) {
@@ -761,9 +731,7 @@ function CarPreview({ entry, cars, photoCache, fetchPhotoForCar }) {
       </div>
       <div className="car-preview-text">
         <div className="two-line">{label}</div>
-        {location ? (
-          <div className="car-location">{location}</div>
-        ) : null}
+        {location ? <div className="car-location">{location}</div> : null}
       </div>
     </div>
   );
@@ -822,7 +790,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   overflow-x:hidden;
 }
 
-/* keep header clear of fixed hamburger */
 .with-ham .cal-head{ padding-left:56px; }
 @media (max-width:480px){ .with-ham .cal-head{ padding-left:48px; } }
 
@@ -852,7 +819,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-panel-head{ display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; min-width:0; }
 .cal-title{ margin:0; font-size:18px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 
-/* clip + per-table scroller */
 .table-clip{ width:100%; overflow:hidden; border-radius:14px; }
 .table-scroll{
   border:1px solid var(--line);
@@ -865,19 +831,18 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
 }
 
-/* visible scrollbar */
 .table-scroll::-webkit-scrollbar{ height:12px; }
 .table-scroll::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
 .table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
 .table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
 .table-scroll{ scrollbar-color:#59637C #0B1220; scrollbar-width:thin; }
 
-/* regular table with strict borders */
+/* strict grid table */
 .cal-table{
   width:100%;
   border-collapse:collapse;
   table-layout:fixed;
-  min-width:980px;
+  min-width: 980px;
 }
 
 .cal-table thead th{
@@ -909,12 +874,11 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   border-left:1px solid var(--line);
 }
 
-.cal-table tbody tr:hover td{
-  background:#0B1428;
-}
+.cal-table tbody tr:hover td{ background:#0B1428; }
+
 .cal-empty{ text-align:center; padding:20px; color:#9CA3AF; }
 
-/* No weird vertical character stacking */
+/* text helpers */
 .one-line{
   white-space:nowrap;
   overflow:hidden;
@@ -930,7 +894,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 }
 .stack{ display:flex; flex-direction:column; gap:4px; }
 
-/* car preview (photo + location) */
+/* car preview */
 .car-preview-row{
   display:flex;
   align-items:center;
@@ -955,13 +919,8 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   border-radius:6px;
   background:#111827;
 }
-.car-preview-text{
-  min-width:0;
-}
-.car-location{
-  font-size:12px;
-  color:#9CA3AF;
-}
+.car-preview-text{ min-width:0; }
+.car-location{ font-size:12px; color:#9CA3AF; }
 
 /* inputs in edit mode */
 .cal-input{
@@ -979,9 +938,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-actions{ display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
 
 /* actioned column */
-.cal-actioned{
-  text-align:center;
-}
+.cal-actioned{ text-align:center; }
 .actioned-toggle input{
   width:14px;
   height:14px;
@@ -991,12 +948,28 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 /* chips in edit mode */
 .chipbox{ display:flex; flex-direction:column; gap:8px; }
 .chipbox-actions{ display:flex; gap:8px; }
-.chip{ display:inline-flex; align-items:center; gap:6px; background:#111827; border:1px solid #243041; padding:6px 8px; border-radius:12px; margin:0 8px 8px 0; }
-.chip-x{ background:transparent; border:none; color:#9CA3AF; cursor:pointer; font-size:14px; line-height:1; }
+.chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  background:#111827;
+  border:1px solid #243041;
+  padding:6px 8px;
+  border-radius:12px;
+  margin:0 8px 8px 0;
+}
+.chip-x{
+  background:transparent;
+  border:none;
+  color:#9CA3AF;
+  cursor:pointer;
+  font-size:14px;
+  line-height:1;
+}
 .muted{ color:#9CA3AF; }
 .hint{ color:#9CA3AF; font-size:12px; }
 
-/* Highlight rows (only when dateTime present) – use border colour so grid stays straight */
+/* row highlights */
 .cal-table tbody tr.is-today td {
   background:#0f2a12 !important;
   border-color:#1e3a23;
@@ -1006,7 +979,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   border-color:#3a2e1e;
 }
 
-/* actioned highlight (light blue, no box-shadow) */
+/* actioned highlight – no box-shadow, just borders */
 .cal-table tbody tr.is-actioned td {
   background:#0B2340 !important;
   border-color:#1D4ED8;
