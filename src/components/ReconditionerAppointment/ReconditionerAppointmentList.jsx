@@ -242,7 +242,7 @@ export default function ReconditionerAppointmentList() {
     }
   };
 
-  // click-outside save (now uses .cal-row instead of <tr>)
+  // click-outside save (grid rows)
   useEffect(() => {
     const onDown = (e) => {
       if (!editRow || pickerOpen) return;
@@ -778,7 +778,7 @@ function TrashIcon() {
   );
 }
 
-/* ---------- Styles: grid-based rows so borders line up ---------- */
+/* ---------- Styles: full-width grid so there’s no dead space ---------- */
 const css = `
 :root { color-scheme: dark; }
 html, body, #root { background:#0B1220; overflow-x:hidden; }
@@ -817,12 +817,13 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .btn--sm{ padding:6px 10px; border-radius:10px; font-size:12px; }
 .btn--icon{ padding:6px; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; }
 
-.cal-panel{ display:flex; flex-direction:column; gap:10px; min-width:0; }
+.cal-panel{ display:flex; flex-direction:column; gap:10px; min-width:0; width:100%; }
 .cal-panel-head{ display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; min-width:0; }
 .cal-title{ margin:0; font-size:18px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 
 .table-clip{ width:100%; overflow:hidden; border-radius:14px; }
 .table-scroll{
+  width:100%;
   border-radius:14px;
   background:var(--panel);
   overflow-x:auto;
@@ -832,18 +833,26 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
 }
 
-/* Grid wrapper with a single border, rows share exact grid lines */
+/* Horizontal scrollbar appearance */
+.table-scroll::-webkit-scrollbar{ height:12px; }
+.table-scroll::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
+.table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
+.table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
+.table-scroll{ scrollbar-color:#59637C #0B1220; scrollbar-width:thin; }
+
+/* Grid wrapper: always full width of panel */
 .cal-grid{
-  min-width:980px;
+  width:100%;
+  min-width:0;
   border:1px solid var(--line);
   border-radius:14px;
   overflow:hidden;
 }
 
-/* Header + rows share same grid template so columns always line up */
+/* Rows share the same column template using fr units so it fills the width */
 .cal-row{
   display:grid;
-  grid-template-columns: 18% 16% 28% 24% 4% 6% 4%;
+  grid-template-columns: 1.4fr 1.1fr 2.2fr 2.3fr 0.6fr 0.9fr 0.7fr;
   align-items:center;
   background:var(--panel);
   border-bottom:1px solid var(--line);
@@ -884,7 +893,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   background:#0B1428;
 }
 
-/* No weird vertical character stacking */
+/* text helpers */
 .one-line{
   white-space:nowrap;
   overflow:hidden;
@@ -980,7 +989,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .muted{ color:#9CA3AF; }
 .hint{ color:#9CA3AF; font-size:12px; }
 
-/* row highlights (change background only, grid stays perfect) */
+/* row highlights */
 .cal-row.is-today{
   background:#0f2a12 !important;
 }
