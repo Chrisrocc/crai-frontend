@@ -58,7 +58,6 @@ export default function ReconditionerAppointmentList() {
         setAppointments(appData);
         setCars(carList.data?.data || []);
 
-        // initialise actioned map if backend later provides it
         setActionedMap((prev) => {
           const next = { ...prev };
           appData.forEach((a) => {
@@ -103,7 +102,7 @@ export default function ReconditionerAppointmentList() {
       const notesList = a.cars.map((c) => c?.notes || "").filter((n) => n !== "");
       if (notesList.length) {
         const allSame = notesList.every((n) => n === notesList[0]);
-        notesDefault = allSame ? notesList[0] : notesList[0]; // keep first if mixed
+        notesDefault = allSame ? notesList[0] : notesList[0];
       }
     }
 
@@ -282,7 +281,7 @@ export default function ReconditionerAppointmentList() {
     id &&
     setEditData((p) => ({
       ...p,
-      carIds: [id],
+      carIds: [id], // only one car at a time
       clearedCars: false,
     }));
 
@@ -299,7 +298,7 @@ export default function ReconditionerAppointmentList() {
     }));
   };
 
-  // --- photo fetch (same idea as CarPickerModal) ---
+  // --- photo fetch ---
   const fetchPhotoForCar = async (car) => {
     if (!car?._id) return "";
     const id = car._id;
@@ -318,7 +317,6 @@ export default function ReconditionerAppointmentList() {
     return "";
   };
 
-  // --- datetime render/highlight guards ---
   const renderDayTime = (raw) => {
     if (!raw || !String(raw).trim()) return "—";
     const { label } = standardizeDayTime(raw);
@@ -402,7 +400,7 @@ export default function ReconditionerAppointmentList() {
         </button>
       </div>
 
-      {/* Category sections */}
+      {/* Category sections (filtered) */}
       {filteredCategories.map((cat) => {
         const catApps = appointments.filter(
           (a) => (a.category?._id || a.category) === cat._id
@@ -429,13 +427,14 @@ export default function ReconditionerAppointmentList() {
               >
                 <table className="cal-table" role="grid">
                   <colgroup>
-                    <col style={{ width: "18%" }} /> {/* Name */}
-                    <col style={{ width: "16%" }} /> {/* Date/Time */}
-                    <col style={{ width: "30%" }} /> {/* Car(s) */}
-                    <col style={{ width: "24%" }} /> {/* Notes */}
-                    <col style={{ width: "6%" }} /> {/* Actioned */}
-                    <col style={{ width: "10%" }} /> {/* Created */}
-                    <col style={{ width: "8%" }} /> {/* Actions */}
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "16%" }} />
+                    <col style={{ width: "30%" }} />
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "140px" }} />{" "}
+                    {/* wider so Save/Cancel are clearly inside */}
                   </colgroup>
                   <thead>
                     <tr>
@@ -475,6 +474,13 @@ export default function ReconditionerAppointmentList() {
                             data-id={a._id}
                             className={rowCls}
                             onDoubleClick={(e) => {
+                              // DON'T enter edit when interacting with inputs/buttons (e.g. Actioned checkbox)
+                              if (
+                                e.target.closest("button") ||
+                                e.target.closest("input")
+                              ) {
+                                return;
+                              }
                               e.stopPropagation();
                               enterEdit(a);
                             }}
@@ -527,10 +533,7 @@ export default function ReconditionerAppointmentList() {
                                       {carLabelFromId(id)}
                                       <button
                                         className="chip-x"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          removeCarId(id);
-                                        }}
+                                        onClick={() => removeCarId(id)}
                                         aria-label="Remove"
                                       >
                                         ×
@@ -541,10 +544,7 @@ export default function ReconditionerAppointmentList() {
                                     <button
                                       type="button"
                                       className="btn btn--ghost btn--sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setPickerOpen(true);
-                                      }}
+                                      onClick={() => setPickerOpen(true)}
                                     >
                                       + Add Car
                                     </button>
@@ -552,14 +552,13 @@ export default function ReconditionerAppointmentList() {
                                       <button
                                         type="button"
                                         className="btn btn--ghost btn--sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
+                                        onClick={() =>
                                           setEditData((p) => ({
                                             ...p,
                                             carIds: [],
                                             clearedCars: true,
-                                          }));
-                                        }}
+                                          }))
+                                        }
                                       >
                                         Clear
                                       </button>
@@ -626,10 +625,7 @@ export default function ReconditionerAppointmentList() {
                                 <input
                                   type="checkbox"
                                   checked={!!actionedMap[a._id]}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    toggleActioned(a._id);
-                                  }}
+                                  onChange={() => toggleActioned(a._id)}
                                   onClick={(e) => e.stopPropagation()}
                                 />
                               </label>
@@ -648,19 +644,13 @@ export default function ReconditionerAppointmentList() {
                                 <>
                                   <button
                                     className="btn btn--primary btn--sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      saveChanges();
-                                    }}
+                                    onClick={saveChanges}
                                   >
                                     Save
                                   </button>
                                   <button
                                     className="btn btn--ghost btn--sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      cancelEdit();
-                                    }}
+                                    onClick={cancelEdit}
                                   >
                                     Cancel
                                   </button>
@@ -668,10 +658,7 @@ export default function ReconditionerAppointmentList() {
                               ) : (
                                 <button
                                   className="btn btn--danger btn--sm btn--icon"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteAppointment(a._id);
-                                  }}
+                                  onClick={() => deleteAppointment(a._id)}
                                   title="Delete"
                                   aria-label="Delete appointment"
                                 >
@@ -827,6 +814,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   overflow-x:hidden;
 }
 
+/* keep header clear of fixed hamburger */
 .with-ham .cal-head{ padding-left:56px; }
 @media (max-width:480px){ .with-ham .cal-head{ padding-left:48px; } }
 
@@ -869,7 +857,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
 }
 
-/* scrollbar */
+/* visible scrollbar */
 .table-scroll::-webkit-scrollbar{ height:12px; }
 .table-scroll::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
 .table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
@@ -898,7 +886,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   font-size:14px; color:#E5E7EB; vertical-align:middle;
 }
 
-.cal-table tbody tr:hover td{ background:#0B1428; }
+.cal-table tbody tr:hover{ background:#0B1428; }
 .cal-empty{ text-align:center; padding:20px; color:#9CA3AF; }
 
 /* text helpers */
@@ -917,7 +905,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 }
 .stack{ display:flex; flex-direction:column; gap:4px; }
 
-/* car preview */
+/* car preview (photo + location) */
 .car-preview-row{
   display:flex;
   align-items:center;
@@ -963,7 +951,6 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 }
 .cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
 
-/* actions cell */
 .cal-actions{
   display:flex;
   align-items:center;
@@ -990,7 +977,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .muted{ color:#9CA3AF; }
 .hint{ color:#9CA3AF; font-size:12px; }
 
-/* date-based highlight */
+/* Highlight rows (only when dateTime present) */
 .cal-table tbody tr.is-today td {
   background:#0f2a12 !important;
   box-shadow: inset 0 0 0 1px #1e3a23;
@@ -1000,7 +987,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   box-shadow: inset 0 0 0 1px #3a2e1e;
 }
 
-/* actioned highlight (blue) */
+/* actioned highlight (light blue) */
 .cal-table tbody tr.is-actioned td {
   background:#0B2340 !important;
   box-shadow: inset 0 0 0 1px #1D4ED8;
