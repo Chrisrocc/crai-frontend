@@ -57,36 +57,24 @@ const TrashIcon = ({ size = 16 }) => (
 /* ---------- Helpers ---------- */
 
 const isSold = (car = {}) =>
-  String(car.stage || "").trim().toLowerCase() ===
-  "sold";
+  String(car.stage || "").trim().toLowerCase() === "sold";
 
 const carString = (car) => {
-  const head = [car.make, car.model]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const head = [car.make, car.model].filter(Boolean).join(" ").trim();
   const tail = [];
-  const b = (car.badge || "")
-    .slice(0, 4)
-    .trim();
+  const b = (car.badge || "").slice(0, 4).trim();
   if (b) tail.push(b);
   if (car.year) tail.push(String(car.year));
   if (car.description) tail.push(car.description);
   if (car.rego) tail.push(car.rego);
-  return [head, tail.join(", ")]
-    .filter(Boolean)
-    .join(", ");
+  return [head, tail.join(", ")].filter(Boolean).join(", ");
 };
 
 const nextDir = (d) =>
   d === null ? "desc" : d === "desc" ? "asc" : null;
 
 const norm = (v) =>
-  v == null
-    ? ""
-    : Array.isArray(v)
-    ? v.join(", ")
-    : String(v);
+  v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v);
 
 const compareStr = (a, b, dir) => {
   const A = norm(a).toLowerCase();
@@ -108,11 +96,7 @@ const compareNum = (a, b, dir) => {
 
 const SortChevron = ({ dir }) => (
   <span style={{ marginLeft: 6, opacity: 0.8 }}>
-    {dir === "desc"
-      ? "↓"
-      : dir === "asc"
-      ? "↑"
-      : ""}
+    {dir === "desc" ? "↓" : dir === "asc" ? "↑" : ""}
   </span>
 );
 
@@ -130,9 +114,7 @@ export default function CarListSplit({
 
   // header UI (only meaningful when not embedded)
   const [query, setQuery] = useState("");
-  const [stageFilter, setStageFilter] = useState(
-    () => new Set(STAGES)
-  );
+  const [stageFilter, setStageFilter] = useState(() => new Set(STAGES));
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
@@ -155,15 +137,12 @@ export default function CarListSplit({
   const stageDirtyRef = useRef(false);
 
   // modals
-  const [profileOpen, setProfileOpen] =
-    useState(false);
-  const [selectedCar, setSelectedCar] =
-    useState(null);
-  const [checklistModal, setChecklistModal] =
-    useState({
-      open: false,
-      car: null,
-    });
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [selectedCar, setSelectedCar] = useState(null);
+  const [checklistModal, setChecklistModal] = useState({
+    open: false,
+    car: null,
+  });
   const [nextModal, setNextModal] = useState({
     open: false,
     car: null,
@@ -171,14 +150,11 @@ export default function CarListSplit({
 
   // sort: internal when uncontrolled, external when used by CarListRegular
   const isControlled = !!onSortChange;
-  const [internalSort, setInternalSort] =
-    useState({
-      key: null,
-      dir: null,
-    });
-  const sort = isControlled
-    ? sortState || { key: null, dir: null }
-    : internalSort;
+  const [internalSort, setInternalSort] = useState({
+    key: null,
+    dir: null,
+  });
+  const sort = isControlled ? sortState || { key: null, dir: null } : internalSort;
 
   /* ---------- fetch ---------- */
   useEffect(() => {
@@ -224,28 +200,15 @@ export default function CarListSplit({
   /* ---------- sort: header click handler ---------- */
   const handleSortClick = (key) => {
     if (isControlled) {
-      const curr = sort || {
-        key: null,
-        dir: null,
-      };
-      const dir =
-        curr.key === key
-          ? nextDir(curr.dir)
-          : "desc";
+      const curr = sort || { key: null, dir: null };
+      const dir = curr.key === key ? nextDir(curr.dir) : "desc";
       const next =
-        dir === null
-          ? { key: null, dir: null }
-          : { key, dir };
+        dir === null ? { key: null, dir: null } : { key, dir };
       onSortChange(next);
     } else {
       setInternalSort((prev) => {
-        const dir =
-          prev.key === key
-            ? nextDir(prev.dir)
-            : "desc";
-        return dir === null
-          ? { key: null, dir: null }
-          : { key, dir };
+        const dir = prev.key === key ? nextDir(prev.dir) : "desc";
+        return dir === null ? { key: null, dir: null } : { key, dir };
       });
     }
   };
@@ -285,14 +248,8 @@ export default function CarListSplit({
       if (!root) return;
       const el =
         (focusName &&
-          root.querySelector(
-            `[name="${CSS.escape(
-              focusName
-            )}"]`
-          )) ||
-        root.querySelector(
-          "input, textarea, select"
-        );
+          root.querySelector(`[name="${CSS.escape(focusName)}"]`)) ||
+        root.querySelector("input, textarea, select");
       if (el) {
         el.focus();
         el.select?.();
@@ -301,8 +258,7 @@ export default function CarListSplit({
   };
 
   const rememberCaret = (e) => {
-    const { name, selectionStart, selectionEnd } =
-      e.target;
+    const { name, selectionStart, selectionEnd } = e.target;
     caretRef.current = {
       name,
       start: selectionStart ?? null,
@@ -326,9 +282,7 @@ export default function CarListSplit({
       }));
     }
     if (name === "rego") {
-      const clean = value
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, "");
+      const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
       return setEditData((p) => ({
         ...p,
         rego: clean,
@@ -338,33 +292,22 @@ export default function CarListSplit({
   };
 
   useLayoutEffect(() => {
-    if (!editTarget.id || editTarget.field === "stage")
-      return;
-    const { name, start, end } =
-      caretRef.current || {};
+    if (!editTarget.id || editTarget.field === "stage") return;
+    const { name, start, end } = caretRef.current || {};
     const root = activeRef.current;
     if (!root) return;
     const el =
       (name &&
-        root.querySelector(
-          `[name="${CSS.escape(name)}"]`
-        )) ||
+        root.querySelector(`[name="${CSS.escape(name)}"]`)) ||
       root.querySelector("input, textarea, select");
     if (!el) return;
     if (document.activeElement !== el) el.focus();
-    if (
-      typeof el.setSelectionRange === "function" &&
-      "value" in el
-    ) {
+    if (typeof el.setSelectionRange === "function" && "value" in el) {
       const v = el.value ?? "";
       const s =
-        typeof start === "number"
-          ? Math.min(start, v.length)
-          : v.length;
+        typeof start === "number" ? Math.min(start, v.length) : v.length;
       const ee =
-        typeof end === "number"
-          ? Math.min(end, v.length)
-          : v.length;
+        typeof end === "number" ? Math.min(end, v.length) : v.length;
       el.setSelectionRange(s, ee);
     }
   }, [editData, editTarget]);
@@ -1016,15 +959,12 @@ export default function CarListSplit({
             }}
           >
             {STAGES.map((s) => {
-              const on =
-                stageFilter.has(s);
+              const on = stageFilter.has(s);
               return (
                 <button
                   key={s}
                   className={`chip ${
-                    on
-                      ? "chip--on"
-                      : ""
+                    on ? "chip--on" : ""
                   }`}
                   onClick={() =>
                     setStageFilter((prev) => {
@@ -1435,8 +1375,7 @@ function Table({
     pointerId: null,
     justDragged: false,
   });
-  const [dragging, setDragging] =
-    useState(false);
+  const [dragging, setDragging] = useState(false);
 
   const isFormElement = (el) => {
     if (!el) return false;
@@ -1460,11 +1399,7 @@ function Table({
   };
 
   const onPointerDown = (e) => {
-    if (
-      e.pointerType === "mouse" &&
-      e.button !== 0
-    )
-      return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
 
     const el = wrapRef.current;
     if (!el) return;
@@ -1520,9 +1455,7 @@ function Table({
     if (el && st.pointerId != null) {
       try {
         if (el.hasPointerCapture(st.pointerId)) {
-          el.releasePointerCapture(
-            st.pointerId
-          );
+          el.releasePointerCapture(st.pointerId);
         }
       } catch {
         // ignore

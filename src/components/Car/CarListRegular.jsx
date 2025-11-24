@@ -1161,7 +1161,7 @@ export default function CarListRegular() {
                   {isEditingLoc ? (
                     <div className="edit-cell">
                       <input
-                        className="input input--compact"
+                        className="input input--compact input--wide-inline"
                         name="location"
                         value={
                           editData.location
@@ -1426,6 +1426,13 @@ export default function CarListRegular() {
         .edit-cell-group{ display:flex; flex-direction:column; gap:8px; }
         .edit-inline{ display:flex; gap:8px; }
         .edit-actions{ display:flex; gap:8px; margin-top:4px; }
+
+        /* wider inline editor for single-line cells like Location */
+        td.is-editing .input--wide-inline{
+          width:auto;
+          min-width:260px;
+          max-width:min(640px, 70vw);
+        }
 
         /* Car edit grid (desktop-friendly) */
         .car-edit{
