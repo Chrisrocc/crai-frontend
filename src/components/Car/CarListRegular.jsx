@@ -167,6 +167,44 @@ const compareNum = (a, b, dir) => {
 const isSold = (car = {}) =>
   String(car.stage || "").trim().toLowerCase() === "sold";
 
+/* --- days-at-location helper (matches history logic) --- */
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+const dateOnly = (d) => {
+  const dt = new Date(d || Date.now());
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+};
+
+const daysAtCurrentLocation = (car) => {
+  if (!car?.location) return null;
+  const history = Array.isArray(car.history) ? car.history : [];
+  if (!history.length) return null;
+
+  // Prefer an open segment at this location (no endDate)
+  let current = history.find(
+    (h) => !h.endDate && h.location === car.location
+  );
+
+  // Fallback: latest segment with this location
+  if (!current) {
+    const sameLoc = history.filter(
+      (h) => h.location === car.location
+    );
+    if (!sameLoc.length) return null;
+    current = sameLoc[sameLoc.length - 1];
+  }
+
+  if (!current?.startDate) return null;
+
+  const start = dateOnly(current.startDate);
+  const end = current.endDate ? dateOnly(current.endDate) : dateOnly(Date.now());
+  const diffDays = Math.max(
+    1,
+    Math.floor((end - start) / MS_PER_DAY)
+  );
+  return diffDays;
+};
+
 export default function CarListRegular() {
   const [view, setView] = useState("regular");
   const [cars, setCars] = useState([]);
@@ -362,9 +400,7 @@ export default function CarListRegular() {
     const lastNext =
       Array.isArray(car.nextLocations) &&
       car.nextLocations.length
-        ? car.nextLocations[
-            car.nextLocations.length - 1
-          ]
+        ? car.nextLocations[car.nextLocations.length - 1]
         : car.nextLocation ?? "";
 
     const base = {
@@ -761,8 +797,7 @@ export default function CarListRegular() {
   }, [cars, query, sort, stageFilter]);
 
   const soldFirstList = useMemo(() => {
-    const sold = [],
-      other = [];
+    const sold = [], other = [];
     for (const c of filteredSorted)
       (isSold(c) ? sold : other).push(c);
     return [...sold, ...other];
@@ -892,8 +927,7 @@ export default function CarListRegular() {
     <span
       className="cell"
       title={
-        title ??
-        (typeof children === "string"
+        title ?? (typeof children === "string"
           ? children
           : "")
       }
@@ -1188,7 +1222,17 @@ export default function CarListRegular() {
                     </div>
                   ) : (
                     <Cell>
-                      {car.location || "-"}
+                      {car.location
+                        ? (() => {
+                            const d =
+                              daysAtCurrentLocation(
+                                car
+                              );
+                            return d
+                              ? `${car.location} (${d})`
+                              : car.location;
+                          })()
+                        : "-"}
                     </Cell>
                   )}
                 </td>
