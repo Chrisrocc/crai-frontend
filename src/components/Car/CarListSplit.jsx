@@ -148,6 +148,9 @@ export default function CarListSplit({
     car: null,
   });
 
+  // Photo cache
+  const [photoCache, setPhotoCache] = useState({});
+
   // sort: internal when uncontrolled, external when used by CarListRegular
   const isControlled = !!onSortChange;
   const [internalSort, setInternalSort] = useState({
@@ -155,39 +158,6 @@ export default function CarListSplit({
     dir: null,
   });
   const sort = isControlled ? sortState || { key: null, dir: null } : internalSort;
-
-  // Photo cache for thumbnail column
-  const [photoCache, setPhotoCache] = useState({});
-
-  const fetchPhoto = useCallback(
-    async (car) => {
-      if (!car?._id) return;
-      if (photoCache[car._id]) return;
-
-      try {
-        const res = await api.get(`/cars/${car._id}/photo-preview`);
-        const url = res?.data?.data || "";
-        if (url) {
-          setPhotoCache((prev) =>
-            prev[car._id] ? prev : { ...prev, [car._id]: url }
-          );
-        }
-      } catch (e) {
-        console.warn(`❌ Error loading photo for ${car.rego}`, e);
-      }
-    },
-    [photoCache]
-  );
-
-  // Prefetch thumbnails for cars that have photos
-  useEffect(() => {
-    cars.forEach((car) => {
-      if (car?.photos?.length && !photoCache[car._id]) {
-        fetchPhoto(car);
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cars]);
 
   /* ---------- fetch ---------- */
   useEffect(() => {
@@ -229,6 +199,36 @@ export default function CarListSplit({
       );
     }
   }, [listOverride]);
+
+  /* ---------- photo preview (small thumbs) ---------- */
+  const fetchPhoto = useCallback(
+    async (car) => {
+      if (!car?._id) return;
+      if (photoCache[car._id]) return;
+      try {
+        const res = await api.get(`/cars/${car._id}/photo-preview`);
+        const url = res?.data?.data || "";
+        if (url) {
+          setPhotoCache((prev) =>
+            prev[car._id] ? prev : { ...prev, [car._id]: url }
+          );
+        }
+      } catch {
+        // silent fail
+      }
+    },
+    [photoCache]
+  );
+
+
+  useEffect(() => {
+    cars.forEach((car) => {
+      if (car?.photos?.length && !photoCache[car._id]) {
+        fetchPhoto(car);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cars]);
 
   /* ---------- sort: header click handler ---------- */
   const handleSortClick = (key) => {
@@ -754,11 +754,17 @@ export default function CarListSplit({
   return (
     <div className="page-pad">
       <style>{`
+        /* Make split layout use more width */
+        .page-pad{
+          padding-left: 10px;
+          padding-right: 10px;
+        }
+
         /* Split grid */
         .split-panels{
           display:grid;
           grid-template-columns: 1fr;
-          gap:12px;
+          gap:10px;
         }
         @media (min-width: 1100px){
           .split-panels{
@@ -790,7 +796,7 @@ export default function CarListSplit({
         }
         .car-table th,
         .car-table td{
-          padding:6px 8px;
+          padding:3px 7px; /* smaller row height */
           vertical-align:middle;
         }
         .car-table thead th{
@@ -800,27 +806,27 @@ export default function CarListSplit({
           z-index:1;
         }
 
-        .car-table col.col-photo{ width:82px; }
+        .car-table col.col-photo{ width:58px; }
         .car-table col.col-car{ width:320px; }
-        .car-table col.col-loc{ width:100px; }
-        .car-table col.col-next{ width:160px; }
-        .car-table col.col-chk{ width:220px; }
-        .car-table col.col-notes{ width:160px; }
-        .car-table col.col-stage{ width:84px; }
+        .car-table col.col-loc{ width:110px; }
+        .car-table col.col-next{ width:170px; }
+        .car-table col.col-chk{ width:230px; }
+        .car-table col.col-notes{ width:170px; }
+        .car-table col.col-stage{ width:80px; }
         .car-table col.col-act{ width:74px; }
 
         @media (min-width: 1400px){
           .car-table{ font-size:12px; }
           .car-table th,
-          .car-table td{ padding:4px 6px; }
-          .car-table col.col-photo{ width:82px; }
-          .car-table col.col-car{ width:300px; }
-          .car-table col.col-loc{ width:88px; }
-          .car-table col.col-next{ width:140px; }
-          .car-table col.col-chk{ width:200px; }
-          .car-table col.col-notes{ width:150px; }
-          .car-table col.col-stage{ width:80px; }
-          .car-table col.col-act{ width:70px; }
+          .car-table td{ padding:3px 6px; }
+          .car-table col.col-photo{ width:60px; }
+          .car-table col.col-car{ width:330px; }
+          .car-table col.col-loc{ width:120px; }
+          .car-table col.col-next{ width:180px; }
+          .car-table col.col-chk{ width:240px; }
+          .car-table col.col-notes{ width:180px; }
+          .car-table col.col-stage{ width:82px; }
+          .car-table col.col-act{ width:76px; }
         }
 
         .car-table .cell{
@@ -835,11 +841,31 @@ export default function CarListSplit({
           all:unset;
           cursor:pointer;
           color:#cbd5e1;
-          padding:4px 6px;
+          padding:3px 5px;
           border-radius:6px;
         }
         .thbtn:hover{
           background:#1f2937;
+        }
+
+        /* Photo thumbs: SMALLER */
+        .photo-cell{
+          padding-left:4px;
+          padding-right:4px;
+        }
+        .photo-thumb,
+        .photo-skel{
+          width:50px;
+          height:38px;
+          border-radius:5px;
+          display:block;
+        }
+        .photo-thumb{
+          object-fit:cover;
+          cursor:pointer;
+        }
+        .photo-skel{
+          background:#1e293b;
         }
 
         /* Editing */
@@ -966,27 +992,6 @@ export default function CarListSplit({
         }
         .car-table tr.row--sold:hover td{
           background: var(--sold-bg-hover);
-        }
-
-        /* Photo thumb styling */
-        .photo-cell{
-          width:72px;
-          padding-left:6px;
-          padding-right:6px;
-        }
-        .photo-cell img{
-          width:68px;
-          height:52px;
-          object-fit:cover;
-          border-radius:6px;
-          display:block;
-          cursor:pointer;
-        }
-        .thumb-empty{
-          width:68px;
-          height:52px;
-          background:#1E293B;
-          border-radius:6px;
         }
       `}</style>
 
@@ -1647,7 +1652,7 @@ function Table({
                 : null;
 
               const thumbUrl =
-                photoCache?.[car._id];
+                photoCache[car._id];
 
               return (
                 <tr
@@ -1661,13 +1666,7 @@ function Table({
                   ref={refCb}
                 >
                   {/* PHOTO */}
-                  <td
-                    className="photo-cell"
-                    onClick={() => {
-                      setSelectedCar(car);
-                      setProfileOpen(true);
-                    }}
-                  >
+                  <td className="photo-cell">
                     {thumbUrl ? (
                       <img
                         src={thumbUrl}
@@ -1676,9 +1675,18 @@ function Table({
                           car.rego ||
                           "Car photo"
                         }
+                        className="photo-thumb"
+                        onClick={() => {
+                          setSelectedCar(
+                            car
+                          );
+                          setProfileOpen(
+                            true
+                          );
+                        }}
                       />
                     ) : (
-                      <div className="thumb-empty" />
+                      <div className="photo-skel" />
                     )}
                   </td>
 
