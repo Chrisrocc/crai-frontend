@@ -148,9 +148,6 @@ export default function CarListSplit({
     car: null,
   });
 
-  // Photo cache
-  const [photoCache, setPhotoCache] = useState({});
-
   // sort: internal when uncontrolled, external when used by CarListRegular
   const isControlled = !!onSortChange;
   const [internalSort, setInternalSort] = useState({
@@ -158,6 +155,9 @@ export default function CarListSplit({
     dir: null,
   });
   const sort = isControlled ? sortState || { key: null, dir: null } : internalSort;
+
+  // photo cache for thumbnails
+  const [photoCache, setPhotoCache] = useState({});
 
   /* ---------- fetch ---------- */
   useEffect(() => {
@@ -200,7 +200,7 @@ export default function CarListSplit({
     }
   }, [listOverride]);
 
-  /* ---------- photo preview (small thumbs) ---------- */
+  // lazy thumbnail loader (same pattern as Regular view)
   const fetchPhoto = useCallback(
     async (car) => {
       if (!car?._id) return;
@@ -220,15 +220,13 @@ export default function CarListSplit({
     [photoCache]
   );
 
-
   useEffect(() => {
     cars.forEach((car) => {
       if (car?.photos?.length && !photoCache[car._id]) {
         fetchPhoto(car);
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cars]);
+  }, [cars, photoCache, fetchPhoto]);
 
   /* ---------- sort: header click handler ---------- */
   const handleSortClick = (key) => {
@@ -512,8 +510,7 @@ export default function CarListSplit({
         form,
         {
           headers: {
-            "Content-Type":
-              "multipart/form-data",
+            "Content-Type": "multipart/form-data",
           },
         }
       );
@@ -546,8 +543,7 @@ export default function CarListSplit({
         { text: pasteText },
         {
           headers: {
-            "Content-Type":
-              "application/json",
+            "Content-Type": "application/json",
           },
         }
       );
@@ -754,21 +750,18 @@ export default function CarListSplit({
   return (
     <div className="page-pad">
       <style>{`
-        /* Make split layout use more width */
-        .page-pad{
-          padding-left: 10px;
-          padding-right: 10px;
-        }
-
-        /* Split grid */
+        /* Split grid - pull tables a bit wider */
         .split-panels{
           display:grid;
           grid-template-columns: 1fr;
-          gap:10px;
+          gap:12px;
+          margin:0 -8px; /* eat some side padding so tables fill more of the screen */
         }
         @media (min-width: 1100px){
           .split-panels{
             grid-template-columns: 1fr 1fr;
+            gap:12px;
+            margin:0 -10px;
           }
         }
 
@@ -778,7 +771,7 @@ export default function CarListSplit({
           overflow-y:hidden;
           -webkit-overflow-scrolling:touch;
           border:1px solid #1d2a3a;
-          border-radius:10px;
+          border-radius:12px;
           background:#0b1220;
           cursor:grab;
         }
@@ -796,7 +789,7 @@ export default function CarListSplit({
         }
         .car-table th,
         .car-table td{
-          padding:3px 7px; /* smaller row height */
+          padding:4px 8px; /* slightly tighter rows */
           vertical-align:middle;
         }
         .car-table thead th{
@@ -806,27 +799,29 @@ export default function CarListSplit({
           z-index:1;
         }
 
-        .car-table col.col-photo{ width:58px; }
-        .car-table col.col-car{ width:320px; }
+        /* Column widths – include Photo and use a bit more width */
+        .car-table col.col-photo{ width:54px; }
+        .car-table col.col-car{ width:330px; }
         .car-table col.col-loc{ width:110px; }
         .car-table col.col-next{ width:170px; }
         .car-table col.col-chk{ width:230px; }
         .car-table col.col-notes{ width:170px; }
-        .car-table col.col-stage{ width:80px; }
+        .car-table col.col-stage{ width:84px; }
         .car-table col.col-act{ width:74px; }
 
         @media (min-width: 1400px){
-          .car-table{ font-size:12px; }
+          .car-table{
+            font-size:12px;
+          }
           .car-table th,
-          .car-table td{ padding:3px 6px; }
-          .car-table col.col-photo{ width:60px; }
-          .car-table col.col-car{ width:330px; }
-          .car-table col.col-loc{ width:120px; }
-          .car-table col.col-next{ width:180px; }
-          .car-table col.col-chk{ width:240px; }
-          .car-table col.col-notes{ width:180px; }
-          .car-table col.col-stage{ width:82px; }
-          .car-table col.col-act{ width:76px; }
+          .car-table td{
+            padding:4px 7px;
+          }
+          .car-table col.col-car{ width:320px; }
+          .car-table col.col-loc{ width:105px; }
+          .car-table col.col-next{ width:165px; }
+          .car-table col.col-chk{ width:230px; }
+          .car-table col.col-notes{ width:170px; }
         }
 
         .car-table .cell{
@@ -841,31 +836,29 @@ export default function CarListSplit({
           all:unset;
           cursor:pointer;
           color:#cbd5e1;
-          padding:3px 5px;
+          padding:4px 6px;
           border-radius:6px;
         }
         .thbtn:hover{
           background:#1f2937;
         }
 
-        /* Photo thumbs: SMALLER */
+        /* Photo thumbs – small and non-overlapping */
         .photo-cell{
-          padding-left:4px;
-          padding-right:4px;
+          padding-left:6px;
+          padding-right:6px;
+          width:54px;
         }
-        .photo-thumb,
-        .photo-skel{
-          width:50px;
-          height:38px;
-          border-radius:5px;
+        .photo-cell img,
+        .thumb-empty{
           display:block;
-        }
-        .photo-thumb{
+          width:48px;
+          height:34px;   /* smaller so more rows fit */
+          border-radius:6px;
           object-fit:cover;
-          cursor:pointer;
         }
-        .photo-skel{
-          background:#1e293b;
+        .thumb-empty{
+          background:#1E293B;
         }
 
         /* Editing */
@@ -1024,13 +1017,10 @@ export default function CarListSplit({
               return (
                 <button
                   key={s}
-                  className={`chip ${
-                    on ? "chip--on" : ""
-                  }`}
+                  className={`chip ${on ? "chip--on" : ""}`}
                   onClick={() =>
                     setStageFilter((prev) => {
-                      const next =
-                        new Set(prev);
+                      const next = new Set(prev);
                       if (next.has(s))
                         next.delete(s);
                       else next.add(s);
@@ -1651,8 +1641,7 @@ function Table({
                   }
                 : null;
 
-              const thumbUrl =
-                photoCache[car._id];
+              const thumbUrl = photoCache?.[car._id];
 
               return (
                 <tr
@@ -1666,7 +1655,13 @@ function Table({
                   ref={refCb}
                 >
                   {/* PHOTO */}
-                  <td className="photo-cell">
+                  <td
+                    className="photo-cell"
+                    onClick={() => {
+                      setSelectedCar(car);
+                      setProfileOpen(true);
+                    }}
+                  >
                     {thumbUrl ? (
                       <img
                         src={thumbUrl}
@@ -1675,18 +1670,9 @@ function Table({
                           car.rego ||
                           "Car photo"
                         }
-                        className="photo-thumb"
-                        onClick={() => {
-                          setSelectedCar(
-                            car
-                          );
-                          setProfileOpen(
-                            true
-                          );
-                        }}
                       />
                     ) : (
-                      <div className="photo-skel" />
+                      <div className="thumb-empty" />
                     )}
                   </td>
 
