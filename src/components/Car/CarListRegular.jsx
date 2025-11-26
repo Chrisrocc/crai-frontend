@@ -1,5 +1,5 @@
 // src/components/Car/CarListRegular.jsx
-// Rewritten to add photo column + shorter Next Loc column
+// Rewritten to add photo column + shorter Next Loc column + FIX photo clipping
 import {
   useEffect,
   useLayoutEffect,
@@ -316,9 +316,6 @@ export default function CarListRegular() {
           setPhotoCache((prev) =>
             prev[car._id] ? prev : { ...prev, [car._id]: url }
           );
-          // console.log(`✅ Photo loaded for ${car.rego}`);
-        } else {
-          // console.log(`🚫 No photo for ${car.rego}`);
         }
       } catch (e) {
         console.warn(`❌ Error loading photo for ${car.rego}`, e);
@@ -789,7 +786,9 @@ export default function CarListRegular() {
   const Header = () => (
     <thead>
       <tr>
-        <th style={{ width: 72 }}>Photo</th>
+        <th className="photo-header" style={{ width: 90 }}>
+          Photo
+        </th>
         <th>
           <button
             className="thbtn"
@@ -916,7 +915,7 @@ export default function CarListRegular() {
                     : null
                 }
               >
-                {/* PHOTO cell */}
+                {/* PHOTO cell - wrapped in fixed-size box with overflow hidden */}
                 <td
                   className="photo-cell"
                   onClick={() => {
@@ -924,14 +923,16 @@ export default function CarListRegular() {
                     setProfileOpen(true);
                   }}
                 >
-                  {thumbUrl ? (
-                    <img
-                      src={thumbUrl}
-                      alt={carString(car) || car.rego || "Car photo"}
-                    />
-                  ) : (
-                    <div className="thumb-empty" />
-                  )}
+                  <div className="photo-box">
+                    {thumbUrl ? (
+                      <img
+                        src={thumbUrl}
+                        alt={carString(car) || car.rego || "Car photo"}
+                      />
+                    ) : (
+                      <div className="thumb-empty" />
+                    )}
+                  </div>
                 </td>
 
                 {/* CAR cell */}
@@ -1248,8 +1249,8 @@ export default function CarListRegular() {
         .car-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0; min-width:1260px;}
         .car-table th,.car-table td{padding:6px 10px;vertical-align:middle;}
 
-        .car-table col.col-photo{width:72px;}
-        .car-table col.col-car{width:380px;}
+        .car-table col.col-photo{width:96px;}
+        .car-table col.col-car{width:370px;}
         .car-table col.col-loc{width:140px;}
         .car-table col.col-next{width:220px;}
         .car-table col.col-chk{width:440px;}
@@ -1331,25 +1332,34 @@ export default function CarListRegular() {
         }
         .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
 
-        /* Photo thumb styling */
+        /* Photo thumb styling (FIX: boxed & clipped so it can't overflow into Car column) */
         .photo-cell{
-          width:72px;
           padding-left:6px;
-          padding-right:6px;
+          padding-right:4px;
+          text-align:center;
         }
-        .photo-cell img{
-          width:68px;
+        .photo-box{
+          width:72px;
           height:52px;
-          object-fit:cover;
           border-radius:6px;
+          overflow:hidden;
+          background:#111827;
+          margin:0 auto;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+        }
+        .photo-box img{
+          width:100%;
+          height:100%;
+          object-fit:cover;
           display:block;
           cursor:pointer;
         }
         .thumb-empty{
-          width:68px;
-          height:52px;
+          width:100%;
+          height:100%;
           background:#1E293B;
-          border-radius:6px;
         }
 
         /* iOS sticky bug avoided: no sticky used now */
