@@ -1,5 +1,5 @@
 // src/components/Car/CarListRegular.jsx
-// Rewritten to use central API client (src/lib/api.js) + VITE_API_URL
+// Rewritten to add photo column + shorter Next Loc column
 import {
   useEffect,
   useLayoutEffect,
@@ -187,9 +187,7 @@ const daysAtCurrentLocation = (car) => {
 
   // Fallback: latest segment with this location
   if (!current) {
-    const sameLoc = history.filter(
-      (h) => h.location === car.location
-    );
+    const sameLoc = history.filter((h) => h.location === car.location);
     if (!sameLoc.length) return null;
     current = sameLoc[sameLoc.length - 1];
   }
@@ -198,10 +196,7 @@ const daysAtCurrentLocation = (car) => {
 
   const start = dateOnly(current.startDate);
   const end = current.endDate ? dateOnly(current.endDate) : dateOnly(Date.now());
-  const diffDays = Math.max(
-    1,
-    Math.floor((end - start) / MS_PER_DAY)
-  );
+  const diffDays = Math.max(1, Math.floor((end - start) / MS_PER_DAY));
   return diffDays;
 };
 
@@ -238,10 +233,8 @@ export default function CarListRegular() {
     open: false,
     car: null,
   });
-  const openNextModal = (car) =>
-    setNextModal({ open: true, car });
-  const closeNextModal = () =>
-    setNextModal({ open: false, car: null });
+  const openNextModal = (car) => setNextModal({ open: true, car });
+  const closeNextModal = () => setNextModal({ open: false, car: null });
   const openChecklistModal = (car) =>
     setChecklistModal({ open: true, car });
   const closeChecklistModal = () =>
@@ -256,9 +249,7 @@ export default function CarListRegular() {
   const [sort, setSort] = useState({ key: null, dir: null });
 
   // Stage filter
-  const [stageFilter, setStageFilter] = useState(
-    () => new Set(STAGES)
-  );
+  const [stageFilter, setStageFilter] = useState(() => new Set(STAGES));
 
   // CSV upload
   const [uploading, setUploading] = useState(false);
@@ -269,21 +260,23 @@ export default function CarListRegular() {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
 
+  // Photo cache for thumbnail column
+  const [photoCache, setPhotoCache] = useState({});
+
   useEffect(() => {
     (async () => {
       try {
         const res = await api.get("/cars", {
           headers: { "Cache-Control": "no-cache" },
         });
-        const data = (res.data?.data || []).map(
-          (c, idx) => ({ ...c, __idx: idx })
-        );
+        const data = (res.data?.data || []).map((c, idx) => ({
+          ...c,
+          __idx: idx,
+        }));
         setCars(data);
       } catch (err) {
         setErrMsg(
-          err.response?.data?.message ||
-            err.message ||
-            "Error fetching cars"
+          err.response?.data?.message || err.message || "Error fetching cars"
         );
       } finally {
         setLoading(false);
@@ -296,20 +289,53 @@ export default function CarListRegular() {
       const res = await api.get("/cars", {
         headers: { "Cache-Control": "no-cache" },
       });
-      const data = (res.data?.data || []).map(
-        (c, idx) => ({ ...c, __idx: idx })
-      );
+      const data = (res.data?.data || []).map((c, idx) => ({
+        ...c,
+        __idx: idx,
+      }));
       setCars(data);
     } catch (err) {
       setErrMsg(
-        err.response?.data?.message ||
-          err.message ||
-          "Error fetching cars"
+        err.response?.data?.message || err.message || "Error fetching cars"
       );
     }
   }, []);
 
   const handleSave = refreshCars;
+
+  // Lazy fetch photo preview (first photo)
+  const fetchPhoto = useCallback(
+    async (car) => {
+      if (!car?._id) return;
+      if (photoCache[car._id]) return; // already have one
+
+      try {
+        const res = await api.get(`/cars/${car._id}/photo-preview`);
+        const url = res?.data?.data || "";
+        if (url) {
+          setPhotoCache((prev) =>
+            prev[car._id] ? prev : { ...prev, [car._id]: url }
+          );
+          // console.log(`✅ Photo loaded for ${car.rego}`);
+        } else {
+          // console.log(`🚫 No photo for ${car.rego}`);
+        }
+      } catch (e) {
+        console.warn(`❌ Error loading photo for ${car.rego}`, e);
+      }
+    },
+    [photoCache]
+  );
+
+  // Prefetch thumbnails for cars that have photos
+  useEffect(() => {
+    cars.forEach((car) => {
+      if (car?.photos?.length && !photoCache[car._id]) {
+        fetchPhoto(car);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cars]);
 
   const handleCsvChosen = async (e) => {
     const file = e.target.files?.[0];
@@ -319,16 +345,11 @@ export default function CarListRegular() {
       const form = new FormData();
       form.append("file", file);
       form.append("defaultStage", "In Works");
-      const res = await api.post(
-        "/cars/import-csv",
-        form,
-        {
-          headers: {
-            "Content-Type":
-              "multipart/form-data",
-          },
-        }
-      );
+      const res = await api.post("/cars/import-csv", form, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
       const {
         createdCount = 0,
         skippedCount = 0,
@@ -362,8 +383,7 @@ export default function CarListRegular() {
         { text: pasteText },
         {
           headers: {
-            "Content-Type":
-              "application/json",
+            "Content-Type": "application/json",
           },
         }
       );
@@ -390,16 +410,11 @@ export default function CarListRegular() {
   };
 
   // ---------- Edit helpers ----------
-  const startEdit = (
-    car,
-    field,
-    initialNameForCaret = null
-  ) => {
+  const startEdit = (car, field, initialNameForCaret = null) => {
     setEditTarget({ id: car._id, field });
 
     const lastNext =
-      Array.isArray(car.nextLocations) &&
-      car.nextLocations.length
+      Array.isArray(car.nextLocations) && car.nextLocations.length
         ? car.nextLocations[car.nextLocations.length - 1]
         : car.nextLocation ?? "";
 
@@ -444,16 +459,9 @@ export default function CarListRegular() {
       if (!root) return;
       const preferred =
         initialNameForCaret &&
-        root.querySelector(
-          `[name="${CSS.escape(
-            initialNameForCaret
-          )}"]`
-        );
+        root.querySelector(`[name="${CSS.escape(initialNameForCaret)}"]`);
       const el =
-        preferred ||
-        root.querySelector(
-          "input, textarea, select"
-        );
+        preferred || root.querySelector("input, textarea, select");
       if (el) {
         el.focus();
         el.select?.();
@@ -462,8 +470,7 @@ export default function CarListRegular() {
   };
 
   const rememberCaret = (e) => {
-    const { name, selectionStart, selectionEnd } =
-      e.target;
+    const { name, selectionStart, selectionEnd } = e.target;
     caretRef.current = {
       name,
       start: selectionStart ?? null,
@@ -497,20 +504,11 @@ export default function CarListRegular() {
   };
 
   const handleDelete = async (carId) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this car?"
-      )
-    )
-      return;
+    if (!window.confirm("Are you sure you want to delete this car?")) return;
     try {
-      await api.delete(
-        `/cars/${encodeURIComponent(carId)}`
-      );
+      await api.delete(`/cars/${encodeURIComponent(carId)}`);
       // Optimistic UI
-      setCars((prev) =>
-        prev.filter((c) => c._id !== carId)
-      );
+      setCars((prev) => prev.filter((c) => c._id !== carId));
       await refreshCars();
       alert("Car deleted successfully!");
     } catch (err) {
@@ -603,14 +601,10 @@ export default function CarListRegular() {
       }
       setEditTarget({ id: null, field: null });
     } catch (err) {
-      console.error(
-        "Update failed",
-        err.response?.data || err.message
-      );
+      console.error("Update failed", err.response?.data || err.message);
       alert(
         "Error updating car: " +
-          (err.response?.data?.message ||
-            err.message)
+          (err.response?.data?.message || err.message)
       );
       await refreshCars();
       setEditTarget({ id: null, field: null });
@@ -628,10 +622,7 @@ export default function CarListRegular() {
       );
       if (!rowEl) return;
       if (!rowEl.contains(e.target)) {
-        if (
-          editTarget.field === "stage" &&
-          !stageDirtyRef.current
-        ) {
+        if (editTarget.field === "stage" && !stageDirtyRef.current) {
           // no change → just exit
           setEditTarget({ id: null, field: null });
         } else {
@@ -642,40 +633,28 @@ export default function CarListRegular() {
     if (editTarget.id)
       document.addEventListener("mousedown", onDown);
     if (editTarget.id)
-      document.addEventListener(
-        "touchstart",
-        onDown,
-        { passive: true }
-      );
+      document.addEventListener("touchstart", onDown, {
+        passive: true,
+      });
     return () => {
       document.removeEventListener("mousedown", onDown);
-      document.removeEventListener(
-        "touchstart",
-        onDown
-      );
+      document.removeEventListener("touchstart", onDown);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editTarget, editData]);
 
   useLayoutEffect(() => {
-    if (!editTarget.id || editTarget.field === "stage")
-      return; // skip stage to avoid scroll jump
-    const { name, start, end } =
-      caretRef.current || {};
+    if (!editTarget.id || editTarget.field === "stage") return; // skip stage to avoid scroll jump
+    const { name, start, end } = caretRef.current || {};
     const root = activeRef.current;
     if (!root) return;
     const el =
       (name &&
-        root.querySelector(
-          `[name="${CSS.escape(name)}"]`
-        )) ||
+        root.querySelector(`[name="${CSS.escape(name)}"]`)) ||
       root.querySelector("input, textarea, select");
     if (!el) return;
     if (document.activeElement !== el) el.focus();
-    if (
-      typeof el.setSelectionRange === "function" &&
-      "value" in el
-    ) {
+    if (typeof el.setSelectionRange === "function" && "value" in el) {
       const v = el.value ?? "";
       const s =
         typeof start === "number"
@@ -695,9 +674,7 @@ export default function CarListRegular() {
 
     list =
       stageFilter.size > 0
-        ? list.filter((car) =>
-            stageFilter.has(car?.stage ?? "")
-          )
+        ? list.filter((car) => stageFilter.has(car?.stage ?? ""))
         : [];
 
     if (q) {
@@ -731,32 +708,18 @@ export default function CarListRegular() {
     const cmp = (a, b) => {
       switch (sort.key) {
         case "car": {
-          const byMake = compareStr(
-            a.make,
-            b.make,
-            dir
-          );
+          const byMake = compareStr(a.make, b.make, dir);
           if (byMake !== 0) return byMake;
-          return compareStr(
-            a.model,
-            b.model,
-            dir
-          );
+          return compareStr(a.model, b.model, dir);
         }
         case "location":
-          return compareStr(
-            a.location,
-            b.location,
-            dir
-          );
+          return compareStr(a.location, b.location, dir);
         case "next":
           return compareStr(
-            Array.isArray(a.nextLocations) &&
-              a.nextLocations.length
+            Array.isArray(a.nextLocations) && a.nextLocations.length
               ? a.nextLocations.join(", ")
               : a.nextLocation,
-            Array.isArray(b.nextLocations) &&
-              b.nextLocations.length
+            Array.isArray(b.nextLocations) && b.nextLocations.length
               ? b.nextLocations.join(", ")
               : b.nextLocation,
             dir
@@ -772,23 +735,11 @@ export default function CarListRegular() {
             dir
           );
         case "notes":
-          return compareStr(
-            a.notes,
-            b.notes,
-            dir
-          );
+          return compareStr(a.notes, b.notes, dir);
         case "stage":
-          return compareStr(
-            a.stage,
-            b.stage,
-            dir
-          );
+          return compareStr(a.stage, b.stage, dir);
         case "year":
-          return compareNum(
-            a.year,
-            b.year,
-            dir
-          );
+          return compareNum(a.year, b.year, dir);
         default:
           return 0;
       }
@@ -797,9 +748,9 @@ export default function CarListRegular() {
   }, [cars, query, sort, stageFilter]);
 
   const soldFirstList = useMemo(() => {
-    const sold = [], other = [];
-    for (const c of filteredSorted)
-      (isSold(c) ? sold : other).push(c);
+    const sold = [],
+      other = [];
+    for (const c of filteredSorted) (isSold(c) ? sold : other).push(c);
     return [...sold, ...other];
   }, [filteredSorted]);
 
@@ -809,17 +760,13 @@ export default function CarListRegular() {
       .join(" ")
       .trim();
     const tail = [];
-    const b = (car.badge || "")
-      .slice(0, 4)
-      .trim();
+    const b = (car.badge || "").slice(0, 4).trim();
     if (b) tail.push(b);
     if (car.year) tail.push(String(car.year));
     if (car.description) tail.push(car.description);
     if (car.rego) tail.push(car.rego);
     const right = tail.join(", ");
-    return [head, right]
-      .filter(Boolean)
-      .join(", ");
+    return [head, right].filter(Boolean).join(", ");
   };
 
   const SortChevron = ({ dir }) => (
@@ -829,29 +776,20 @@ export default function CarListRegular() {
         opacity: 0.8,
       }}
     >
-      {dir === "desc"
-        ? "↓"
-        : dir === "asc"
-        ? "↑"
-        : ""}
+      {dir === "desc" ? "↓" : dir === "asc" ? "↑" : ""}
     </span>
   );
   const clickSort = (key) =>
     setSort((prev) => ({
-      key:
-        prev.key === key && prev.dir
-          ? key
-          : key,
-      dir:
-        prev.key === key
-          ? nextDir(prev.dir)
-          : "desc",
+      key: prev.key === key && prev.dir ? key : key,
+      dir: prev.key === key ? nextDir(prev.dir) : "desc",
     }));
 
   /* ---------- header ---------- */
   const Header = () => (
     <thead>
       <tr>
+        <th style={{ width: 72 }}>Photo</th>
         <th>
           <button
             className="thbtn"
@@ -874,7 +812,7 @@ export default function CarListRegular() {
             )}
           </button>
         </th>
-        <th style={{ minWidth: 280 }}>
+        <th style={{ minWidth: 220 }}>
           <button
             className="thbtn"
             onClick={() => clickSort("next")}
@@ -926,60 +864,45 @@ export default function CarListRegular() {
   const Cell = ({ children, title }) => (
     <span
       className="cell"
-      title={
-        title ?? (typeof children === "string"
-          ? children
-          : "")
-      }
+      title={title ?? (typeof children === "string" ? children : "")}
     >
       {children}
     </span>
   );
 
   const Rows = ({ list }) => {
-    const visibleCols = 7;
+    const visibleCols = 8; // now including Photo
     return (
       <tbody>
         {list.length === 0 ? (
           <tr>
-            <td
-              colSpan={visibleCols}
-              className="empty"
-            >
+            <td colSpan={visibleCols} className="empty">
               No cars found.
             </td>
           </tr>
         ) : (
           list.map((car) => {
             const isEditingCar =
-              editTarget.id === car._id &&
-              editTarget.field === "car";
+              editTarget.id === car._id && editTarget.field === "car";
             const isEditingLoc =
-              editTarget.id === car._id &&
-              editTarget.field === "location";
+              editTarget.id === car._id && editTarget.field === "location";
             const isEditingNext =
-              editTarget.id === car._id &&
-              editTarget.field === "next";
+              editTarget.id === car._id && editTarget.field === "next";
             const isEditingChecklist =
               editTarget.id === car._id &&
-              editTarget.field ===
-                "checklist";
+              editTarget.field === "checklist";
             const isEditingNotes =
-              editTarget.id === car._id &&
-              editTarget.field === "notes";
+              editTarget.id === car._id && editTarget.field === "notes";
             const isEditingStage =
-              editTarget.id === car._id &&
-              editTarget.field === "stage";
+              editTarget.id === car._id && editTarget.field === "stage";
+
+            const thumbUrl = photoCache[car._id];
 
             return (
               <tr
                 key={car._id}
                 data-id={car._id}
-                className={`row ${
-                  isSold(car)
-                    ? "row--sold"
-                    : ""
-                }`}
+                className={`row ${isSold(car) ? "row--sold" : ""}`}
                 ref={
                   isEditingCar ||
                   isEditingLoc ||
@@ -988,27 +911,36 @@ export default function CarListRegular() {
                   isEditingNotes ||
                   isEditingStage
                     ? (el) => {
-                        activeRef.current =
-                          el;
+                        activeRef.current = el;
                       }
                     : null
                 }
               >
+                {/* PHOTO cell */}
+                <td
+                  className="photo-cell"
+                  onClick={() => {
+                    setSelectedCar(car);
+                    setProfileOpen(true);
+                  }}
+                >
+                  {thumbUrl ? (
+                    <img
+                      src={thumbUrl}
+                      alt={carString(car) || car.rego || "Car photo"}
+                    />
+                  ) : (
+                    <div className="thumb-empty" />
+                  )}
+                </td>
+
                 {/* CAR cell */}
                 <td
                   onDoubleClick={() =>
                     !isEditingCar &&
-                    startEdit(
-                      car,
-                      "car",
-                      "make"
-                    )
+                    startEdit(car, "car", "make")
                   }
-                  className={
-                    isEditingCar
-                      ? "is-editing"
-                      : ""
-                  }
+                  className={isEditingCar ? "is-editing" : ""}
                 >
                   {isEditingCar ? (
                     <div className="car-edit">
@@ -1021,15 +953,9 @@ export default function CarListRegular() {
                             className="input input--compact"
                             name="make"
                             value={editData.make}
-                            onChange={
-                              handleChange
-                            }
-                            onKeyUp={
-                              rememberCaret
-                            }
-                            onClick={
-                              rememberCaret
-                            }
+                            onChange={handleChange}
+                            onKeyUp={rememberCaret}
+                            onClick={rememberCaret}
                             placeholder="Make"
                           />
                         </label>
@@ -1040,18 +966,10 @@ export default function CarListRegular() {
                           <input
                             className="input input--compact"
                             name="model"
-                            value={
-                              editData.model
-                            }
-                            onChange={
-                              handleChange
-                            }
-                            onKeyUp={
-                              rememberCaret
-                            }
-                            onClick={
-                              rememberCaret
-                            }
+                            value={editData.model}
+                            onChange={handleChange}
+                            onKeyUp={rememberCaret}
+                            onClick={rememberCaret}
                             placeholder="Model"
                           />
                         </label>
@@ -1063,19 +981,11 @@ export default function CarListRegular() {
                           <input
                             className="input input--compact"
                             name="badge"
-                            value={
-                              editData.badge
-                            }
+                            value={editData.badge}
                             maxLength={4}
-                            onChange={
-                              handleChange
-                            }
-                            onKeyUp={
-                              rememberCaret
-                            }
-                            onClick={
-                              rememberCaret
-                            }
+                            onChange={handleChange}
+                            onKeyUp={rememberCaret}
+                            onClick={rememberCaret}
                             placeholder="GLX…"
                           />
                         </label>
@@ -1087,15 +997,9 @@ export default function CarListRegular() {
                             className="input input--compact"
                             name="year"
                             value={editData.year}
-                            onChange={
-                              handleChange
-                            }
-                            onKeyUp={
-                              rememberCaret
-                            }
-                            onClick={
-                              rememberCaret
-                            }
+                            onChange={handleChange}
+                            onKeyUp={rememberCaret}
+                            onClick={rememberCaret}
                             placeholder="2014"
                           />
                         </label>
@@ -1107,18 +1011,10 @@ export default function CarListRegular() {
                           <input
                             className="input input--compact"
                             name="description"
-                            value={
-                              editData.description
-                            }
-                            onChange={
-                              handleChange
-                            }
-                            onKeyUp={
-                              rememberCaret
-                            }
-                            onClick={
-                              rememberCaret
-                            }
+                            value={editData.description}
+                            onChange={handleChange}
+                            onKeyUp={rememberCaret}
+                            onClick={rememberCaret}
                             placeholder="Colour / body / extra info"
                           />
                         </label>
@@ -1131,20 +1027,11 @@ export default function CarListRegular() {
                             className="input input--compact"
                             name="rego"
                             value={editData.rego}
-                            onChange={
-                              handleChange
-                            }
-                            onKeyUp={
-                              rememberCaret
-                            }
-                            onClick={
-                              rememberCaret
-                            }
+                            onChange={handleChange}
+                            onKeyUp={rememberCaret}
+                            onClick={rememberCaret}
                             placeholder="1AT8QG"
-                            style={{
-                              textTransform:
-                                "uppercase",
-                            }}
+                            style={{ textTransform: "uppercase" }}
                           />
                         </label>
                       </div>
@@ -1170,9 +1057,7 @@ export default function CarListRegular() {
                       </div>
                     </div>
                   ) : (
-                    <Cell>
-                      {carString(car) || "-"}
-                    </Cell>
+                    <Cell>{carString(car) || "-"}</Cell>
                   )}
                 </td>
 
@@ -1180,35 +1065,19 @@ export default function CarListRegular() {
                 <td
                   onDoubleClick={() =>
                     !isEditingLoc &&
-                    startEdit(
-                      car,
-                      "location",
-                      "location"
-                    )
+                    startEdit(car, "location", "location")
                   }
-                  className={
-                    isEditingLoc
-                      ? "is-editing"
-                      : ""
-                  }
+                  className={isEditingLoc ? "is-editing" : ""}
                 >
                   {isEditingLoc ? (
                     <div className="edit-cell">
                       <input
                         className="input input--compact input--wide-inline"
                         name="location"
-                        value={
-                          editData.location
-                        }
-                        onChange={
-                          handleChange
-                        }
-                        onKeyUp={
-                          rememberCaret
-                        }
-                        onClick={
-                          rememberCaret
-                        }
+                        value={editData.location}
+                        onChange={handleChange}
+                        onKeyUp={rememberCaret}
+                        onClick={rememberCaret}
                         placeholder="Location"
                       />
                       <div className="edit-actions">
@@ -1224,13 +1093,8 @@ export default function CarListRegular() {
                     <Cell>
                       {car.location
                         ? (() => {
-                            const d =
-                              daysAtCurrentLocation(
-                                car
-                              );
-                            return d
-                              ? `${car.location} (${d})`
-                              : car.location;
+                            const d = daysAtCurrentLocation(car);
+                            return d ? `${car.location} (${d})` : car.location;
                           })()
                         : "-"}
                     </Cell>
@@ -1238,49 +1102,29 @@ export default function CarListRegular() {
                 </td>
 
                 {/* NEXT (open modal) */}
-                <td
-                  onDoubleClick={() =>
-                    openNextModal(car)
-                  }
-                >
+                <td onDoubleClick={() => openNextModal(car)}>
                   <Cell>
-                    {Array.isArray(
-                      car.nextLocations
-                    ) &&
-                    car.nextLocations
-                      .length
-                      ? car.nextLocations.join(
-                          ", "
-                        )
+                    {Array.isArray(car.nextLocations) &&
+                    car.nextLocations.length
+                      ? car.nextLocations.join(", ")
                       : car.nextLocation || "-"}
                   </Cell>
                 </td>
 
                 {/* CHECKLIST (open modal) */}
                 <td
-                  onClick={() =>
-                    openChecklistModal(car)
-                  }
-                  onDoubleClick={() =>
-                    openChecklistModal(car)
-                  }
+                  onClick={() => openChecklistModal(car)}
+                  onDoubleClick={() => openChecklistModal(car)}
                 >
                   <Cell
                     title={
-                      Array.isArray(
-                        car.checklist
-                      )
-                        ? car.checklist.join(
-                            ", "
-                          )
+                      Array.isArray(car.checklist)
+                        ? car.checklist.join(", ")
                         : ""
                     }
                   >
-                    {car.checklist &&
-                    car.checklist.length > 0
-                      ? car.checklist.join(
-                          ", "
-                        )
+                    {car.checklist && car.checklist.length > 0
+                      ? car.checklist.join(", ")
                       : "-"}
                   </Cell>
                 </td>
@@ -1289,17 +1133,9 @@ export default function CarListRegular() {
                 <td
                   onDoubleClick={() =>
                     !isEditingNotes &&
-                    startEdit(
-                      car,
-                      "notes",
-                      "notes"
-                    )
+                    startEdit(car, "notes", "notes")
                   }
-                  className={
-                    isEditingNotes
-                      ? "is-editing"
-                      : ""
-                  }
+                  className={isEditingNotes ? "is-editing" : ""}
                 >
                   {isEditingNotes ? (
                     <div className="edit-cell">
@@ -1307,15 +1143,9 @@ export default function CarListRegular() {
                         className="input input--compact"
                         name="notes"
                         value={editData.notes}
-                        onChange={
-                          handleChange
-                        }
-                        onKeyUp={
-                          rememberCaret
-                        }
-                        onClick={
-                          rememberCaret
-                        }
+                        onChange={handleChange}
+                        onKeyUp={rememberCaret}
+                        onClick={rememberCaret}
                         placeholder="Short notes"
                       />
                       <div className="edit-actions">
@@ -1328,9 +1158,7 @@ export default function CarListRegular() {
                       </div>
                     </div>
                   ) : (
-                    <Cell>
-                      {car.notes || "-"}
-                    </Cell>
+                    <Cell>{car.notes || "-"}</Cell>
                   )}
                 </td>
 
@@ -1338,17 +1166,9 @@ export default function CarListRegular() {
                 <td
                   onDoubleClick={() =>
                     !isEditingStage &&
-                    startEdit(
-                      car,
-                      "stage",
-                      "stage"
-                    )
+                    startEdit(car, "stage", "stage")
                   }
-                  className={
-                    isEditingStage
-                      ? "is-editing"
-                      : ""
-                  }
+                  className={isEditingStage ? "is-editing" : ""}
                 >
                   {isEditingStage ? (
                     <div className="edit-cell">
@@ -1357,21 +1177,14 @@ export default function CarListRegular() {
                         name="stage"
                         value={editData.stage}
                         onChange={(e) => {
-                          setEditData(
-                            (p) => ({
-                              ...p,
-                              stage:
-                                e.target
-                                  .value,
-                            })
-                          );
-                          stageDirtyRef.current =
-                            true;
+                          setEditData((p) => ({
+                            ...p,
+                            stage: e.target.value,
+                          }));
+                          stageDirtyRef.current = true;
                         }}
                         onBlur={() => {
-                          if (
-                            stageDirtyRef.current
-                          ) {
+                          if (stageDirtyRef.current) {
                             saveChanges();
                           } else {
                             setEditTarget({
@@ -1380,30 +1193,19 @@ export default function CarListRegular() {
                             });
                           }
                         }}
-                        onClick={(e) =>
-                          e.stopPropagation()
-                        }
-                        onMouseDown={(e) =>
-                          e.stopPropagation()
-                        }
-                        onTouchStart={(e) =>
-                          e.stopPropagation()
-                        }
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
                       >
                         {STAGES.map((s) => (
-                          <option
-                            key={s}
-                            value={s}
-                          >
+                          <option key={s} value={s}>
                             {s}
                           </option>
                         ))}
                       </select>
                     </div>
                   ) : (
-                    <Cell>
-                      {car.stage || "-"}
-                    </Cell>
+                    <Cell>{car.stage || "-"}</Cell>
                   )}
                 </td>
 
@@ -1424,9 +1226,7 @@ export default function CarListRegular() {
                       className="btn btn--danger btn--xs btn--icon"
                       title="Delete car"
                       aria-label="Delete"
-                      onClick={() =>
-                        handleDelete(car._id)
-                      }
+                      onClick={() => handleDelete(car._id)}
                     >
                       <TrashIcon />
                     </button>
@@ -1445,12 +1245,13 @@ export default function CarListRegular() {
     <div className="table-wrap">
       <style>{`
         .table-wrap{position:relative; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;}
-        .car-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0; min-width:1200px;}
+        .car-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0; min-width:1260px;}
         .car-table th,.car-table td{padding:6px 10px;vertical-align:middle;}
 
-        .car-table col.col-car{width:420px;}
+        .car-table col.col-photo{width:72px;}
+        .car-table col.col-car{width:380px;}
         .car-table col.col-loc{width:140px;}
-        .car-table col.col-next{width:280px;}
+        .car-table col.col-next{width:220px;}
         .car-table col.col-chk{width:440px;}
         .car-table col.col-notes{width:300px;}
         .car-table col.col-stage{width:90px;}
@@ -1530,6 +1331,27 @@ export default function CarListRegular() {
         }
         .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
 
+        /* Photo thumb styling */
+        .photo-cell{
+          width:72px;
+          padding-left:6px;
+          padding-right:6px;
+        }
+        .photo-cell img{
+          width:68px;
+          height:52px;
+          object-fit:cover;
+          border-radius:6px;
+          display:block;
+          cursor:pointer;
+        }
+        .thumb-empty{
+          width:68px;
+          height:52px;
+          background:#1E293B;
+          border-radius:6px;
+        }
+
         /* iOS sticky bug avoided: no sticky used now */
         @media (max-width: 820px){
           /* nothing special needed; table scrolls normally */
@@ -1538,6 +1360,7 @@ export default function CarListRegular() {
 
       <table className="car-table">
         <colgroup>
+          <col className="col-photo" />
           <col className="col-car" />
           <col className="col-loc" />
           <col className="col-next" />
@@ -1586,15 +1409,11 @@ export default function CarListRegular() {
                 return (
                   <button
                     key={s}
-                    className={`chip ${
-                      on ? "chip--on" : ""
-                    }`}
+                    className={`chip ${on ? "chip--on" : ""}`}
                     onClick={() =>
                       setStageFilter((prev) => {
-                        const next =
-                          new Set(prev);
-                        if (next.has(s))
-                          next.delete(s);
+                        const next = new Set(prev);
+                        if (next.has(s)) next.delete(s);
                         else next.add(s);
                         return next;
                       })
@@ -1610,9 +1429,7 @@ export default function CarListRegular() {
             <input
               className="input"
               value={query}
-              onChange={(e) =>
-                setQuery(e.target.value)
-              }
+              onChange={(e) => setQuery(e.target.value)}
               placeholder="Search cars…"
             />
             <button
@@ -1627,9 +1444,7 @@ export default function CarListRegular() {
               onClick={triggerCsvSplit}
               disabled={uploading}
             >
-              {uploading
-                ? "Uploading…"
-                : "Upload CSV"}
+              {uploading ? "Uploading…" : "Upload CSV"}
             </button>
             <input
               ref={fileInputRefSplit}
@@ -1689,13 +1504,10 @@ export default function CarListRegular() {
               <div
                 style={{
                   padding: 14,
-                  borderBottom:
-                    "1px solid #243041",
+                  borderBottom: "1px solid #243041",
                 }}
               >
-                <h3 style={{ margin: 0 }}>
-                  Paste Autogate List
-                </h3>
+                <h3 style={{ margin: 0 }}>Paste Autogate List</h3>
                 <p
                   style={{
                     margin: "4px 0 0",
@@ -1703,9 +1515,7 @@ export default function CarListRegular() {
                     fontSize: 13,
                   }}
                 >
-                  We’ll set cars to{" "}
-                  <b>Online</b> only if
-                  they’re currently{" "}
+                  We’ll set cars to <b>Online</b> only if they’re currently{" "}
                   <b>In Works</b>.
                 </p>
               </div>
@@ -1719,24 +1529,19 @@ export default function CarListRegular() {
                   }}
                   placeholder="Paste the whole Autogate block here…"
                   value={pasteText}
-                  onChange={(e) =>
-                    setPasteText(e.target.value)
-                  }
+                  onChange={(e) => setPasteText(e.target.value)}
                 />
                 <div
                   style={{
                     display: "flex",
                     gap: 8,
-                    justifyContent:
-                      "flex-end",
+                    justifyContent: "flex-end",
                     marginTop: 10,
                   }}
                 >
                   <button
                     className="btn"
-                    onClick={() =>
-                      setPasteOpen(false)
-                    }
+                    onClick={() => setPasteOpen(false)}
                   >
                     Cancel
                   </button>
@@ -1797,15 +1602,11 @@ export default function CarListRegular() {
               return (
                 <button
                   key={s}
-                  className={`chip ${
-                    on ? "chip--on" : ""
-                  }`}
+                  className={`chip ${on ? "chip--on" : ""}`}
                   onClick={() =>
                     setStageFilter((prev) => {
-                      const next =
-                        new Set(prev);
-                      if (next.has(s))
-                        next.delete(s);
+                      const next = new Set(prev);
+                      if (next.has(s)) next.delete(s);
                       else next.add(s);
                       return next;
                     })
@@ -1821,9 +1622,7 @@ export default function CarListRegular() {
           <input
             className="input"
             value={query}
-            onChange={(e) =>
-              setQuery(e.target.value)
-            }
+            onChange={(e) => setQuery(e.target.value)}
             placeholder="Search cars…"
           />
           <button
@@ -1838,9 +1637,7 @@ export default function CarListRegular() {
             onClick={triggerCsvRegular}
             disabled={uploading}
           >
-            {uploading
-              ? "Uploading…"
-              : "Upload CSV"}
+            {uploading ? "Uploading…" : "Upload CSV"}
           </button>
           <input
             ref={fileInputRefRegular}
@@ -1888,10 +1685,7 @@ export default function CarListRegular() {
       {checklistModal.open && (
         <ChecklistFormModal
           open
-          items={
-            checklistModal.car?.checklist ??
-            []
-          }
+          items={checklistModal.car?.checklist ?? []}
           onSave={async (items) => {
             try {
               await api.put(
@@ -1899,8 +1693,7 @@ export default function CarListRegular() {
                 { checklist: items },
                 {
                   headers: {
-                    "Content-Type":
-                      "application/json",
+                    "Content-Type": "application/json",
                   },
                 }
               );
@@ -1926,9 +1719,7 @@ export default function CarListRegular() {
         <NextLocationsFormModal
           open
           items={
-            Array.isArray(
-              nextModal.car?.nextLocations
-            )
+            Array.isArray(nextModal.car?.nextLocations)
               ? nextModal.car.nextLocations
               : nextModal.car?.nextLocation
               ? [nextModal.car.nextLocation]
@@ -1940,14 +1731,11 @@ export default function CarListRegular() {
                 `/cars/${nextModal.car._id}`,
                 {
                   nextLocations: items,
-                  nextLocation:
-                    items[items.length - 1] ??
-                    "",
+                  nextLocation: items[items.length - 1] ?? "",
                 },
                 {
                   headers: {
-                    "Content-Type":
-                      "application/json",
+                    "Content-Type": "application/json",
                   },
                 }
               );
@@ -1974,24 +1762,18 @@ export default function CarListRegular() {
                 : nextModal.car.nextLocation
                 ? [nextModal.car.nextLocation]
                 : [];
-              const remaining =
-                existing.filter(
-                  (s) => s !== loc
-                );
+              const remaining = existing.filter((s) => s !== loc);
               await api.put(
                 `/cars/${nextModal.car._id}`,
                 {
                   location: loc,
                   nextLocations: remaining,
                   nextLocation:
-                    remaining[
-                      remaining.length - 1
-                    ] ?? "",
+                    remaining[remaining.length - 1] ?? "",
                 },
                 {
                   headers: {
-                    "Content-Type":
-                      "application/json",
+                    "Content-Type": "application/json",
                   },
                 }
               );
@@ -2033,13 +1815,10 @@ export default function CarListRegular() {
             <div
               style={{
                 padding: 14,
-                borderBottom:
-                  "1px solid #243041",
+                borderBottom: "1px solid #243041",
               }}
             >
-              <h3 style={{ margin: 0 }}>
-                Paste Autogate List
-              </h3>
+              <h3 style={{ margin: 0 }}>Paste Autogate List</h3>
               <p
                 style={{
                   margin: "4px 0 0",
@@ -2047,9 +1826,7 @@ export default function CarListRegular() {
                   fontSize: 13,
                 }}
               >
-                We’ll set cars to{" "}
-                <b>Online</b> only if
-                they’re currently{" "}
+                We’ll set cars to <b>Online</b> only if they’re currently{" "}
                 <b>In Works</b>.
               </p>
             </div>
@@ -2063,24 +1840,19 @@ export default function CarListRegular() {
                 }}
                 placeholder="Paste the whole Autogate block here…"
                 value={pasteText}
-                onChange={(e) =>
-                  setPasteText(e.target.value)
-                }
+                onChange={(e) => setPasteText(e.target.value)}
               />
               <div
                 style={{
                   display: "flex",
                   gap: 8,
-                  justifyContent:
-                    "flex-end",
+                  justifyContent: "flex-end",
                   marginTop: 10,
                 }}
               >
                 <button
                   className="btn"
-                  onClick={() =>
-                    setPasteOpen(false)
-                  }
+                  onClick={() => setPasteOpen(false)}
                 >
                   Cancel
                 </button>
