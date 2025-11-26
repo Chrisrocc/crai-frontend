@@ -156,6 +156,39 @@ export default function CarListSplit({
   });
   const sort = isControlled ? sortState || { key: null, dir: null } : internalSort;
 
+  // Photo cache for thumbnail column
+  const [photoCache, setPhotoCache] = useState({});
+
+  const fetchPhoto = useCallback(
+    async (car) => {
+      if (!car?._id) return;
+      if (photoCache[car._id]) return;
+
+      try {
+        const res = await api.get(`/cars/${car._id}/photo-preview`);
+        const url = res?.data?.data || "";
+        if (url) {
+          setPhotoCache((prev) =>
+            prev[car._id] ? prev : { ...prev, [car._id]: url }
+          );
+        }
+      } catch (e) {
+        console.warn(`❌ Error loading photo for ${car.rego}`, e);
+      }
+    },
+    [photoCache]
+  );
+
+  // Prefetch thumbnails for cars that have photos
+  useEffect(() => {
+    cars.forEach((car) => {
+      if (car?.photos?.length && !photoCache[car._id]) {
+        fetchPhoto(car);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cars]);
+
   /* ---------- fetch ---------- */
   useEffect(() => {
     if (listOverride) {
@@ -767,7 +800,8 @@ export default function CarListSplit({
           z-index:1;
         }
 
-        .car-table col.col-car{ width:340px; }
+        .car-table col.col-photo{ width:82px; }
+        .car-table col.col-car{ width:320px; }
         .car-table col.col-loc{ width:100px; }
         .car-table col.col-next{ width:160px; }
         .car-table col.col-chk{ width:220px; }
@@ -779,6 +813,7 @@ export default function CarListSplit({
           .car-table{ font-size:12px; }
           .car-table th,
           .car-table td{ padding:4px 6px; }
+          .car-table col.col-photo{ width:82px; }
           .car-table col.col-car{ width:300px; }
           .car-table col.col-loc{ width:88px; }
           .car-table col.col-next{ width:140px; }
@@ -932,6 +967,27 @@ export default function CarListSplit({
         .car-table tr.row--sold:hover td{
           background: var(--sold-bg-hover);
         }
+
+        /* Photo thumb styling */
+        .photo-cell{
+          width:72px;
+          padding-left:6px;
+          padding-right:6px;
+        }
+        .photo-cell img{
+          width:68px;
+          height:52px;
+          object-fit:cover;
+          border-radius:6px;
+          display:block;
+          cursor:pointer;
+        }
+        .thumb-empty{
+          width:68px;
+          height:52px;
+          background:#1E293B;
+          border-radius:6px;
+        }
       `}</style>
 
       {/* Header (hidden when embedded inside Regular) */}
@@ -1049,6 +1105,7 @@ export default function CarListSplit({
           list={leftList}
           sort={sort}
           onSortClick={handleSortClick}
+          photoCache={photoCache}
           {...{
             editTarget,
             setEditTarget,
@@ -1070,6 +1127,7 @@ export default function CarListSplit({
           list={rightList}
           sort={sort}
           onSortClick={handleSortClick}
+          photoCache={photoCache}
           {...{
             editTarget,
             setEditTarget,
@@ -1345,6 +1403,7 @@ function Table({
   list,
   sort,
   onSortClick,
+  photoCache,
   editTarget,
   setEditTarget,
   editData,
@@ -1488,6 +1547,7 @@ function Table({
     >
       <table className="car-table">
         <colgroup>
+          <col className="col-photo" />
           <col className="col-car" />
           <col className="col-loc" />
           <col className="col-next" />
@@ -1498,6 +1558,7 @@ function Table({
         </colgroup>
         <thead>
           <tr>
+            <th>Photo</th>
             <th>
               <button
                 className="thbtn"
@@ -1565,7 +1626,7 @@ function Table({
           {list.length === 0 ? (
             <tr>
               <td
-                colSpan={7}
+                colSpan={8}
                 className="empty"
               >
                 No cars.
@@ -1585,6 +1646,9 @@ function Table({
                   }
                 : null;
 
+              const thumbUrl =
+                photoCache?.[car._id];
+
               return (
                 <tr
                   key={car._id}
@@ -1596,6 +1660,28 @@ function Table({
                   }
                   ref={refCb}
                 >
+                  {/* PHOTO */}
+                  <td
+                    className="photo-cell"
+                    onClick={() => {
+                      setSelectedCar(car);
+                      setProfileOpen(true);
+                    }}
+                  >
+                    {thumbUrl ? (
+                      <img
+                        src={thumbUrl}
+                        alt={
+                          carString(car) ||
+                          car.rego ||
+                          "Car photo"
+                        }
+                      />
+                    ) : (
+                      <div className="thumb-empty" />
+                    )}
+                  </td>
+
                   {/* CAR */}
                   <td
                     onDoubleClick={() =>
