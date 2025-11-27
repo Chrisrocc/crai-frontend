@@ -866,6 +866,18 @@ export default function CarListSplit({
           background:#1f2a3e;
           color:#c9d3e3;
         }
+        .btn--primary{
+          background:#2563EB;
+          color:#fff;
+        }
+        .btn--muted{
+          background:#334155;
+          color:#e5e7eb;
+        }
+        .btn--sm{
+          font-size:13px;
+          padding:4px 10px;
+        }
 
         :root{
           --sold-bg: rgba(14, 165, 233, 0.12);
@@ -966,9 +978,8 @@ export default function CarListSplit({
             >
               Paste Online List
             </button>
-            {/* Hide/show photos toggle */}
             <button
-              className="btn btn--photos btn--sm"
+              className="btn btn--muted btn--sm"
               onClick={() => setShowPhotos((v) => !v)}
             >
               {showPhotos ? "Hide Photos" : "Show Photos"}
@@ -1225,7 +1236,7 @@ export default function CarListSplit({
                 }}
               >
                 <button
-                  className="btn"
+                  className="btn btn--muted"
                   onClick={() => setPasteOpen(false)}
                 >
                   Cancel
@@ -1592,7 +1603,7 @@ function Table({
                             Save
                           </button>
                           <button
-                            className="btn"
+                            className="btn btn--muted"
                             onClick={() =>
                               setEditTarget({
                                 id: null,
