@@ -119,7 +119,7 @@ export default function CarListSplit({
   const fileInputRef = useRef(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
-  const [showPhotos, setShowPhotos] = useState(true); // NEW: toggle photos
+  const [showPhotos, setShowPhotos] = useState(true); // <<< NEW
 
   // per-cell editing
   const [editTarget, setEditTarget] = useState({
@@ -424,7 +424,7 @@ export default function CarListSplit({
       await api.delete(`/cars/${encodeURIComponent(carId)}`);
       setCars((prev) => prev.filter((c) => c._id !== carId));
       await refreshCars();
-    } catch (err)      {
+    } catch (err) {
       const status = err?.response?.status;
       const msg =
         err?.response?.data?.message || err?.message || "Delete failed";
@@ -644,240 +644,6 @@ export default function CarListSplit({
 
   return (
     <div className="page-pad split-root">
-      <style>{`
-        .split-root{
-          padding-left: 8px;
-          padding-right: 8px;
-        }
-
-        /* Split grid */
-        .split-panels{
-          display:grid;
-          grid-template-columns: 1fr;
-          gap:12px;
-        }
-        @media (min-width: 1100px){
-          .split-panels{
-            grid-template-columns: 1fr 1fr;
-          }
-        }
-
-        .table-wrap{
-          position:relative;
-          overflow-x:auto;
-          overflow-y:hidden;
-          -webkit-overflow-scrolling:touch;
-          border:1px solid #1d2a3a;
-          border-radius:10px;
-          background:#0b1220;
-          cursor:grab;
-        }
-        .table-wrap.is-dragging{
-          cursor:grabbing;
-        }
-
-        .car-table{
-          width:100%;
-          table-layout:fixed;
-          border-collapse:separate;
-          border-spacing:0;
-          font-size:13px;
-          line-height:1.2;
-        }
-        .car-table th,
-        .car-table td{
-          padding:4px 6px;
-          vertical-align:middle;
-        }
-        .car-table thead th{
-          position:sticky;
-          top:0;
-          background:#0f1a2b;
-          z-index:1;
-        }
-
-        .car-table col.col-photo{ width:64px; }
-        .car-table col.col-car{ width:340px; }
-        .car-table col.col-loc{ width:110px; }
-        .car-table col.col-next{ width:170px; }
-        .car-table col.col-chk{ width:230px; }
-        .car-table col.col-notes{ width:170px; }
-        .car-table col.col-stage{ width:86px; }
-        .car-table col.col-act{ width:76px; }
-
-        @media (min-width: 1400px){
-          .car-table{ font-size:12px; }
-          .car-table th,
-          .car-table td{ padding:3px 5px; }
-
-          .car-table col.col-photo{ width:66px; }
-          .car-table col.col-car{ width:340px; }
-          .car-table col.col-loc{ width:110px; }
-          .car-table col.col-next{ width:180px; }
-          .car-table col.col-chk{ width:240px; }
-          .car-table col.col-notes{ width:180px; }
-          .car-table col.col-stage{ width:86px; }
-          .car-table col.col-act{ width:76px; }
-        }
-
-        .car-table .cell{
-          display:block;
-          overflow:hidden;
-          text-overflow:ellipsis;
-          white-space:nowrap;
-          max-width:100%;
-        }
-
-        .thbtn{
-          all:unset;
-          cursor:pointer;
-          color:#cbd5e1;
-          padding:2px 4px;
-          border-radius:6px;
-        }
-        .thbtn:hover{
-          background:#1f2937;
-        }
-
-        /* Photo column */
-        .photo-cell{
-          padding:2px 4px;
-          text-align:center;
-        }
-        .photo-thumb,
-        .photo-placeholder{
-          width:48px;
-          height:36px;
-          border-radius:8px;
-          display:block;
-          margin:0 auto;
-        }
-        .photo-placeholder{
-          background:#1E293B;
-        }
-
-        /* Editing */
-        td.is-editing{
-          background:#0c1a2e;
-          box-shadow: inset 0 0 0 1px #2b3b54;
-          border-radius:8px;
-          position:relative;
-          z-index:5;
-          overflow:visible;
-        }
-        .edit-cell{
-          display:flex;
-          align-items:center;
-          gap:8px;
-        }
-        .edit-actions{
-          display:flex;
-          gap:6px;
-          margin-top:2px;
-        }
-        .input.input--compact{
-          padding:6px 8px;
-          font-size:12.5px;
-          line-height:1.25;
-        }
-        td.is-editing .input--wider{
-          width:auto;
-          min-width:260px;
-          max-width:min(640px, 70vw);
-        }
-        td.is-editing .textarea--wider{
-          width:auto;
-          min-width:360px;
-          max-width:min(720px, 80vw);
-          min-height:40px;
-          resize:vertical;
-        }
-
-        /* Car edit grid */
-        .car-edit{
-          display:flex;
-          flex-direction:column;
-          gap:8px;
-          max-width:720px;
-        }
-        .car-edit-grid{
-          display:grid;
-          grid-template-columns:repeat(2, minmax(0, 1fr));
-          gap:8px 12px;
-        }
-        .car-edit-field{
-          display:flex;
-          flex-direction:column;
-          gap:3px;
-          font-size:12px;
-        }
-        .car-edit-label{
-          color:#9CA3AF;
-          font-size:11px;
-          text-transform:uppercase;
-          letter-spacing:0.04em;
-        }
-        .car-edit-rego{
-          grid-column:1 / -1;
-        }
-        .car-edit-field .input{
-          width:100%;
-        }
-        @media (max-width: 900px){
-          .car-edit-grid{
-            grid-template-columns:1fr;
-          }
-        }
-
-        .btn{
-          border:1px solid transparent;
-          border-radius:10px;
-          padding:6px 10px;
-          cursor:pointer;
-          font-weight:600;
-        }
-        .btn--xs{
-          font-size:12px;
-          padding:4px 8px;
-        }
-        .btn--icon{
-          padding:4px;
-          width:28px;
-          height:24px;
-          display:inline-flex;
-          align-items:center;
-          justify-content:center;
-        }
-        .btn--danger{
-          background:#DC2626;
-          color:#fff;
-        }
-        .btn--kebab{
-          background:#1f2a3e;
-          color:#c9d3e3;
-        }
-
-        /* smaller header buttons */
-        .btn--header-slim{
-          font-size:12px;
-          padding:4px 8px;
-          border-radius:8px;
-        }
-
-        :root{
-          --sold-bg: rgba(14, 165, 233, 0.12);
-          --sold-bg-hover: rgba(14, 165, 233, 0.18);
-          --sold-border: rgba(14, 165, 233, 0.35);
-        }
-        .car-table tr.row--sold td{
-          background: var(--sold-bg);
-          box-shadow: inset 0 0 0 1px var(--sold-border);
-        }
-        .car-table tr.row--sold:hover td{
-          background: var(--sold-bg-hover);
-        }
-      `}</style>
-
       {/* Header (hidden when embedded inside Regular) */}
       {!embedded && (
         <div className="toolbar header-row">
@@ -933,7 +699,7 @@ export default function CarListSplit({
             className="btn-row"
             style={{
               display: "flex",
-              gap: 6,
+              gap: 8,
               flexWrap: "wrap",
             }}
           >
@@ -1025,7 +791,7 @@ export default function CarListSplit({
         />
       </div>
 
-      {/* Modals */}
+      {/* Modals (unchanged) */}
       {showForm && (
         <CarFormModal
           show={showForm}
