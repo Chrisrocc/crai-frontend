@@ -119,7 +119,7 @@ export default function CarListSplit({
   const fileInputRef = useRef(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
-  const [showPhotos, setShowPhotos] = useState(true); // ← toggle state
+  const [showPhotos, setShowPhotos] = useState(true); // NEW: toggle photos
 
   // per-cell editing
   const [editTarget, setEditTarget] = useState({
@@ -205,7 +205,9 @@ export default function CarListSplit({
     if (listOverride) return;
     try {
       const res = await api.get("/cars", {
-        headers: { "Cache-Control": "no-cache" },
+        headers: {
+          "Cache-Control": "no-cache",
+        },
       });
       setCars(res.data?.data || []);
     } catch (err) {
@@ -422,7 +424,7 @@ export default function CarListSplit({
       await api.delete(`/cars/${encodeURIComponent(carId)}`);
       setCars((prev) => prev.filter((c) => c._id !== carId));
       await refreshCars();
-    } catch (err) {
+    } catch (err)      {
       const status = err?.response?.status;
       const msg =
         err?.response?.data?.message || err?.message || "Delete failed";
@@ -768,15 +770,6 @@ export default function CarListSplit({
           align-items:center;
           gap:8px;
         }
-        .edit-cell-group{
-          display:flex;
-          flex-direction:column;
-          gap:6px;
-        }
-        .edit-inline{
-          display:flex;
-          gap:6px;
-        }
         .edit-actions{
           display:flex;
           gap:6px;
@@ -786,9 +779,6 @@ export default function CarListSplit({
           padding:6px 8px;
           font-size:12.5px;
           line-height:1.25;
-        }
-        .edit-cell-group .input{
-          width:100%;
         }
         td.is-editing .input--wider{
           width:auto;
@@ -803,7 +793,7 @@ export default function CarListSplit({
           resize:vertical;
         }
 
-        /* Car edit grid (shared with Regular view) */
+        /* Car edit grid */
         .car-edit{
           display:flex;
           flex-direction:column;
@@ -865,6 +855,13 @@ export default function CarListSplit({
         .btn--kebab{
           background:#1f2a3e;
           color:#c9d3e3;
+        }
+
+        /* smaller header buttons */
+        .btn--header-slim{
+          font-size:12px;
+          padding:4px 8px;
+          border-radius:8px;
         }
 
         :root{
@@ -936,18 +933,18 @@ export default function CarListSplit({
             className="btn-row"
             style={{
               display: "flex",
-              gap: 8,
+              gap: 6,
               flexWrap: "wrap",
             }}
           >
             <button
-              className="btn btn--primary"
+              className="btn btn--primary btn--header-slim"
               onClick={() => setShowForm(true)}
             >
               + Add New Car
             </button>
             <button
-              className="btn btn--muted"
+              className="btn btn--muted btn--header-slim"
               onClick={triggerCsv}
               disabled={uploading}
             >
@@ -961,14 +958,13 @@ export default function CarListSplit({
               onChange={handleCsvChosen}
             />
             <button
-              className="btn btn--muted"
+              className="btn btn--muted btn--header-slim"
               onClick={() => setPasteOpen(true)}
             >
               Paste Online List
             </button>
-            {/* NEW: hide/show photos toggle */}
             <button
-              className="btn btn--muted"
+              className="btn btn--muted btn--header-slim"
               onClick={() => setShowPhotos((v) => !v)}
             >
               {showPhotos ? "Hide Photos" : "Show Photos"}
@@ -1225,13 +1221,13 @@ export default function CarListSplit({
                 }}
               >
                 <button
-                  className="btn"
+                  className="btn btn--header-slim"
                   onClick={() => setPasteOpen(false)}
                 >
                   Cancel
                 </button>
                 <button
-                  className="btn btn--primary"
+                  className="btn btn--primary btn--header-slim"
                   onClick={submitPaste}
                 >
                   Process
@@ -1586,13 +1582,13 @@ function Table({
 
                         <div className="edit-actions">
                           <button
-                            className="btn btn--primary"
+                            className="btn btn--primary btn--xs"
                             onClick={saveChanges}
                           >
                             Save
                           </button>
                           <button
-                            className="btn"
+                            className="btn btn--xs"
                             onClick={() =>
                               setEditTarget({
                                 id: null,
@@ -1605,7 +1601,7 @@ function Table({
                         </div>
                       </div>
                     ) : (
-                      <span className="cell" title={carString(car)}>
+                      <span className="cell" title={carString(car) || car.rego}>
                         {carString(car) || "-"}
                       </span>
                     )}
@@ -1632,7 +1628,7 @@ function Table({
                         />
                         <div className="edit-actions">
                           <button
-                            className="btn btn--primary"
+                            className="btn btn--primary btn--xs"
                             onClick={saveChanges}
                           >
                             Save
@@ -1722,7 +1718,7 @@ function Table({
                         />
                         <div className="edit-actions">
                           <button
-                            className="btn btn--primary"
+                            className="btn btn--primary btn--xs"
                             onClick={saveChanges}
                           >
                             Save
