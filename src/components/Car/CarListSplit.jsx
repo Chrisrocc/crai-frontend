@@ -70,8 +70,7 @@ const carString = (car) => {
   return [head, tail.join(", ")].filter(Boolean).join(", ");
 };
 
-const nextDir = (d) =>
-  d === null ? "desc" : d === "desc" ? "asc" : null;
+const nextDir = (d) => (d === null ? "desc" : d === "desc" ? "asc" : null);
 
 const norm = (v) =>
   v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v);
@@ -156,51 +155,9 @@ export default function CarListSplit({
   });
   const sort = isControlled ? sortState || { key: null, dir: null } : internalSort;
 
-  // photo cache for thumbnails
+  // photo cache (thumb URLs)
   const [photoCache, setPhotoCache] = useState({});
 
-  /* ---------- fetch ---------- */
-  useEffect(() => {
-    if (listOverride) {
-      setCars(listOverride);
-      setLoading(false);
-      return;
-    }
-    (async () => {
-      try {
-        const res = await api.get("/cars", {
-          headers: { "Cache-Control": "no-cache" },
-        });
-        setCars(res.data?.data || []);
-      } catch (err) {
-        setErrMsg(
-          err.response?.data?.message ||
-            err.message ||
-            "Error fetching cars"
-        );
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [listOverride]);
-
-  const refreshCars = useCallback(async () => {
-    if (listOverride) return;
-    try {
-      const res = await api.get("/cars", {
-        headers: { "Cache-Control": "no-cache" },
-      });
-      setCars(res.data?.data || []);
-    } catch (err) {
-      setErrMsg(
-        err.response?.data?.message ||
-          err.message ||
-          "Error fetching cars"
-      );
-    }
-  }, [listOverride]);
-
-  // lazy thumbnail loader (same pattern as Regular view)
   const fetchPhoto = useCallback(
     async (car) => {
       if (!car?._id) return;
@@ -220,21 +177,49 @@ export default function CarListSplit({
     [photoCache]
   );
 
+  /* ---------- fetch ---------- */
   useEffect(() => {
-    cars.forEach((car) => {
-      if (car?.photos?.length && !photoCache[car._id]) {
-        fetchPhoto(car);
+    if (listOverride) {
+      setCars(listOverride);
+      setLoading(false);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await api.get("/cars", {
+          headers: { "Cache-Control": "no-cache" },
+        });
+        setCars(res.data?.data || []);
+      } catch (err) {
+        setErrMsg(
+          err.response?.data?.message || err.message || "Error fetching cars"
+        );
+      } finally {
+        setLoading(false);
       }
-    });
-  }, [cars, photoCache, fetchPhoto]);
+    })();
+  }, [listOverride]);
+
+  const refreshCars = useCallback(async () => {
+    if (listOverride) return;
+    try {
+      const res = await api.get("/cars", {
+        headers: { "Cache-Control": "no-cache" },
+      });
+      setCars(res.data?.data || []);
+    } catch (err) {
+      setErrMsg(
+        err.response?.data?.message || err.message || "Error fetching cars"
+      );
+    }
+  }, [listOverride]);
 
   /* ---------- sort: header click handler ---------- */
   const handleSortClick = (key) => {
     if (isControlled) {
       const curr = sort || { key: null, dir: null };
       const dir = curr.key === key ? nextDir(curr.dir) : "desc";
-      const next =
-        dir === null ? { key: null, dir: null } : { key, dir };
+      const next = dir === null ? { key: null, dir: null } : { key, dir };
       onSortChange(next);
     } else {
       setInternalSort((prev) => {
@@ -278,8 +263,7 @@ export default function CarListSplit({
       const root = activeRef.current;
       if (!root) return;
       const el =
-        (focusName &&
-          root.querySelector(`[name="${CSS.escape(focusName)}"]`)) ||
+        (focusName && root.querySelector(`[name="${CSS.escape(focusName)}"]`)) ||
         root.querySelector("input, textarea, select");
       if (el) {
         el.focus();
@@ -328,17 +312,14 @@ export default function CarListSplit({
     const root = activeRef.current;
     if (!root) return;
     const el =
-      (name &&
-        root.querySelector(`[name="${CSS.escape(name)}"]`)) ||
+      (name && root.querySelector(`[name="${CSS.escape(name)}"]`)) ||
       root.querySelector("input, textarea, select");
     if (!el) return;
     if (document.activeElement !== el) el.focus();
     if (typeof el.setSelectionRange === "function" && "value" in el) {
       const v = el.value ?? "";
-      const s =
-        typeof start === "number" ? Math.min(start, v.length) : v.length;
-      const ee =
-        typeof end === "number" ? Math.min(end, v.length) : v.length;
+      const s = typeof start === "number" ? Math.min(start, v.length) : v.length;
+      const ee = typeof end === "number" ? Math.min(end, v.length) : v.length;
       el.setSelectionRange(s, ee);
     }
   }, [editData, editTarget]);
@@ -355,10 +336,7 @@ export default function CarListSplit({
             model: (editData.model || "").trim(),
             badge: (editData.badge || "").trim(),
             rego: (editData.rego || "").trim(),
-            year:
-              editData.year === ""
-                ? undefined
-                : Number(editData.year),
+            year: editData.year === "" ? undefined : Number(editData.year),
             description: (editData.description || "").trim(),
           };
           break;
@@ -381,31 +359,21 @@ export default function CarListSplit({
           break;
       }
 
-      const res = await api.put(
-        `/cars/${editTarget.id}`,
-        payload,
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const res = await api.put(`/cars/${editTarget.id}`, payload, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
       if (res?.data?.data) {
         const updated = res.data.data;
         if (listOverride && Array.isArray(listOverride)) {
-          const ix = listOverride.findIndex(
-            (c) => c && c._id === updated._id
-          );
+          const ix = listOverride.findIndex((c) => c && c._id === updated._id);
           if (ix !== -1) {
             Object.assign(listOverride[ix], updated);
           }
         } else {
-          setCars((prev) =>
-            prev.map((c) =>
-              c._id === updated._id ? updated : c
-            )
-          );
+          setCars((prev) => prev.map((c) => (c._id === updated._id ? updated : c)));
         }
       } else if (!listOverride) {
         await refreshCars();
@@ -415,8 +383,7 @@ export default function CarListSplit({
     } catch (err) {
       alert(
         "Error updating car: " +
-          (err.response?.data?.message ||
-            err.message)
+          (err.response?.data?.message || err.message)
       );
       if (!listOverride) await refreshCars();
       setEditTarget({ id: null, field: null });
@@ -428,38 +395,22 @@ export default function CarListSplit({
   useEffect(() => {
     const onDown = (e) => {
       if (!editTarget.id) return;
-      const rowEl = document.querySelector(
-        `tr[data-id="${editTarget.id}"]`
-      );
+      const rowEl = document.querySelector(`tr[data-id="${editTarget.id}"]`);
       if (!rowEl) return;
       if (!rowEl.contains(e.target)) {
-        if (
-          editTarget.field === "stage" &&
-          !stageDirtyRef.current
-        ) {
+        if (editTarget.field === "stage" && !stageDirtyRef.current) {
           setEditTarget({ id: null, field: null });
         } else {
           saveChanges();
         }
       }
     };
+    if (editTarget.id) document.addEventListener("mousedown", onDown);
     if (editTarget.id)
-      document.addEventListener("mousedown", onDown);
-    if (editTarget.id)
-      document.addEventListener(
-        "touchstart",
-        onDown,
-        { passive: true }
-      );
+      document.addEventListener("touchstart", onDown, { passive: true });
     return () => {
-      document.removeEventListener(
-        "mousedown",
-        onDown
-      );
-      document.removeEventListener(
-        "touchstart",
-        onDown
-      );
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editTarget, editData]);
@@ -467,23 +418,15 @@ export default function CarListSplit({
   const handleDelete = async (carId) => {
     if (!window.confirm("Delete this car?")) return;
     try {
-      await api.delete(
-        `/cars/${encodeURIComponent(carId)}`
-      );
-      setCars((prev) =>
-        prev.filter((c) => c._id !== carId)
-      );
+      await api.delete(`/cars/${encodeURIComponent(carId)}`);
+      setCars((prev) => prev.filter((c) => c._id !== carId));
       await refreshCars();
     } catch (err) {
       const status = err?.response?.status;
       const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Delete failed";
+        err?.response?.data?.message || err?.message || "Delete failed";
       if (status === 404) {
-        alert(
-          "Car not found (may already be deleted). Refreshing list."
-        );
+        alert("Car not found (may already be deleted). Refreshing list.");
         await refreshCars();
       } else if (status === 401) {
         alert("Not authorized. Please log in again.");
@@ -494,8 +437,7 @@ export default function CarListSplit({
   };
 
   /* ---------- header actions (standalone Split only) ---------- */
-  const triggerCsv = () =>
-    fileInputRef.current?.click();
+  const triggerCsv = () => fileInputRef.current?.click();
 
   const handleCsvChosen = async (e) => {
     const file = e.target.files?.[0];
@@ -505,15 +447,11 @@ export default function CarListSplit({
       const form = new FormData();
       form.append("file", file);
       form.append("defaultStage", "In Works");
-      const res = await api.post(
-        "/cars/import-csv",
-        form,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
+      const res = await api.post("/cars/import-csv", form, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
       const {
         createdCount = 0,
         skippedCount = 0,
@@ -526,8 +464,7 @@ export default function CarListSplit({
     } catch (err) {
       alert(
         `CSV import failed: ${
-          err.response?.data?.message ||
-          err.message
+          err.response?.data?.message || err.message
         }`
       );
     } finally {
@@ -584,15 +521,9 @@ export default function CarListSplit({
 
       const total = sold.length + other.length;
       const targetLeft = Math.ceil(total / 2);
-      const othersOnLeft = Math.max(
-        0,
-        targetLeft - sold.length
-      );
+      const othersOnLeft = Math.max(0, targetLeft - sold.length);
 
-      const left = [
-        ...sold,
-        ...other.slice(0, othersOnLeft),
-      ];
+      const left = [...sold, ...other.slice(0, othersOnLeft)];
       const right = other.slice(othersOnLeft);
       return [left, right];
     }
@@ -601,9 +532,7 @@ export default function CarListSplit({
     if (!embedded) {
       list =
         stageFilter.size > 0
-          ? list.filter((c) =>
-              stageFilter.has(c?.stage ?? "")
-            )
+          ? list.filter((c) => stageFilter.has(c?.stage ?? ""))
           : [];
 
       const q = query.trim().toLowerCase();
@@ -621,9 +550,7 @@ export default function CarListSplit({
             ...(Array.isArray(car.nextLocations)
               ? car.nextLocations
               : [car.nextLocation]),
-            ...(Array.isArray(car.checklist)
-              ? car.checklist
-              : []),
+            ...(Array.isArray(car.checklist) ? car.checklist : []),
           ]
             .filter(Boolean)
             .join(" ")
@@ -647,66 +574,38 @@ export default function CarListSplit({
       const cmp = (a, b) => {
         switch (key) {
           case "car": {
-            const byMake = compareStr(
-              a.make,
-              b.make,
-              dir
-            );
+            const byMake = compareStr(a.make, b.make, dir);
             if (byMake !== 0) return byMake;
-            return compareStr(
-              a.model,
-              b.model,
-              dir
-            );
+            return compareStr(a.model, b.model, dir);
           }
           case "location":
-            return compareStr(
-              a.location,
-              b.location,
-              dir
-            );
+            return compareStr(a.location, b.location, dir);
           case "next": {
             const an =
-              Array.isArray(a.nextLocations) &&
-              a.nextLocations.length
+              Array.isArray(a.nextLocations) && a.nextLocations.length
                 ? a.nextLocations.join(", ")
                 : a.nextLocation;
             const bn =
-              Array.isArray(b.nextLocations) &&
-              b.nextLocations.length
+              Array.isArray(b.nextLocations) && b.nextLocations.length
                 ? b.nextLocations.join(", ")
                 : b.nextLocation;
             return compareStr(an, bn, dir);
           }
           case "checklist": {
-            const ac =
-              Array.isArray(a.checklist)
-                ? a.checklist.join(", ")
-                : a.checklist;
-            const bc =
-              Array.isArray(b.checklist)
-                ? b.checklist.join(", ")
-                : b.checklist;
+            const ac = Array.isArray(a.checklist)
+              ? a.checklist.join(", ")
+              : a.checklist;
+            const bc = Array.isArray(b.checklist)
+              ? b.checklist.join(", ")
+              : b.checklist;
             return compareStr(ac, bc, dir);
           }
           case "notes":
-            return compareStr(
-              a.notes,
-              b.notes,
-              dir
-            );
+            return compareStr(a.notes, b.notes, dir);
           case "stage":
-            return compareStr(
-              a.stage,
-              b.stage,
-              dir
-            );
+            return compareStr(a.stage, b.stage, dir);
           case "year":
-            return compareNum(
-              a.year,
-              b.year,
-              dir
-            );
+            return compareNum(a.year, b.year, dir);
           default:
             return 0;
         }
@@ -722,46 +621,41 @@ export default function CarListSplit({
     // - RIGHT only has "other"
     const total = sold.length + other.length;
     const targetLeft = Math.ceil(total / 2);
-    const othersOnLeft = Math.max(
-      0,
-      targetLeft - sold.length
-    );
+    const othersOnLeft = Math.max(0, targetLeft - sold.length);
 
-    const left = [
-      ...sold,
-      ...other.slice(0, othersOnLeft),
-    ];
+    const left = [...sold, ...other.slice(0, othersOnLeft)];
     const right = other.slice(othersOnLeft);
 
     return [left, right];
-  }, [
-    cars,
-    listOverride,
-    query,
-    stageFilter,
-    embedded,
-    sort?.key,
-    sort?.dir,
-  ]);
+  }, [cars, listOverride, query, stageFilter, embedded, sort?.key, sort?.dir]);
 
-  if (loading)
-    return <div className="page-pad">Loading…</div>;
+  // prefetch thumbnails for visible cars (both panels)
+  useEffect(() => {
+    const all = [...leftList, ...rightList];
+    all.forEach((car) => {
+      fetchPhoto(car);
+    });
+  }, [leftList, rightList, fetchPhoto]);
+
+  if (loading) return <div className="page-pad">Loading…</div>;
 
   return (
-    <div className="page-pad">
+    <div className="page-pad split-root">
       <style>{`
-        /* Split grid - pull tables a bit wider */
+        .split-root{
+          padding-left: 8px;
+          padding-right: 8px;
+        }
+
+        /* Split grid */
         .split-panels{
           display:grid;
           grid-template-columns: 1fr;
           gap:12px;
-          margin:0 -8px; /* eat some side padding so tables fill more of the screen */
         }
         @media (min-width: 1100px){
           .split-panels{
             grid-template-columns: 1fr 1fr;
-            gap:12px;
-            margin:0 -10px;
           }
         }
 
@@ -771,7 +665,7 @@ export default function CarListSplit({
           overflow-y:hidden;
           -webkit-overflow-scrolling:touch;
           border:1px solid #1d2a3a;
-          border-radius:12px;
+          border-radius:10px;
           background:#0b1220;
           cursor:grab;
         }
@@ -789,7 +683,7 @@ export default function CarListSplit({
         }
         .car-table th,
         .car-table td{
-          padding:4px 8px; /* slightly tighter rows */
+          padding:6px 8px;
           vertical-align:middle;
         }
         .car-table thead th{
@@ -799,29 +693,28 @@ export default function CarListSplit({
           z-index:1;
         }
 
-        /* Column widths – include Photo and use a bit more width */
-        .car-table col.col-photo{ width:54px; }
-        .car-table col.col-car{ width:330px; }
+        .car-table col.col-photo{ width:80px; }
+        .car-table col.col-car{ width:340px; }
         .car-table col.col-loc{ width:110px; }
         .car-table col.col-next{ width:170px; }
         .car-table col.col-chk{ width:230px; }
         .car-table col.col-notes{ width:170px; }
-        .car-table col.col-stage{ width:84px; }
-        .car-table col.col-act{ width:74px; }
+        .car-table col.col-stage{ width:86px; }
+        .car-table col.col-act{ width:76px; }
 
         @media (min-width: 1400px){
-          .car-table{
-            font-size:12px;
-          }
+          .car-table{ font-size:12px; }
           .car-table th,
-          .car-table td{
-            padding:4px 7px;
-          }
-          .car-table col.col-car{ width:320px; }
-          .car-table col.col-loc{ width:105px; }
-          .car-table col.col-next{ width:165px; }
-          .car-table col.col-chk{ width:230px; }
-          .car-table col.col-notes{ width:170px; }
+          .car-table td{ padding:4px 6px; }
+
+          .car-table col.col-photo{ width:82px; }
+          .car-table col.col-car{ width:340px; }
+          .car-table col.col-loc{ width:110px; }
+          .car-table col.col-next{ width:180px; }
+          .car-table col.col-chk{ width:240px; }
+          .car-table col.col-notes{ width:180px; }
+          .car-table col.col-stage{ width:86px; }
+          .car-table col.col-act{ width:76px; }
         }
 
         .car-table .cell{
@@ -843,21 +736,20 @@ export default function CarListSplit({
           background:#1f2937;
         }
 
-        /* Photo thumbs – small and non-overlapping */
+        /* Photo column */
         .photo-cell{
-          padding-left:6px;
-          padding-right:6px;
-          width:54px;
+          padding:4px 4px;
+          text-align:center;
         }
-        .photo-cell img,
-        .thumb-empty{
+        .photo-thumb,
+        .photo-placeholder{
+          width:64px;
+          height:48px;
+          border-radius:10px;
           display:block;
-          width:48px;
-          height:34px;   /* smaller so more rows fit */
-          border-radius:6px;
-          object-fit:cover;
+          margin:0 auto;
         }
-        .thumb-empty{
+        .photo-placeholder{
           background:#1E293B;
         }
 
@@ -991,16 +883,10 @@ export default function CarListSplit({
       {/* Header (hidden when embedded inside Regular) */}
       {!embedded && (
         <div className="toolbar header-row">
-          <h1
-            className="title"
-            style={{ margin: 0 }}
-          >
+          <h1 className="title" style={{ margin: 0 }}>
             Car Inventory
           </h1>
-          <p
-            className="subtitle"
-            style={{ margin: 0 }}
-          >
+          <p className="subtitle" style={{ margin: 0 }}>
             {cars.length} cars
           </p>
 
@@ -1021,8 +907,7 @@ export default function CarListSplit({
                   onClick={() =>
                     setStageFilter((prev) => {
                       const next = new Set(prev);
-                      if (next.has(s))
-                        next.delete(s);
+                      if (next.has(s)) next.delete(s);
                       else next.add(s);
                       return next;
                     })
@@ -1039,9 +924,7 @@ export default function CarListSplit({
             className="input searchbar"
             placeholder="Search cars…"
             value={query}
-            onChange={(e) =>
-              setQuery(e.target.value)
-            }
+            onChange={(e) => setQuery(e.target.value)}
             style={{
               flex: "1 1 360px",
               minWidth: 220,
@@ -1067,9 +950,7 @@ export default function CarListSplit({
               onClick={triggerCsv}
               disabled={uploading}
             >
-              {uploading
-                ? "Uploading…"
-                : "Upload CSV"}
+              {uploading ? "Uploading…" : "Upload CSV"}
             </button>
             <input
               ref={fileInputRef}
@@ -1088,11 +969,7 @@ export default function CarListSplit({
         </div>
       )}
 
-      {errMsg && (
-        <div className="alert alert--error">
-          {errMsg}
-        </div>
-      )}
+      {errMsg && <div className="alert alert--error">{errMsg}</div>}
 
       {/* Two tables side by side */}
       <div className="split-panels">
@@ -1162,10 +1039,7 @@ export default function CarListSplit({
       {checklistModal.open && (
         <ChecklistFormModal
           open
-          items={
-            checklistModal.car?.checklist ??
-            []
-          }
+          items={checklistModal.car?.checklist ?? []}
           onSave={async (items) => {
             if (!checklistModal.car) return;
             try {
@@ -1174,8 +1048,7 @@ export default function CarListSplit({
                 { checklist: items },
                 {
                   headers: {
-                    "Content-Type":
-                      "application/json",
+                    "Content-Type": "application/json",
                   },
                 }
               );
@@ -1206,9 +1079,7 @@ export default function CarListSplit({
         <NextLocationsFormModal
           open
           items={
-            Array.isArray(
-              nextModal.car?.nextLocations
-            )
+            Array.isArray(nextModal.car?.nextLocations)
               ? nextModal.car.nextLocations
               : nextModal.car?.nextLocation
               ? [nextModal.car.nextLocation]
@@ -1221,14 +1092,11 @@ export default function CarListSplit({
                 `/cars/${nextModal.car._id}`,
                 {
                   nextLocations: items,
-                  nextLocation:
-                    items[items.length - 1] ??
-                    "",
+                  nextLocation: items[items.length - 1] ?? "",
                 },
                 {
                   headers: {
-                    "Content-Type":
-                      "application/json",
+                    "Content-Type": "application/json",
                   },
                 }
               );
@@ -1249,38 +1117,22 @@ export default function CarListSplit({
           onSetCurrent={async (loc) => {
             if (!nextModal.car) return;
             try {
-              const existing =
-                Array.isArray(
-                  nextModal.car
-                    .nextLocations
-                )
-                  ? nextModal.car
-                      .nextLocations
-                  : nextModal.car
-                      .nextLocation
-                  ? [
-                      nextModal.car
-                        .nextLocation,
-                    ]
-                  : [];
-              const remaining =
-                existing.filter(
-                  (s) => s !== loc
-                );
+              const existing = Array.isArray(nextModal.car.nextLocations)
+                ? nextModal.car.nextLocations
+                : nextModal.car.nextLocation
+                ? [nextModal.car.nextLocation]
+                : [];
+              const remaining = existing.filter((s) => s !== loc);
               await api.put(
                 `/cars/${nextModal.car._id}`,
                 {
                   location: loc,
                   nextLocations: remaining,
-                  nextLocation:
-                    remaining[
-                      remaining.length - 1
-                    ] ?? "",
+                  nextLocation: remaining[remaining.length - 1] ?? "",
                 },
                 {
                   headers: {
-                    "Content-Type":
-                      "application/json",
+                    "Content-Type": "application/json",
                   },
                 }
               );
@@ -1327,13 +1179,10 @@ export default function CarListSplit({
             <div
               style={{
                 padding: 14,
-                borderBottom:
-                  "1px solid #243041",
+                borderBottom: "1px solid #243041",
               }}
             >
-              <h3 style={{ margin: 0 }}>
-                Paste Autogate List
-              </h3>
+              <h3 style={{ margin: 0 }}>Paste Autogate List</h3>
               <p
                 style={{
                   margin: "4px 0 0",
@@ -1341,9 +1190,7 @@ export default function CarListSplit({
                   fontSize: 13,
                 }}
               >
-                We’ll set cars to{" "}
-                <b>Online</b> only if
-                they’re currently{" "}
+                We’ll set cars to <b>Online</b> only if they’re currently{" "}
                 <b>In Works</b>.
               </p>
             </div>
@@ -1357,24 +1204,19 @@ export default function CarListSplit({
                 }}
                 placeholder="Paste the whole Autogate block here…"
                 value={pasteText}
-                onChange={(e) =>
-                  setPasteText(e.target.value)
-                }
+                onChange={(e) => setPasteText(e.target.value)}
               />
               <div
                 style={{
                   display: "flex",
                   gap: 8,
-                  justifyContent:
-                    "flex-end",
+                  justifyContent: "flex-end",
                   marginTop: 10,
                 }}
               >
                 <button
                   className="btn"
-                  onClick={() =>
-                    setPasteOpen(false)
-                  }
+                  onClick={() => setPasteOpen(false)}
                 >
                   Cancel
                 </button>
@@ -1415,9 +1257,7 @@ function Table({
   handleDelete,
 }) {
   const Sort = ({ col }) =>
-    sort?.key === col ? (
-      <SortChevron dir={sort.dir} />
-    ) : null;
+    sort?.key === col ? <SortChevron dir={sort.dir} /> : null;
 
   // drag-to-scroll with threshold so double-click still works
   const wrapRef = useRef(null);
@@ -1437,14 +1277,7 @@ function Table({
     if (!tag) return false;
     const t = tag.toUpperCase();
     if (
-      [
-        "INPUT",
-        "TEXTAREA",
-        "SELECT",
-        "BUTTON",
-        "OPTION",
-        "LABEL",
-      ].includes(t)
+      ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "OPTION", "LABEL"].includes(t)
     ) {
       return true;
     }
@@ -1529,10 +1362,7 @@ function Table({
 
   return (
     <div
-      className={
-        "table-wrap" +
-        (dragging ? " is-dragging" : "")
-      }
+      className={"table-wrap" + (dragging ? " is-dragging" : "")}
       ref={wrapRef}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -1565,20 +1395,15 @@ function Table({
             <th>
               <button
                 className="thbtn"
-                onClick={() =>
-                  onSortClick("location")
-                }
+                onClick={() => onSortClick("location")}
               >
-                Location{" "}
-                <Sort col="location" />
+                Location <Sort col="location" />
               </button>
             </th>
             <th>
               <button
                 className="thbtn"
-                onClick={() =>
-                  onSortClick("next")
-                }
+                onClick={() => onSortClick("next")}
               >
                 Next Loc <Sort col="next" />
               </button>
@@ -1586,20 +1411,15 @@ function Table({
             <th>
               <button
                 className="thbtn"
-                onClick={() =>
-                  onSortClick("checklist")
-                }
+                onClick={() => onSortClick("checklist")}
               >
-                Checklist{" "}
-                <Sort col="checklist" />
+                Checklist <Sort col="checklist" />
               </button>
             </th>
             <th>
               <button
                 className="thbtn"
-                onClick={() =>
-                  onSortClick("notes")
-                }
+                onClick={() => onSortClick("notes")}
               >
                 Notes <Sort col="notes" />
               </button>
@@ -1607,9 +1427,7 @@ function Table({
             <th>
               <button
                 className="thbtn"
-                onClick={() =>
-                  onSortClick("stage")
-                }
+                onClick={() => onSortClick("stage")}
               >
                 Stage <Sort col="stage" />
               </button>
@@ -1620,24 +1438,17 @@ function Table({
         <tbody>
           {list.length === 0 ? (
             <tr>
-              <td
-                colSpan={8}
-                className="empty"
-              >
+              <td colSpan={8} className="empty">
                 No cars.
               </td>
             </tr>
           ) : (
             list.map((car) => {
               const editing =
-                editTarget.id === car._id
-                  ? editTarget.field
-                  : null;
+                editTarget.id === car._id ? editTarget.field : null;
               const refCb = editing
                 ? (el) => {
-                    if (el)
-                      activeRef.current =
-                        el;
+                    if (el) activeRef.current = el;
                   }
                 : null;
 
@@ -1647,11 +1458,7 @@ function Table({
                 <tr
                   key={car._id}
                   data-id={car._id}
-                  className={
-                    isSold(car)
-                      ? "row--sold"
-                      : ""
-                  }
+                  className={isSold(car) ? "row--sold" : ""}
                   ref={refCb}
                 >
                   {/* PHOTO */}
@@ -1665,173 +1472,100 @@ function Table({
                     {thumbUrl ? (
                       <img
                         src={thumbUrl}
-                        alt={
-                          carString(car) ||
-                          car.rego ||
-                          "Car photo"
-                        }
+                        alt={carString(car) || car.rego || "Car photo"}
+                        className="photo-thumb"
                       />
                     ) : (
-                      <div className="thumb-empty" />
+                      <div className="photo-placeholder" />
                     )}
                   </td>
 
                   {/* CAR */}
                   <td
                     onDoubleClick={() =>
-                      editing !== "car" &&
-                      startEdit(
-                        car,
-                        "car",
-                        "make"
-                      )
+                      editing !== "car" && startEdit(car, "car", "make")
                     }
-                    className={
-                      editing === "car"
-                        ? "is-editing"
-                        : ""
-                    }
+                    className={editing === "car" ? "is-editing" : ""}
                   >
                     {editing === "car" ? (
                       <div className="car-edit">
                         <div className="car-edit-grid">
                           <label className="car-edit-field">
-                            <span className="car-edit-label">
-                              Make
-                            </span>
+                            <span className="car-edit-label">Make</span>
                             <input
                               className="input input--compact"
                               name="make"
-                              value={
-                                editData.make
-                              }
-                              onChange={
-                                handleChange
-                              }
-                              onKeyUp={
-                                rememberCaret
-                              }
-                              onClick={
-                                rememberCaret
-                              }
+                              value={editData.make}
+                              onChange={handleChange}
+                              onKeyUp={rememberCaret}
+                              onClick={rememberCaret}
                               placeholder="Make"
                             />
                           </label>
                           <label className="car-edit-field">
-                            <span className="car-edit-label">
-                              Model
-                            </span>
+                            <span className="car-edit-label">Model</span>
                             <input
                               className="input input--compact"
                               name="model"
-                              value={
-                                editData.model
-                              }
-                              onChange={
-                                handleChange
-                              }
-                              onKeyUp={
-                                rememberCaret
-                              }
-                              onClick={
-                                rememberCaret
-                              }
+                              value={editData.model}
+                              onChange={handleChange}
+                              onKeyUp={rememberCaret}
+                              onClick={rememberCaret}
                               placeholder="Model"
                             />
                           </label>
 
                           <label className="car-edit-field">
-                            <span className="car-edit-label">
-                              Badge
-                            </span>
+                            <span className="car-edit-label">Badge</span>
                             <input
                               className="input input--compact"
                               name="badge"
-                              value={
-                                editData.badge
-                              }
+                              value={editData.badge}
                               maxLength={4}
-                              onChange={
-                                handleChange
-                              }
-                              onKeyUp={
-                                rememberCaret
-                              }
-                              onClick={
-                                rememberCaret
-                              }
+                              onChange={handleChange}
+                              onKeyUp={rememberCaret}
+                              onClick={rememberCaret}
                               placeholder="GLX…"
                             />
                           </label>
                           <label className="car-edit-field">
-                            <span className="car-edit-label">
-                              Year
-                            </span>
+                            <span className="car-edit-label">Year</span>
                             <input
                               className="input input--compact"
                               name="year"
-                              value={
-                                editData.year
-                              }
-                              onChange={
-                                handleChange
-                              }
-                              onKeyUp={
-                                rememberCaret
-                              }
-                              onClick={
-                                rememberCaret
-                              }
+                              value={editData.year}
+                              onChange={handleChange}
+                              onKeyUp={rememberCaret}
+                              onClick={rememberCaret}
                               placeholder="2014"
                             />
                           </label>
 
                           <label className="car-edit-field car-edit-rego">
-                            <span className="car-edit-label">
-                              Description
-                            </span>
+                            <span className="car-edit-label">Description</span>
                             <input
                               className="input input--compact"
                               name="description"
-                              value={
-                                editData.description
-                              }
-                              onChange={
-                                handleChange
-                              }
-                              onKeyUp={
-                                rememberCaret
-                              }
-                              onClick={
-                                rememberCaret
-                              }
+                              value={editData.description}
+                              onChange={handleChange}
+                              onKeyUp={rememberCaret}
+                              onClick={rememberCaret}
                               placeholder="Colour / body / extra info"
                             />
                           </label>
 
                           <label className="car-edit-field car-edit-rego">
-                            <span className="car-edit-label">
-                              Rego
-                            </span>
+                            <span className="car-edit-label">Rego</span>
                             <input
                               className="input input--compact"
                               name="rego"
-                              value={
-                                editData.rego
-                              }
-                              onChange={
-                                handleChange
-                              }
-                              onKeyUp={
-                                rememberCaret
-                              }
-                              onClick={
-                                rememberCaret
-                              }
+                              value={editData.rego}
+                              onChange={handleChange}
+                              onKeyUp={rememberCaret}
+                              onClick={rememberCaret}
                               placeholder="1AT8QG"
                               style={{
-                                textTransform:
-                                  "uppercase",
+                                textTransform: "uppercase",
                               }}
                             />
                           </label>
@@ -1840,21 +1574,17 @@ function Table({
                         <div className="edit-actions">
                           <button
                             className="btn btn--primary"
-                            onClick={
-                              saveChanges
-                            }
+                            onClick={saveChanges}
                           >
                             Save
                           </button>
                           <button
                             className="btn"
                             onClick={() =>
-                              setEditTarget(
-                                {
-                                  id: null,
-                                  field: null,
-                                }
-                              )
+                              setEditTarget({
+                                id: null,
+                                field: null,
+                              })
                             }
                           >
                             Cancel
@@ -1862,12 +1592,8 @@ function Table({
                         </div>
                       </div>
                     ) : (
-                      <span
-                        className="cell"
-                        title={carString(car)}
-                      >
-                        {carString(car) ||
-                          "-"}
+                      <span className="cell" title={carString(car)}>
+                        {carString(car) || "-"}
                       </span>
                     )}
                   </td>
@@ -1875,62 +1601,34 @@ function Table({
                   {/* LOCATION */}
                   <td
                     onDoubleClick={() =>
-                      editing !==
-                        "location" &&
-                      startEdit(
-                        car,
-                        "location",
-                        "location"
-                      )
+                      editing !== "location" &&
+                      startEdit(car, "location", "location")
                     }
-                    className={
-                      editing ===
-                      "location"
-                        ? "is-editing"
-                        : ""
-                    }
+                    className={editing === "location" ? "is-editing" : ""}
                   >
-                    {editing ===
-                    "location" ? (
+                    {editing === "location" ? (
                       <div className="edit-cell">
                         <input
                           className="input input--compact input--wider"
                           name="location"
-                          value={
-                            editData.location
-                          }
-                          onChange={
-                            handleChange
-                          }
-                          onKeyUp={
-                            rememberCaret
-                          }
-                          onClick={
-                            rememberCaret
-                          }
+                          value={editData.location}
+                          onChange={handleChange}
+                          onKeyUp={rememberCaret}
+                          onClick={rememberCaret}
                           placeholder="Location"
                         />
                         <div className="edit-actions">
                           <button
                             className="btn btn--primary"
-                            onClick={
-                              saveChanges
-                            }
+                            onClick={saveChanges}
                           >
                             Save
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <span
-                        className="cell"
-                        title={
-                          car.location ||
-                          ""
-                        }
-                      >
-                        {car.location ||
-                          "-"}
+                      <span className="cell" title={car.location || ""}>
+                        {car.location || "-"}
                       </span>
                     )}
                   </td>
@@ -1947,30 +1645,16 @@ function Table({
                     <span
                       className="cell"
                       title={
-                        Array.isArray(
-                          car.nextLocations
-                        ) &&
-                        car
-                          .nextLocations
-                          .length
-                          ? car.nextLocations.join(
-                              ", "
-                            )
-                          : car.nextLocation ||
-                            ""
+                        Array.isArray(car.nextLocations) &&
+                        car.nextLocations.length
+                          ? car.nextLocations.join(", ")
+                          : car.nextLocation || ""
                       }
                     >
-                      {Array.isArray(
-                        car.nextLocations
-                      ) &&
-                      car
-                        .nextLocations
-                        .length
-                        ? car.nextLocations.join(
-                            ", "
-                          )
-                        : car.nextLocation ||
-                          "-"}
+                      {Array.isArray(car.nextLocations) &&
+                      car.nextLocations.length
+                        ? car.nextLocations.join(", ")
+                        : car.nextLocation || "-"}
                     </span>
                   </td>
 
@@ -1992,24 +1676,13 @@ function Table({
                     <span
                       className="cell"
                       title={
-                        Array.isArray(
-                          car.checklist
-                        )
-                          ? car.checklist.join(
-                              ", "
-                            )
+                        Array.isArray(car.checklist)
+                          ? car.checklist.join(", ")
                           : ""
                       }
                     >
-                      {Array.isArray(
-                        car.checklist
-                      ) &&
-                      car
-                        .checklist
-                        .length
-                        ? car.checklist.join(
-                            ", "
-                          )
+                      {Array.isArray(car.checklist) && car.checklist.length
+                        ? car.checklist.join(", ")
                         : "-"}
                     </span>
                   </td>
@@ -2017,63 +1690,35 @@ function Table({
                   {/* NOTES */}
                   <td
                     onDoubleClick={() =>
-                      editing !==
-                        "notes" &&
-                      startEdit(
-                        car,
-                        "notes",
-                        "notes"
-                      )
+                      editing !== "notes" &&
+                      startEdit(car, "notes", "notes")
                     }
-                    className={
-                      editing ===
-                      "notes"
-                        ? "is-editing"
-                        : ""
-                    }
+                    className={editing === "notes" ? "is-editing" : ""}
                   >
-                    {editing ===
-                    "notes" ? (
+                    {editing === "notes" ? (
                       <div className="edit-cell">
                         <textarea
                           className="input input--compact textarea--wider"
                           name="notes"
                           rows={2}
-                          value={
-                            editData.notes
-                          }
-                          onChange={
-                            handleChange
-                          }
-                          onKeyUp={
-                            rememberCaret
-                          }
-                          onClick={
-                            rememberCaret
-                          }
+                          value={editData.notes}
+                          onChange={handleChange}
+                          onKeyUp={rememberCaret}
+                          onClick={rememberCaret}
                           placeholder="Notes"
                         />
                         <div className="edit-actions">
                           <button
                             className="btn btn--primary"
-                            onClick={
-                              saveChanges
-                            }
+                            onClick={saveChanges}
                           >
                             Save
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <span
-                        className="cell"
-                        title={
-                          car.notes ||
-                          ""
-                        }
-                      >
-                        {car.notes ||
-                          "-"}
+                      <span className="cell" title={car.notes || ""}>
+                        {car.notes || "-"}
                       </span>
                     )}
                   </td>
@@ -2081,75 +1726,42 @@ function Table({
                   {/* STAGE */}
                   <td
                     onDoubleClick={() =>
-                      editing !==
-                        "stage" &&
-                      startEdit(
-                        car,
-                        "stage",
-                        "stage"
-                      )
+                      editing !== "stage" &&
+                      startEdit(car, "stage", "stage")
                     }
-                    className={
-                      editing ===
-                      "stage"
-                        ? "is-editing"
-                        : ""
-                    }
+                    className={editing === "stage" ? "is-editing" : ""}
                   >
-                    {editing ===
-                    "stage" ? (
+                    {editing === "stage" ? (
                       <div className="edit-cell">
                         <select
                           className="input input--compact input--select-lg input--wider"
                           name="stage"
-                          value={
-                            editData.stage
-                          }
+                          value={editData.stage}
                           onChange={(e) => {
-                            stageDirtyRef.current =
-                              true;
-                            return handleChange(
-                              e
-                            );
+                            stageDirtyRef.current = true;
+                            return handleChange(e);
                           }}
                           onBlur={() => {
-                            if (
-                              stageDirtyRef.current
-                            )
-                              saveChanges();
+                            if (stageDirtyRef.current) saveChanges();
                             else
-                              setEditTarget(
-                                {
-                                  id: null,
-                                  field: null,
-                                }
-                              );
+                              setEditTarget({
+                                id: null,
+                                field: null,
+                              });
                           }}
-                          onClick={(e) =>
-                            e.stopPropagation()
-                          }
-                          onMouseDown={(e) =>
-                            e.stopPropagation()
-                          }
-                          onTouchStart={(e) =>
-                            e.stopPropagation()
-                          }
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onTouchStart={(e) => e.stopPropagation()}
                         >
                           {STAGES.map((s) => (
-                            <option
-                              key={s}
-                              value={s}
-                            >
+                            <option key={s} value={s}>
                               {s}
                             </option>
                           ))}
                         </select>
                       </div>
                     ) : (
-                      <span className="cell">
-                        {car.stage ||
-                          "-"}
-                      </span>
+                      <span className="cell">{car.stage || "-"}</span>
                     )}
                   </td>
 
@@ -2166,12 +1778,8 @@ function Table({
                         className="btn btn--kebab btn--xs"
                         title="Open car profile"
                         onClick={() => {
-                          setSelectedCar(
-                            car
-                          );
-                          setProfileOpen(
-                            true
-                          );
+                          setSelectedCar(car);
+                          setProfileOpen(true);
                         }}
                       >
                         ⋯
@@ -2180,11 +1788,7 @@ function Table({
                         className="btn btn--danger btn--xs btn--icon"
                         title="Delete car"
                         aria-label="Delete"
-                        onClick={() =>
-                          handleDelete(
-                            car._id
-                          )
-                        }
+                        onClick={() => handleDelete(car._id)}
                       >
                         <TrashIcon />
                       </button>
