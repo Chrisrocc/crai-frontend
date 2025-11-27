@@ -119,7 +119,7 @@ export default function CarListSplit({
   const fileInputRef = useRef(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
-  const [showPhotos, setShowPhotos] = useState(true); // ⬅️ photo toggle
+  const [showPhotos, setShowPhotos] = useState(true); // ← toggle state
 
   // per-cell editing
   const [editTarget, setEditTarget] = useState({
@@ -966,6 +966,7 @@ export default function CarListSplit({
             >
               Paste Online List
             </button>
+            {/* NEW: hide/show photos toggle */}
             <button
               className="btn btn--muted"
               onClick={() => setShowPhotos((v) => !v)}
