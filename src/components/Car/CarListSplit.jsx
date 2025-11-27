@@ -119,6 +119,7 @@ export default function CarListSplit({
   const fileInputRef = useRef(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
+  const [showPhotos, setShowPhotos] = useState(true); // ⬅️ photo toggle
 
   // per-cell editing
   const [editTarget, setEditTarget] = useState({
@@ -679,11 +680,11 @@ export default function CarListSplit({
           border-collapse:separate;
           border-spacing:0;
           font-size:13px;
-          line-height:1.25;
+          line-height:1.2;
         }
         .car-table th,
         .car-table td{
-          padding:6px 8px;
+          padding:4px 6px;
           vertical-align:middle;
         }
         .car-table thead th{
@@ -693,7 +694,7 @@ export default function CarListSplit({
           z-index:1;
         }
 
-        .car-table col.col-photo{ width:80px; }
+        .car-table col.col-photo{ width:64px; }
         .car-table col.col-car{ width:340px; }
         .car-table col.col-loc{ width:110px; }
         .car-table col.col-next{ width:170px; }
@@ -705,9 +706,9 @@ export default function CarListSplit({
         @media (min-width: 1400px){
           .car-table{ font-size:12px; }
           .car-table th,
-          .car-table td{ padding:4px 6px; }
+          .car-table td{ padding:3px 5px; }
 
-          .car-table col.col-photo{ width:82px; }
+          .car-table col.col-photo{ width:66px; }
           .car-table col.col-car{ width:340px; }
           .car-table col.col-loc{ width:110px; }
           .car-table col.col-next{ width:180px; }
@@ -729,7 +730,7 @@ export default function CarListSplit({
           all:unset;
           cursor:pointer;
           color:#cbd5e1;
-          padding:4px 6px;
+          padding:2px 4px;
           border-radius:6px;
         }
         .thbtn:hover{
@@ -738,14 +739,14 @@ export default function CarListSplit({
 
         /* Photo column */
         .photo-cell{
-          padding:4px 4px;
+          padding:2px 4px;
           text-align:center;
         }
         .photo-thumb,
         .photo-placeholder{
-          width:64px;
-          height:48px;
-          border-radius:10px;
+          width:48px;
+          height:36px;
+          border-radius:8px;
           display:block;
           margin:0 auto;
         }
@@ -782,7 +783,7 @@ export default function CarListSplit({
           margin-top:2px;
         }
         .input.input--compact{
-          padding:7px 9px;
+          padding:6px 8px;
           font-size:12.5px;
           line-height:1.25;
         }
@@ -965,6 +966,12 @@ export default function CarListSplit({
             >
               Paste Online List
             </button>
+            <button
+              className="btn btn--muted"
+              onClick={() => setShowPhotos((v) => !v)}
+            >
+              {showPhotos ? "Hide Photos" : "Show Photos"}
+            </button>
           </div>
         </div>
       )}
@@ -978,6 +985,7 @@ export default function CarListSplit({
           sort={sort}
           onSortClick={handleSortClick}
           photoCache={photoCache}
+          showPhotos={showPhotos}
           {...{
             editTarget,
             setEditTarget,
@@ -1000,6 +1008,7 @@ export default function CarListSplit({
           sort={sort}
           onSortClick={handleSortClick}
           photoCache={photoCache}
+          showPhotos={showPhotos}
           {...{
             editTarget,
             setEditTarget,
@@ -1241,6 +1250,7 @@ function Table({
   sort,
   onSortClick,
   photoCache,
+  showPhotos,
   editTarget,
   setEditTarget,
   editData,
@@ -1372,7 +1382,7 @@ function Table({
     >
       <table className="car-table">
         <colgroup>
-          <col className="col-photo" />
+          {showPhotos && <col className="col-photo" />}
           <col className="col-car" />
           <col className="col-loc" />
           <col className="col-next" />
@@ -1383,7 +1393,7 @@ function Table({
         </colgroup>
         <thead>
           <tr>
-            <th>Photo</th>
+            {showPhotos && <th>Photo</th>}
             <th>
               <button
                 className="thbtn"
@@ -1438,7 +1448,7 @@ function Table({
         <tbody>
           {list.length === 0 ? (
             <tr>
-              <td colSpan={8} className="empty">
+              <td colSpan={showPhotos ? 8 : 7} className="empty">
                 No cars.
               </td>
             </tr>
@@ -1462,23 +1472,25 @@ function Table({
                   ref={refCb}
                 >
                   {/* PHOTO */}
-                  <td
-                    className="photo-cell"
-                    onClick={() => {
-                      setSelectedCar(car);
-                      setProfileOpen(true);
-                    }}
-                  >
-                    {thumbUrl ? (
-                      <img
-                        src={thumbUrl}
-                        alt={carString(car) || car.rego || "Car photo"}
-                        className="photo-thumb"
-                      />
-                    ) : (
-                      <div className="photo-placeholder" />
-                    )}
-                  </td>
+                  {showPhotos && (
+                    <td
+                      className="photo-cell"
+                      onClick={() => {
+                        setSelectedCar(car);
+                        setProfileOpen(true);
+                      }}
+                    >
+                      {thumbUrl ? (
+                        <img
+                          src={thumbUrl}
+                          alt={carString(car) || car.rego || "Car photo"}
+                          className="photo-thumb"
+                        />
+                      ) : (
+                        <div className="photo-placeholder" />
+                      )}
+                    </td>
+                  )}
 
                   {/* CAR */}
                   <td
