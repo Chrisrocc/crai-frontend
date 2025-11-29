@@ -1,5 +1,5 @@
 // src/components/Car/CarListRegular.jsx
-// Rewritten to add photo column + shorter Next Loc column + FIX photo clipping
+// Regular car list with photo column (toggleable) + compact rows when photos hidden
 import {
   useEffect,
   useLayoutEffect,
@@ -167,7 +167,7 @@ const compareNum = (a, b, dir) => {
 const isSold = (car = {}) =>
   String(car.stage || "").trim().toLowerCase() === "sold";
 
-/* --- days-at-location helper (matches history logic) --- */
+/* --- days-at-location helper --- */
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const dateOnly = (d) => {
   const dt = new Date(d || Date.now());
@@ -180,12 +180,10 @@ const daysAtCurrentLocation = (car) => {
   const history = Array.isArray(car.history) ? car.history : [];
   if (!history.length) return null;
 
-  // Prefer an open segment at this location (no endDate)
   let current = history.find(
     (h) => !h.endDate && h.location === car.location
   );
 
-  // Fallback: latest segment with this location
   if (!current) {
     const sameLoc = history.filter((h) => h.location === car.location);
     if (!sameLoc.length) return null;
@@ -208,8 +206,10 @@ export default function CarListRegular() {
 
   const [showForm, setShowForm] = useState(false);
 
+  // photo visibility (A2)
+  const [showPhotos, setShowPhotos] = useState(true);
+
   // ---------- EDITING (per-cell) ----------
-  // editTarget.field: "car" | "location" | "next" | "checklist" | "notes" | "stage"
   const [editTarget, setEditTarget] = useState({
     id: null,
     field: null,
@@ -307,7 +307,7 @@ export default function CarListRegular() {
   const fetchPhoto = useCallback(
     async (car) => {
       if (!car?._id) return;
-      if (photoCache[car._id]) return; // already have one
+      if (photoCache[car._id]) return;
 
       try {
         const res = await api.get(`/cars/${car._id}/photo-preview`);
@@ -433,7 +433,6 @@ export default function CarListRegular() {
     };
     setEditData(base);
 
-    // For stage, don't auto-focus to avoid table jump on iOS
     if (field === "stage") {
       stageDirtyRef.current = false;
       caretRef.current = {
@@ -450,7 +449,6 @@ export default function CarListRegular() {
       end: null,
     };
 
-    // focus the first relevant element (non-stage fields)
     requestAnimationFrame(() => {
       const root = activeRef.current;
       if (!root) return;
@@ -504,7 +502,6 @@ export default function CarListRegular() {
     if (!window.confirm("Are you sure you want to delete this car?")) return;
     try {
       await api.delete(`/cars/${encodeURIComponent(carId)}`);
-      // Optimistic UI
       setCars((prev) => prev.filter((c) => c._id !== carId));
       await refreshCars();
       alert("Car deleted successfully!");
@@ -610,7 +607,7 @@ export default function CarListRegular() {
     }
   };
 
-  // click outside to save (for any field, including Stage)
+  // click outside to save
   useEffect(() => {
     const onDown = (e) => {
       if (!editTarget.id) return;
@@ -620,7 +617,6 @@ export default function CarListRegular() {
       if (!rowEl) return;
       if (!rowEl.contains(e.target)) {
         if (editTarget.field === "stage" && !stageDirtyRef.current) {
-          // no change → just exit
           setEditTarget({ id: null, field: null });
         } else {
           saveChanges();
@@ -641,7 +637,7 @@ export default function CarListRegular() {
   }, [editTarget, editData]);
 
   useLayoutEffect(() => {
-    if (!editTarget.id || editTarget.field === "stage") return; // skip stage to avoid scroll jump
+    if (!editTarget.id || editTarget.field === "stage") return;
     const { name, start, end } = caretRef.current || {};
     const root = activeRef.current;
     if (!root) return;
@@ -783,12 +779,14 @@ export default function CarListRegular() {
     }));
 
   /* ---------- header ---------- */
-  const Header = () => (
+  const Header = ({ showPhotos }) => (
     <thead>
       <tr>
-        <th className="photo-header" style={{ width: 90 }}>
-          Photo
-        </th>
+        {showPhotos && (
+          <th className="photo-header" style={{ width: 90 }}>
+            Photo
+          </th>
+        )}
         <th>
           <button
             className="thbtn"
@@ -869,8 +867,8 @@ export default function CarListRegular() {
     </span>
   );
 
-  const Rows = ({ list }) => {
-    const visibleCols = 8; // now including Photo
+  const Rows = ({ list, showPhotos }) => {
+    const visibleCols = showPhotos ? 8 : 7;
     return (
       <tbody>
         {list.length === 0 ? (
@@ -915,25 +913,27 @@ export default function CarListRegular() {
                     : null
                 }
               >
-                {/* PHOTO cell - wrapped in fixed-size box with overflow hidden */}
-                <td
-                  className="photo-cell"
-                  onClick={() => {
-                    setSelectedCar(car);
-                    setProfileOpen(true);
-                  }}
-                >
-                  <div className="photo-box">
-                    {thumbUrl ? (
-                      <img
-                        src={thumbUrl}
-                        alt={carString(car) || car.rego || "Car photo"}
-                      />
-                    ) : (
-                      <div className="thumb-empty" />
-                    )}
-                  </div>
-                </td>
+                {/* PHOTO cell - only when visible */}
+                {showPhotos && (
+                  <td
+                    className="photo-cell"
+                    onClick={() => {
+                      setSelectedCar(car);
+                      setProfileOpen(true);
+                    }}
+                  >
+                    <div className="photo-box">
+                      {thumbUrl ? (
+                        <img
+                          src={thumbUrl}
+                          alt={carString(car) || car.rego || "Car photo"}
+                        />
+                      ) : (
+                        <div className="thumb-empty" />
+                      )}
+                    </div>
+                  </td>
+                )}
 
                 {/* CAR cell */}
                 <td
@@ -1124,7 +1124,7 @@ export default function CarListRegular() {
                         : ""
                     }
                   >
-                    {car.checklist && car.checklist.length > 0
+                    {Array.isArray(car.checklist) && car.checklist.length
                       ? car.checklist.join(", ")
                       : "-"}
                   </Cell>
@@ -1163,7 +1163,7 @@ export default function CarListRegular() {
                   )}
                 </td>
 
-                {/* STAGE (select, save on blur / outside click) */}
+                {/* STAGE */}
                 <td
                   onDoubleClick={() =>
                     !isEditingStage &&
@@ -1242,12 +1242,18 @@ export default function CarListRegular() {
   };
 
   /* ---------- Table ---------- */
-  const Table = ({ list }) => (
+  const Table = ({ list, showPhotos }) => (
     <div className="table-wrap">
       <style>{`
         .table-wrap{position:relative; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;}
         .car-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0; min-width:1260px;}
         .car-table th,.car-table td{padding:6px 10px;vertical-align:middle;}
+
+        /* compact rows when photos hidden */
+        .car-table--compact-rows th,
+        .car-table--compact-rows td{
+          padding:4px 6px;
+        }
 
         .car-table col.col-photo{width:96px;}
         .car-table col.col-car{width:370px;}
@@ -1262,7 +1268,6 @@ export default function CarListRegular() {
         .thbtn{all:unset;cursor:pointer;color:#cbd5e1;padding:4px 6px;border-radius:6px;}
         .thbtn:hover{background:#1f2937;}
 
-        /* edit mode visuals: contained, no overlap */
         td.is-editing{
           background:#0c1a2e;
           box-shadow: inset 0 0 0 1px #2b3b54;
@@ -1273,14 +1278,12 @@ export default function CarListRegular() {
         .edit-inline{ display:flex; gap:8px; }
         .edit-actions{ display:flex; gap:8px; margin-top:4px; }
 
-        /* wider inline editor for single-line cells like Location */
         td.is-editing .input--wide-inline{
           width:auto;
           min-width:260px;
           max-width:min(640px, 70vw);
         }
 
-        /* Car edit grid (desktop-friendly) */
         .car-edit{
           display:flex;
           flex-direction:column;
@@ -1332,7 +1335,6 @@ export default function CarListRegular() {
         }
         .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
 
-        /* Photo thumb styling (FIX: boxed & clipped so it can't overflow into Car column) */
         .photo-cell{
           padding-left:6px;
           padding-right:4px;
@@ -1361,16 +1363,15 @@ export default function CarListRegular() {
           height:100%;
           background:#1E293B;
         }
-
-        /* iOS sticky bug avoided: no sticky used now */
-        @media (max-width: 820px){
-          /* nothing special needed; table scrolls normally */
-        }
       `}</style>
 
-      <table className="car-table">
+      <table
+        className={
+          "car-table" + (!showPhotos ? " car-table--compact-rows" : "")
+        }
+      >
         <colgroup>
-          <col className="col-photo" />
+          {showPhotos && <col className="col-photo" />}
           <col className="col-car" />
           <col className="col-loc" />
           <col className="col-next" />
@@ -1379,8 +1380,8 @@ export default function CarListRegular() {
           <col className="col-stage" />
           <col className="col-act" />
         </colgroup>
-        <Header />
-        <Rows list={list} />
+        <Header showPhotos={showPhotos} />
+        <Rows list={list} showPhotos={showPhotos} />
       </table>
     </div>
   );
@@ -1663,6 +1664,14 @@ export default function CarListRegular() {
           >
             Paste Online List
           </button>
+
+          {/* A2 - Hide / Show Photo toggle in action row */}
+          <button
+            className="btn btn--muted"
+            onClick={() => setShowPhotos((v) => !v)}
+          >
+            {showPhotos ? "Hide Photos" : "Show Photos"}
+          </button>
         </div>
       </div>
 
@@ -1674,7 +1683,7 @@ export default function CarListRegular() {
         </div>
       )}
 
-      <Table list={soldFirstList} />
+      <Table list={soldFirstList} showPhotos={showPhotos} />
 
       {showForm && (
         <CarFormModal
