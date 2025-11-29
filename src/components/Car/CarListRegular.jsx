@@ -1,5 +1,8 @@
 // src/components/Car/CarListRegular.jsx
-// Regular inventory table + Split view wrapper (with photo toggle)
+// Regular inventory view (with optional Split view embedded)
+// - Photo column is toggleable (Show / Hide Photos)
+// - Photo column hidden by default, normal row height
+// - Show/Hide Photos button sits inline with Upload CSV + Paste buttons
 
 import {
   useEffect,
@@ -62,23 +65,12 @@ html, body { width: 100%; margin:0; overflow-x:hidden; }
 .input--select-lg{ min-height:44px; font-size:16px; }
 
 /* buttons */
-.btn{
-  border:1px solid transparent;
-  border-radius:8px;
-  padding:7px 10px;
-  font-weight:600;
-  cursor:pointer;
-  white-space:nowrap;
-}
+.btn{ border:1px solid transparent; border-radius:8px; padding:7px 10px; font-weight:600; cursor:pointer; white-space:nowrap; }
 .btn.btn--muted{ background:#1f2937; color:#e5e7eb; border:1px solid #243041; }
 .btn.btn--primary{ background:#2563EB !important; color:#fff !important; }
 
-/* small buttons (Upload / Paste / Show Photos) */
-.btn.btn--sm{
-  padding:5px 8px;
-  font-size:12px;
-  border-radius:7px;
-}
+/* small buttons so all 3 fit on one row */
+.btn.btn--sm{ padding:5px 8px; font-size:12px; border-radius:8px; }
 
 /* ===== Mobile/tablet tweaks (KILL vertical space) ===== */
 @media (max-width: 1024px){
@@ -223,10 +215,11 @@ export default function CarListRegular() {
 
   const [showForm, setShowForm] = useState(false);
 
-  // global photo toggle (Regular table; Split will be wired next)
-  const [showPhotos, setShowPhotos] = useState(true);
+  // toggle for photo column (shared Regular + embedded Split)
+  const [showPhotos, setShowPhotos] = useState(false);
 
   // ---------- EDITING (per-cell) ----------
+  // editTarget.field: "car" | "location" | "next" | "checklist" | "notes" | "stage"
   const [editTarget, setEditTarget] = useState({
     id: null,
     field: null,
@@ -325,7 +318,6 @@ export default function CarListRegular() {
     async (car) => {
       if (!car?._id) return;
       if (photoCache[car._id]) return; // already have one
-
       try {
         const res = await api.get(`/cars/${car._id}/photo-preview`);
         const url = res?.data?.data || "";
@@ -343,13 +335,14 @@ export default function CarListRegular() {
 
   // Prefetch thumbnails for cars that have photos
   useEffect(() => {
+    if (!showPhotos) return; // only bother when visible
     cars.forEach((car) => {
       if (car?.photos?.length && !photoCache[car._id]) {
         fetchPhoto(car);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cars]);
+  }, [cars, showPhotos]);
 
   const handleCsvChosen = async (e) => {
     const file = e.target.files?.[0];
@@ -799,8 +792,8 @@ export default function CarListRegular() {
       dir: prev.key === key ? nextDir(prev.dir) : "desc",
     }));
 
-  /* ---------- header ---------- */
-  const Header = () => (
+  /* ---------- header component for Table ---------- */
+  const Header = ({ showPhotos }) => (
     <thead>
       <tr>
         {showPhotos && (
@@ -888,8 +881,8 @@ export default function CarListRegular() {
     </span>
   );
 
-  const Rows = ({ list }) => {
-    const visibleCols = 7 + (showPhotos ? 1 : 0); // Photo optional
+  const Rows = ({ list, showPhotos }) => {
+    const visibleCols = 7 + (showPhotos ? 1 : 0);
     return (
       <tbody>
         {list.length === 0 ? (
@@ -904,6 +897,11 @@ export default function CarListRegular() {
               editTarget.id === car._id && editTarget.field === "car";
             const isEditingLoc =
               editTarget.id === car._id && editTarget.field === "location";
+            const isEditingNext =
+              editTarget.id === car._id && editTarget.field === "next";
+            const isEditingChecklist =
+              editTarget.id === car._id &&
+              editTarget.field === "checklist";
             const isEditingNotes =
               editTarget.id === car._id && editTarget.field === "notes";
             const isEditingStage =
@@ -919,6 +917,8 @@ export default function CarListRegular() {
                 ref={
                   isEditingCar ||
                   isEditingLoc ||
+                  isEditingNext ||
+                  isEditingChecklist ||
                   isEditingNotes ||
                   isEditingStage
                     ? (el) => {
@@ -927,7 +927,7 @@ export default function CarListRegular() {
                     : null
                 }
               >
-                {/* PHOTO cell  */}
+                {/* PHOTO cell (optional) */}
                 {showPhotos && (
                   <td
                     className="photo-cell"
@@ -1256,12 +1256,12 @@ export default function CarListRegular() {
   };
 
   /* ---------- Table ---------- */
-  const Table = ({ list }) => (
+  const Table = ({ list, showPhotos }) => (
     <div className="table-wrap">
       <style>{`
         .table-wrap{position:relative; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;}
-        .car-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0; min-width:${showPhotos ? "1260px" : "1160px"};}
-        .car-table th,.car-table td{padding:6px 10px;vertical-align:middle;}
+        .car-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0; min-width:1150px;}
+        .car-table th,.car-table td{padding:4px 10px;vertical-align:middle;}
 
         .car-table col.col-photo{width:96px;}
         .car-table col.col-car{width:370px;}
@@ -1276,7 +1276,6 @@ export default function CarListRegular() {
         .thbtn{all:unset;cursor:pointer;color:#cbd5e1;padding:4px 6px;border-radius:6px;}
         .thbtn:hover{background:#1f2937;}
 
-        /* edit mode visuals: contained, no overlap */
         td.is-editing{
           background:#0c1a2e;
           box-shadow: inset 0 0 0 1px #2b3b54;
@@ -1287,14 +1286,12 @@ export default function CarListRegular() {
         .edit-inline{ display:flex; gap:8px; }
         .edit-actions{ display:flex; gap:8px; margin-top:4px; }
 
-        /* wider inline editor for single-line cells like Location */
         td.is-editing .input--wide-inline{
           width:auto;
           min-width:260px;
           max-width:min(640px, 70vw);
         }
 
-        /* Car edit grid (desktop-friendly) */
         .car-edit{
           display:flex;
           flex-direction:column;
@@ -1346,7 +1343,6 @@ export default function CarListRegular() {
         }
         .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
 
-        /* Photo thumb styling (boxed & clipped) */
         .photo-cell{
           padding-left:6px;
           padding-right:4px;
@@ -1388,13 +1384,13 @@ export default function CarListRegular() {
           <col className="col-stage" />
           <col className="col-act" />
         </colgroup>
-        <Header />
-        <Rows list={list} />
+        <Header showPhotos={showPhotos} />
+        <Rows list={list} showPhotos={showPhotos} />
       </table>
     </div>
   );
 
-  // SPLIT view
+  // SPLIT view (embedded)
   if (view === "split") {
     return (
       <div className="page-pad with-ham">
@@ -1481,7 +1477,7 @@ export default function CarListRegular() {
               Paste Online List
             </button>
 
-            {/* Show / Hide photos toggle (same as Regular) */}
+            {/* INLINE Show/Hide Photos toggle */}
             <button
               className="btn btn--muted btn--sm"
               onClick={() => setShowPhotos((v) => !v)}
@@ -1496,7 +1492,6 @@ export default function CarListRegular() {
           listOverride={soldFirstList}
           sortState={sort}
           onSortChange={setSort}
-          // showPhotos will be wired inside Split file next
           showPhotos={showPhotos}
         />
 
@@ -1685,7 +1680,7 @@ export default function CarListRegular() {
             Paste Online List
           </button>
 
-          {/* Show / Hide Photos toggle (Regular view) */}
+          {/* INLINE Show/Hide Photos toggle */}
           <button
             className="btn btn--muted btn--sm"
             onClick={() => setShowPhotos((v) => !v)}
@@ -1703,7 +1698,7 @@ export default function CarListRegular() {
         </div>
       )}
 
-      <Table list={soldFirstList} />
+      <Table list={soldFirstList} showPhotos={showPhotos} />
 
       {showForm && (
         <CarFormModal

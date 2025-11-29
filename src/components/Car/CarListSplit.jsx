@@ -653,6 +653,44 @@ export default function CarListSplit({
           padding-right: 8px;
         }
 
+        /* Header layout just for Split so buttons (incl. Show/Hide Photos)
+           sit inline like Regular view */
+        .split-header{
+          display:flex;
+          align-items:flex-start;
+          gap:12px;
+          flex-wrap:wrap;
+        }
+        .split-header-main{
+          display:flex;
+          flex-direction:column;
+          gap:6px;
+          min-width:220px;
+          flex:1 1 auto;
+        }
+        .split-header-title{
+          display:flex;
+          align-items:baseline;
+          gap:8px;
+        }
+        .split-header-actions{
+          display:flex;
+          flex:1 1 420px;
+          gap:8px;
+          align-items:center;
+          justify-content:flex-end;
+          flex-wrap:wrap;
+        }
+        .split-header-actions .searchbar{
+          flex:1 1 260px;
+          min-width:220px;
+        }
+        .split-header-actions .btn-row{
+          display:flex;
+          flex-wrap:wrap;
+          gap:6px;
+        }
+
         /* Split grid */
         .split-panels{
           display:grid;
@@ -907,95 +945,90 @@ export default function CarListSplit({
 
       {/* Standalone Split header (NOT used when embedded inside Regular) */}
       {!embedded && (
-        <div className="toolbar header-row">
-          <h1 className="title" style={{ margin: 0 }}>
-            Car Inventory
-          </h1>
-          <p className="subtitle" style={{ margin: 0 }}>
-            {cars.length} cars
-          </p>
+        <div className="toolbar header-row split-header">
+          <div className="split-header-main">
+            <div className="split-header-title">
+              <h1 className="title" style={{ margin: 0 }}>
+                Car Inventory
+              </h1>
+              <p className="subtitle" style={{ margin: 0 }}>
+                {cars.length} cars
+              </p>
+            </div>
 
-          <div
-            className="chip-row"
-            style={{
-              display: "flex",
-              gap: 6,
-              flexWrap: "wrap",
-            }}
-          >
-            {STAGES.map((s) => {
-              const on = stageFilter.has(s);
-              return (
-                <button
-                  key={s}
-                  className={`chip ${on ? "chip--on" : ""}`}
-                  onClick={() =>
-                    setStageFilter((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(s)) next.delete(s);
-                      else next.add(s);
-                      return next;
-                    })
-                  }
-                  title={s}
-                >
-                  {s}
-                </button>
-              );
-            })}
+            <div
+              className="chip-row"
+              style={{
+                display: "flex",
+                gap: 6,
+                flexWrap: "wrap",
+              }}
+            >
+              {STAGES.map((s) => {
+                const on = stageFilter.has(s);
+                return (
+                  <button
+                    key={s}
+                    className={`chip ${on ? "chip--on" : ""}`}
+                    onClick={() =>
+                      setStageFilter((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(s)) next.delete(s);
+                        else next.add(s);
+                        return next;
+                      })
+                    }
+                    title={s}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <input
-            className="input searchbar"
-            placeholder="Search cars…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{
-              flex: "1 1 360px",
-              minWidth: 220,
-            }}
-          />
-
-          <div
-            className="btn-row"
-            style={{
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              className="btn btn--primary"
-              onClick={() => setShowForm(true)}
-            >
-              + Add New Car
-            </button>
-            <button
-              className="btn btn--muted btn--sm"
-              onClick={triggerCsv}
-              disabled={uploading}
-            >
-              {uploading ? "Uploading…" : "Upload CSV"}
-            </button>
+          <div className="split-header-actions">
             <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,text/csv"
-              style={{ display: "none" }}
-              onChange={handleCsvChosen}
+              className="input searchbar"
+              placeholder="Search cars…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
             />
-            <button
-              className="btn btn--muted btn--sm"
-              onClick={() => setPasteOpen(true)}
-            >
-              Paste Online List
-            </button>
-            <button
-              className="btn btn--muted btn--sm"
-              onClick={() => setShowPhotosInternal((v) => !v)}
-            >
-              {showPhotos ? "Hide Photos" : "Show Photos"}
-            </button>
+
+            <div className="btn-row">
+              <button
+                className="btn btn--primary"
+                onClick={() => setShowForm(true)}
+              >
+                + Add New Car
+              </button>
+              <button
+                className="btn btn--muted btn--sm"
+                onClick={triggerCsv}
+                disabled={uploading}
+              >
+                {uploading ? "Uploading…" : "Upload CSV"}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                style={{ display: "none" }}
+                onChange={handleCsvChosen}
+              />
+              <button
+                className="btn btn--muted btn--sm"
+                onClick={() => setPasteOpen(true)}
+              >
+                Paste Online List
+              </button>
+              <button
+                className="btn btn--muted btn--sm"
+                onClick={() => setShowPhotosInternal((v) => !v)}
+              >
+                {showPhotos ? "Hide Photos" : "Show Photos"}
+              </button>
+            </div>
           </div>
         </div>
       )}
