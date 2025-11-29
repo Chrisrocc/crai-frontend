@@ -679,6 +679,12 @@ export default function CarListSplit({
           cursor:grabbing;
         }
 
+        /* When photos are hidden, rows go compact */
+        .table-wrap--compact .car-table th,
+        .table-wrap--compact .car-table td{
+          padding:3px 6px;
+        }
+
         .car-table{
           width:100%;
           table-layout:fixed;
@@ -689,7 +695,7 @@ export default function CarListSplit({
         }
         .car-table th,
         .car-table td{
-          padding:4px 6px;
+          padding:6px 8px;
           vertical-align:middle;
         }
         .car-table thead th{
@@ -711,7 +717,7 @@ export default function CarListSplit({
         @media (min-width: 1400px){
           .car-table{ font-size:12px; }
           .car-table th,
-          .car-table td{ padding:3px 5px; }
+          .car-table td{ padding:5px 7px; }
 
           .car-table col.col-photo{ width:66px; }
           .car-table col.col-car{ width:340px; }
@@ -1390,7 +1396,11 @@ function Table({
 
   return (
     <div
-      className={"table-wrap" + (dragging ? " is-dragging" : "")}
+      className={
+        "table-wrap" +
+        (dragging ? " is-dragging" : "") +
+        (showPhotos ? "" : " table-wrap--compact")
+      }
       ref={wrapRef}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
