@@ -119,7 +119,9 @@ export default function CarListSplit({
   const fileInputRef = useRef(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
-  const [showPhotos, setShowPhotos] = useState(true); // ← toggle state
+
+  // 🔥 Photo toggle (shows/hides Photo column)
+  const [showPhotos, setShowPhotos] = useState(true);
 
   // per-cell editing
   const [editTarget, setEditTarget] = useState({
@@ -383,8 +385,7 @@ export default function CarListSplit({
       setEditTarget({ id: null, field: null });
     } catch (err) {
       alert(
-        "Error updating car: " +
-          (err.response?.data?.message || err.message)
+        "Error updating car: " + (err.response?.data?.message || err.message)
       );
       if (!listOverride) await refreshCars();
       setEditTarget({ id: null, field: null });
@@ -464,9 +465,7 @@ export default function CarListSplit({
       await refreshCars();
     } catch (err) {
       alert(
-        `CSV import failed: ${
-          err.response?.data?.message || err.message
-        }`
+        `CSV import failed: ${err.response?.data?.message || err.message}`
       );
     } finally {
       setUploading(false);
@@ -489,9 +488,7 @@ export default function CarListSplit({
       alert(
         `Processed.\nChanged: ${
           d.totals?.changed ?? 0
-        }\nSkipped: ${
-          d.totals?.skipped ?? 0
-        }\nNot found: ${
+        }\nSkipped: ${d.totals?.skipped ?? 0}\nNot found: ${
           d.totals?.notFound ?? 0
         }`
       );
@@ -640,12 +637,23 @@ export default function CarListSplit({
 
   if (loading) return <div className="page-pad">Loading…</div>;
 
+  const rootClassName = `page-pad split-root${
+    showPhotos ? "" : " split-root--no-photos"
+  }`;
+
   return (
-    <div className="page-pad split-root">
+    <div className={rootClassName}>
       <style>{`
         .split-root{
           padding-left: 8px;
           padding-right: 8px;
+        }
+
+        /* When photos are hidden, shrink row height a bit (A2) */
+        .split-root--no-photos .car-table th,
+        .split-root--no-photos .car-table td{
+          padding-top: 3px;
+          padding-bottom: 3px;
         }
 
         /* Split grid */
@@ -1715,8 +1723,7 @@ function Table({
                   {/* NOTES */}
                   <td
                     onDoubleClick={() =>
-                      editing !== "notes" &&
-                      startEdit(car, "notes", "notes")
+                      editing !== "notes" && startEdit(car, "notes", "notes")
                     }
                     className={editing === "notes" ? "is-editing" : ""}
                   >
@@ -1751,8 +1758,7 @@ function Table({
                   {/* STAGE */}
                   <td
                     onDoubleClick={() =>
-                      editing !== "stage" &&
-                      startEdit(car, "stage", "stage")
+                      editing !== "stage" && startEdit(car, "stage", "stage")
                     }
                     className={editing === "stage" ? "is-editing" : ""}
                   >
