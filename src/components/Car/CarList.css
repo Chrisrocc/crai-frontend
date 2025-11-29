@@ -371,35 +371,75 @@ col.col-act{ width:100px; }
 
 /* ---------- Compact header stack for desktop too (keeps things neat) ---------- */
 @media (min-width: 981px){
-  .toolbar, .header-row, .inventory-header{
+  .toolbar,
+  .header-row,
+  .inventory-header{
     display:flex;
     align-items:center;
     gap:10px;
     margin-bottom:8px !important;
     flex-wrap:wrap;
   }
-  .title{ margin: 0 10px 2px 0 !important; }
-  .subtitle{ margin: 0 12px 0 0 !important; }
 
-  .search-input, .searchbar{
-    margin:0 !important;
-    flex:1 1 520px;
-    min-width:320px;
+  /* Regular inventory header: force everything onto one line */
+  .inventory-header{
+    flex-wrap: nowrap;
   }
 
-  .tabbar{ margin:0 !important; padding:4px 6px !important; gap:4px; }
-  .tab{ padding:6px 10px !important; border-radius:8px; }
+  .title{
+    margin: 0 10px 2px 0 !important;
+  }
+  .subtitle{
+    margin: 0 12px 0 0 !important;
+  }
 
-  .stage-chips, .chip-row{ margin:0 !important; gap:8px !important; }
-  .inventory-actions, .btn-row{ margin:0 !important; gap:8px !important; }
-  .inventory-actions .btn, .btn-row .btn{ padding:8px 10px !important; border-radius:8px !important; font-size:13px !important; }
+  /* Shorter search so buttons + Show/Hide Photos fit inline */
+  .search-input,
+  .searchbar{
+    margin:0 !important;
+    flex:0 1 360px;   /* narrower than before */
+    max-width:420px;
+    min-width:260px;
+  }
+
+  .tabbar{
+    margin:0 !important;
+    padding:4px 6px !important;
+    gap:4px;
+  }
+  .tab{
+    padding:6px 10px !important;
+    border-radius:8px;
+  }
+
+  .stage-chips,
+  .chip-row{
+    margin:0 !important;
+    gap:8px !important;
+  }
+  .inventory-actions,
+  .btn-row{
+    margin:0 !important;
+    gap:8px !important;
+  }
+  .inventory-actions .btn,
+  .btn-row .btn{
+    padding:8px 10px !important;
+    border-radius:8px !important;
+    font-size:13px !important;
+  }
 }
 
 /* ---------- Chips + select (shared) ---------- */
 .chip-row{ display:flex; gap:6px; flex-wrap:wrap; }
 .chip{
-  border:1px solid #243041; border-radius:999px; padding:8px 12px; cursor:pointer;
-  background:#0b1220; color:#cbd5e1; font-weight:600;
+  border:1px solid #243041;
+  border-radius:999px;
+  padding:8px 12px;
+  cursor:pointer;
+  background:#0b1220;
+  color:#cbd5e1;
+  font-weight:600;
   transition:filter .1s ease, transform .02s ease, background .15s ease, color .15s ease;
 }
 .chip:hover{ filter:brightness(1.1); }
@@ -429,19 +469,39 @@ col.col-act{ width:100px; }
   .toolbar > *,
   .header-row > *,
   .inventory-header > *,
-  .split-toolbar > * { margin:0 !important; }
+  .split-toolbar > * {
+    margin:0 !important;
+  }
 
   /* zero out common elements */
-  .titlebox, .titlebox > *, .tabbar, .chip-row, .stage-chips,
-  .searchbar, .search-input, .btn-row, .inventory-actions { margin:0 !important; }
+  .titlebox,
+  .titlebox > *,
+  .tabbar,
+  .chip-row,
+  .stage-chips,
+  .searchbar,
+  .search-input,
+  .btn-row,
+  .inventory-actions {
+    margin:0 !important;
+  }
 
   /* tighten sizes */
   .tabbar{ padding:2px 3px !important; }
   .tab{ padding:5px 8px !important; font-size:12.5px !important; }
   .chip-row{ gap:6px !important; }
   .chip{ padding:5px 9px !important; }
-  .searchbar, .search-input{ min-height:34px !important; width:100% !important; }
-  .btn-row .btn, .inventory-actions .btn{ padding:7px 10px !important; border-radius:8px !important; font-size:13px !important; }
+  .searchbar,
+  .search-input{
+    min-height:34px !important;
+    width:100% !important;
+  }
+  .btn-row .btn,
+  .inventory-actions .btn{
+    padding:7px 10px !important;
+    border-radius:8px !important;
+    font-size:13px !important;
+  }
 }
 
 /* ---------- Small utility buttons (Upload/Paste/Photos) ---------- */
