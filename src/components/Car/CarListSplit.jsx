@@ -533,8 +533,8 @@ export default function CarListSplit({
     if (!embedded) {
       list =
         stageFilter.size > 0
-          ? list.filter((c) => stageFilter.has(c?.stage ?? ""))
-          : [];
+          ? list.filter((c) => stageFilter.has(c?.stage ?? "")) :
+          [];
 
       const q = query.trim().toLowerCase();
       if (q) {
@@ -978,6 +978,7 @@ export default function CarListSplit({
             >
               Paste Online List
             </button>
+            {/* Hide / Show Photos toggle in the top-right button cluster */}
             <button
               className="btn btn--muted btn--sm"
               onClick={() => setShowPhotos((v) => !v)}
