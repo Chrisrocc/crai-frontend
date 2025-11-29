@@ -106,6 +106,7 @@ export default function CarListSplit({
   listOverride,
   sortState,
   onSortChange,
+  showPhotos: showPhotosProp, // when embedded, parent controls photos
 }) {
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -120,8 +121,12 @@ export default function CarListSplit({
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
 
-  // 🔥 Photo toggle (shows/hides Photo column)
-  const [showPhotos, setShowPhotos] = useState(true);
+  // local photo toggle for standalone Split (not embedded)
+  const [showPhotosInternal, setShowPhotosInternal] = useState(true);
+  const showPhotos =
+    embedded && typeof showPhotosProp === "boolean"
+      ? showPhotosProp
+      : showPhotosInternal;
 
   // per-cell editing
   const [editTarget, setEditTarget] = useState({
@@ -385,7 +390,8 @@ export default function CarListSplit({
       setEditTarget({ id: null, field: null });
     } catch (err) {
       alert(
-        "Error updating car: " + (err.response?.data?.message || err.message)
+        "Error updating car: " +
+          (err.response?.data?.message || err.message)
       );
       if (!listOverride) await refreshCars();
       setEditTarget({ id: null, field: null });
@@ -465,7 +471,9 @@ export default function CarListSplit({
       await refreshCars();
     } catch (err) {
       alert(
-        `CSV import failed: ${err.response?.data?.message || err.message}`
+        `CSV import failed: ${
+          err.response?.data?.message || err.message
+        }`
       );
     } finally {
       setUploading(false);
@@ -637,23 +645,12 @@ export default function CarListSplit({
 
   if (loading) return <div className="page-pad">Loading…</div>;
 
-  const rootClassName = `page-pad split-root${
-    showPhotos ? "" : " split-root--no-photos"
-  }`;
-
   return (
-    <div className={rootClassName}>
+    <div className="page-pad split-root">
       <style>{`
         .split-root{
           padding-left: 8px;
           padding-right: 8px;
-        }
-
-        /* When photos are hidden, shrink row height a bit (A2) */
-        .split-root--no-photos .car-table th,
-        .split-root--no-photos .car-table td{
-          padding-top: 3px;
-          padding-bottom: 3px;
         }
 
         /* Split grid */
@@ -883,8 +880,9 @@ export default function CarListSplit({
           color:#e5e7eb;
         }
         .btn--sm{
-          font-size:13px;
-          padding:4px 10px;
+          padding:5px 8px;
+          font-size:12px;
+          border-radius:8px;
         }
 
         :root{
@@ -901,7 +899,7 @@ export default function CarListSplit({
         }
       `}</style>
 
-      {/* Header (hidden when embedded inside Regular) */}
+      {/* Standalone Split header (NOT used when embedded inside Regular) */}
       {!embedded && (
         <div className="toolbar header-row">
           <h1 className="title" style={{ margin: 0 }}>
@@ -986,10 +984,9 @@ export default function CarListSplit({
             >
               Paste Online List
             </button>
-            {/* Hide / Show Photos toggle in the top-right button cluster */}
             <button
               className="btn btn--muted btn--sm"
-              onClick={() => setShowPhotos((v) => !v)}
+              onClick={() => setShowPhotosInternal((v) => !v)}
             >
               {showPhotos ? "Hide Photos" : "Show Photos"}
             </button>
@@ -1049,7 +1046,7 @@ export default function CarListSplit({
         />
       </div>
 
-      {/* Modals */}
+      {/* Modals (unchanged) */}
       {showForm && (
         <CarFormModal
           show={showForm}
@@ -1723,7 +1720,8 @@ function Table({
                   {/* NOTES */}
                   <td
                     onDoubleClick={() =>
-                      editing !== "notes" && startEdit(car, "notes", "notes")
+                      editing !== "notes" &&
+                      startEdit(car, "notes", "notes")
                     }
                     className={editing === "notes" ? "is-editing" : ""}
                   >
@@ -1758,7 +1756,8 @@ function Table({
                   {/* STAGE */}
                   <td
                     onDoubleClick={() =>
-                      editing !== "stage" && startEdit(car, "stage", "stage")
+                      editing !== "stage" &&
+                      startEdit(car, "stage", "stage")
                     }
                     className={editing === "stage" ? "is-editing" : ""}
                   >
