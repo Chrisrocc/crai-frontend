@@ -811,7 +811,7 @@ export default function CarListRegular() {
     <thead>
       <tr>
         {showPhotos && (
-          <th className="photo-header" style={{ width: 90 }}>
+          <th className="photo-header" style={{ width: 70 }}>
             Photo
           </th>
         )}
@@ -1277,7 +1277,8 @@ export default function CarListRegular() {
         .car-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0; min-width:1150px;}
         .car-table th,.car-table td{padding:4px 10px;vertical-align:middle;}
 
-        .car-table col.col-photo{width:96px;}
+        /* narrower photo col */
+        .car-table col.col-photo{width:70px;}
         .car-table col.col-car{width:370px;}
         .car-table col.col-loc{width:140px;}
         .car-table col.col-next{width:220px;}
@@ -1358,13 +1359,15 @@ export default function CarListRegular() {
         .car-table tr.row--sold:hover td{ background: var(--sold-bg-hover); }
 
         .photo-cell{
-          padding-left:6px;
+          padding-left:4px;
           padding-right:4px;
           text-align:center;
         }
+
+        /* smaller thumbnail = shorter row */
         .photo-box{
-          width:72px;
-          height:52px;
+          width:56px;
+          height:40px;
           border-radius:6px;
           overflow:hidden;
           background:#111827;
