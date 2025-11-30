@@ -144,6 +144,7 @@ export default function CarListSplit({
   const stageDirtyRef = useRef(false);
 
   // modals
+  
   const [profileOpen, setProfileOpen] = useState(false);
   const [selectedCar, setSelectedCar] = useState(null);
   const [checklistModal, setChecklistModal] = useState({
@@ -705,7 +706,8 @@ export default function CarListSplit({
           z-index:1;
         }
 
-        .car-table col.col-photo{ width:64px; }
+        /* ✅ narrower photo col to match smaller thumbs */
+        .car-table col.col-photo{ width:52px; }
         .car-table col.col-car{ width:340px; }
         .car-table col.col-loc{ width:110px; }
         .car-table col.col-next{ width:170px; }
@@ -719,7 +721,7 @@ export default function CarListSplit({
           .car-table th,
           .car-table td{ padding:5px 7px; }
 
-          .car-table col.col-photo{ width:66px; }
+          .car-table col.col-photo{ width:54px; }
           .car-table col.col-car{ width:340px; }
           .car-table col.col-loc{ width:110px; }
           .car-table col.col-next{ width:180px; }
@@ -748,16 +750,16 @@ export default function CarListSplit({
           background:#1f2937;
         }
 
-        /* Photo column */
+        /* ✅ Smaller photo thumbnails = shorter rows */
         .photo-cell{
           padding:2px 4px;
           text-align:center;
         }
         .photo-thumb,
         .photo-placeholder{
-          width:48px;
-          height:36px;
-          border-radius:8px;
+          width:40px;
+          height:30px;
+          border-radius:6px;
           display:block;
           margin:0 auto;
         }
@@ -814,7 +816,7 @@ export default function CarListSplit({
           resize:vertical;
         }
 
-        /* Car edit grid (shared with Regular view) */
+        /* Car edit grid */
         .car-edit{
           display:flex;
           flex-direction:column;
@@ -912,12 +914,11 @@ export default function CarListSplit({
           style={{
             alignItems: "center",
             gap: 10,
-            flexWrap: "nowrap", // ✅ force single line; overflow scrolls instead
+            flexWrap: "nowrap",
             overflowX: "auto",
             paddingBottom: 4,
           }}
         >
-          {/* title + count on the left */}
           <div
             className="titlebox"
             style={{
@@ -935,7 +936,6 @@ export default function CarListSplit({
             </p>
           </div>
 
-          {/* stage chips */}
           <div
             className="chip-row"
             style={{
@@ -968,14 +968,13 @@ export default function CarListSplit({
             })}
           </div>
 
-          {/* search – deliberately narrower so buttons fit */}
           <input
             className="input searchbar"
             placeholder="Search cars…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{
-              flex: "0 1 340px", // ✅ narrower search
+              flex: "0 1 340px",
               maxWidth: 380,
               minWidth: 220,
               marginLeft: 6,
@@ -983,7 +982,6 @@ export default function CarListSplit({
             }}
           />
 
-          {/* actions + photo toggle – fixed width, never wraps */}
           <div
             className="btn-row"
             style={{
@@ -1031,7 +1029,6 @@ export default function CarListSplit({
 
       {errMsg && <div className="alert alert--error">{errMsg}</div>}
 
-      {/* Two tables side by side */}
       <div className="split-panels">
         <Table
           list={leftList}
@@ -1081,7 +1078,6 @@ export default function CarListSplit({
         />
       </div>
 
-      {/* Modals (unchanged) */}
       {showForm && (
         <CarFormModal
           show={showForm}
