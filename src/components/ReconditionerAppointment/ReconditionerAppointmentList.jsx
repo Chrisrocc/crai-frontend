@@ -396,285 +396,291 @@ export default function ReconditionerAppointmentList() {
         </button>
       </div>
 
-      {/* Category sections (filtered) */}
-      {filteredCategories.map((cat) => {
-        const catApps = appointments.filter(
-          (a) => (a.category?._id || a.category) === cat._id
-        );
-        return (
-          <section key={cat._id} className="cal-panel">
-            <div className="cal-panel-head">
-              <h2 className="cal-title" title={cat.name}>
-                {cat.name}
-              </h2>
-              <button
-                className="btn btn--primary btn--sm"
-                onClick={() => openCreateForCategory(cat._id)}
-              >
-                + Add Appointment
-              </button>
-            </div>
+      {/* Category sections laid out in 2-column grid on desktop */}
+      <div className="ra-grid">
+        {filteredCategories.map((cat) => {
+          const catApps = appointments.filter(
+            (a) => (a.category?._id || a.category) === cat._id
+          );
+          return (
+            <section key={cat._id} className="cal-panel">
+              <div className="cal-panel-head">
+                <h2 className="cal-title" title={cat.name}>
+                  {cat.name}
+                </h2>
+                <button
+                  className="btn btn--primary btn--sm"
+                  onClick={() => openCreateForCategory(cat._id)}
+                >
+                  + Add Appointment
+                </button>
+              </div>
 
-            <div className="table-clip">
-              <div
-                className="table-scroll"
-                role="region"
-                aria-label={`${cat.name} appointments`}
-              >
-                <div className="cal-grid" role="grid">
-                  {/* Header row */}
-                  <div className="cal-row cal-row-head" role="row">
-                    <div className="cal-cell cal-head-cell">Name</div>
-                    <div className="cal-cell cal-head-cell">Date/Time</div>
-                    <div className="cal-cell cal-head-cell">Car(s)</div>
-                    <div className="cal-cell cal-head-cell">Notes</div>
-                    <div className="cal-cell cal-head-cell">Created</div>
-                    <div className="cal-cell cal-head-cell">Actions</div>
-                  </div>
-
-                  {/* Body rows */}
-                  {catApps.length === 0 ? (
-                    <div className="cal-row cal-row-empty">
-                      <div className="cal-cell" style={{ gridColumn: "1 / 7" }}>
-                        No appointments.
-                      </div>
+              <div className="table-clip">
+                <div
+                  className="table-scroll"
+                  role="region"
+                  aria-label={`${cat.name} appointments`}
+                >
+                  <div className="cal-grid" role="grid">
+                    {/* Header row */}
+                    <div className="cal-row cal-row-head" role="row">
+                      <div className="cal-cell cal-head-cell">Name</div>
+                      <div className="cal-cell cal-head-cell">Date/Time</div>
+                      <div className="cal-cell cal-head-cell">Car(s)</div>
+                      <div className="cal-cell cal-head-cell">Notes</div>
+                      <div className="cal-cell cal-head-cell">Created</div>
+                      <div className="cal-cell cal-head-cell">Actions</div>
                     </div>
-                  ) : (
-                    catApps.map((a) => {
-                      const isEditing = editRow === a._id;
-                      const isActioned = !!actionedMap[a._id];
 
-                      // Day/time highlight (today / tomorrow)
-                      let rowCls = "cal-row";
-                      let hl = "";
-                      if (a.dateTime && String(a.dateTime).trim()) {
-                        hl = dayTimeHighlightClass(a.dateTime);
-                      }
-                      const hasHighlight = !!hl;
-                      if (hl) rowCls += ` ${hl}`;
-
-                      // Age-based highlight: older than 3 full days
-                      let isOld = false;
-                      if (a.createdAt) {
-                        const createdMs = new Date(a.createdAt).getTime();
-                        if (!Number.isNaN(createdMs)) {
-                          const ageDays =
-                            (Date.now() - createdMs) / (1000 * 60 * 60 * 24);
-                          if (ageDays >= 3) isOld = true;
-                        }
-                      }
-
-                      // Priority:
-                      // 1) today/tomorrow (green/yellow) -> ignore old/actioned colours
-                      // 2) actioned (blue)
-                      // 3) old (red)
-                      if (!hasHighlight) {
-                        if (isActioned) {
-                          rowCls += " is-actioned";
-                        } else if (isOld) {
-                          rowCls += " is-old";
-                        }
-                      }
-
-                      return (
+                    {/* Body rows */}
+                    {catApps.length === 0 ? (
+                      <div className="cal-row cal-row-empty">
                         <div
-                          key={a._id}
-                          data-id={a._id}
-                          className={rowCls}
-                          role="row"
-                          onDoubleClick={(e) => {
-                            e.stopPropagation();
-                            enterEdit(a);
-                          }}
+                          className="cal-cell"
+                          style={{ gridColumn: "1 / 7" }}
                         >
-                          {/* NAME */}
-                          <div className="cal-cell">
-                            {isEditing ? (
-                              <input
-                                name="name"
-                                value={editData.name}
-                                onChange={handleChange}
-                                className="cal-input"
-                                autoFocus
-                              />
-                            ) : (
-                              <div className="one-line">
-                                {a.name || "—"}
-                              </div>
-                            )}
-                          </div>
+                          No appointments.
+                        </div>
+                      </div>
+                    ) : (
+                      catApps.map((a) => {
+                        const isEditing = editRow === a._id;
+                        const isActioned = !!actionedMap[a._id];
 
-                          {/* DATE/TIME */}
-                          <div className="cal-cell">
-                            {isEditing ? (
-                              <input
-                                name="dateTime"
-                                value={editData.dateTime}
-                                onChange={handleChange}
-                                className="cal-input"
-                                placeholder="e.g. Sat 10:30, tomorrow 2pm, 27/9 09:00"
-                              />
-                            ) : (
-                              <div className="one-line">
-                                {renderDayTime(a.dateTime)}
-                              </div>
-                            )}
-                          </div>
+                        // Day/time highlight (today / tomorrow)
+                        let rowCls = "cal-row";
+                        let hl = "";
+                        if (a.dateTime && String(a.dateTime).trim()) {
+                          hl = dayTimeHighlightClass(a.dateTime);
+                        }
+                        const hasHighlight = !!hl;
+                        if (hl) rowCls += ` ${hl}`;
 
-                          {/* CARS */}
-                          <div className="cal-cell">
-                            {isEditing ? (
-                              <div className="chipbox">
-                                {editData.carIds.length === 0 && (
-                                  <div className="muted">
-                                    No cars selected.
-                                  </div>
-                                )}
-                                {editData.carIds.map((id) => (
-                                  <span key={id} className="chip">
-                                    {carLabelFromId(id)}
-                                    <button
-                                      className="chip-x"
-                                      onClick={() => removeCarId(id)}
-                                      aria-label="Remove"
-                                    >
-                                      ×
-                                    </button>
-                                  </span>
-                                ))}
-                                <div className="chipbox-actions">
-                                  <button
-                                    type="button"
-                                    className="btn btn--ghost btn--sm"
-                                    onClick={() => setPickerOpen(true)}
-                                  >
-                                    + Add Car
-                                  </button>
-                                  {editData.carIds.length > 0 && (
+                        // Age-based highlight: older than 3 full days
+                        let isOld = false;
+                        if (a.createdAt) {
+                          const createdMs = new Date(a.createdAt).getTime();
+                          if (!Number.isNaN(createdMs)) {
+                            const ageDays =
+                              (Date.now() - createdMs) /
+                              (1000 * 60 * 60 * 24);
+                            if (ageDays >= 3) isOld = true;
+                          }
+                        }
+
+                        // Priority:
+                        // 1) today/tomorrow (green/yellow) -> ignore old/actioned colours
+                        // 2) actioned (blue)
+                        // 3) old (red)
+                        if (!hasHighlight) {
+                          if (isActioned) {
+                            rowCls += " is-actioned";
+                          } else if (isOld) {
+                            rowCls += " is-old";
+                          }
+                        }
+
+                        return (
+                          <div
+                            key={a._id}
+                            data-id={a._id}
+                            className={rowCls}
+                            role="row"
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              enterEdit(a);
+                            }}
+                          >
+                            {/* NAME */}
+                            <div className="cal-cell">
+                              {isEditing ? (
+                                <input
+                                  name="name"
+                                  value={editData.name}
+                                  onChange={handleChange}
+                                  className="cal-input"
+                                  autoFocus
+                                />
+                              ) : (
+                                <div className="one-line">
+                                  {a.name || "—"}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* DATE/TIME */}
+                            <div className="cal-cell">
+                              {isEditing ? (
+                                <input
+                                  name="dateTime"
+                                  value={editData.dateTime}
+                                  onChange={handleChange}
+                                  className="cal-input"
+                                  placeholder="e.g. Sat 10:30, tomorrow 2pm"
+                                />
+                              ) : (
+                                <div className="one-line">
+                                  {renderDayTime(a.dateTime)}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* CARS */}
+                            <div className="cal-cell">
+                              {isEditing ? (
+                                <div className="chipbox">
+                                  {editData.carIds.length === 0 && (
+                                    <div className="muted">
+                                      No cars selected.
+                                    </div>
+                                  )}
+                                  {editData.carIds.map((id) => (
+                                    <span key={id} className="chip">
+                                      {carLabelFromId(id)}
+                                      <button
+                                        className="chip-x"
+                                        onClick={() => removeCarId(id)}
+                                        aria-label="Remove"
+                                      >
+                                        ×
+                                      </button>
+                                    </span>
+                                  ))}
+                                  <div className="chipbox-actions">
                                     <button
                                       type="button"
                                       className="btn btn--ghost btn--sm"
-                                      onClick={() =>
-                                        setEditData((p) => ({
-                                          ...p,
-                                          carIds: [],
-                                          clearedCars: true,
-                                        }))
-                                      }
+                                      onClick={() => setPickerOpen(true)}
                                     >
-                                      Clear
+                                      + Add Car
                                     </button>
-                                  )}
-                                </div>
-                                {Array.isArray(a.cars) &&
-                                  a.cars.some(
-                                    (x) => !x.car && x.carText
-                                  ) && (
-                                    <div className="hint">
-                                      Existing text-only vehicles will be kept
-                                      unless you choose a car or clear.
-                                    </div>
-                                  )}
-                              </div>
-                            ) : a.cars && a.cars.length ? (
-                              <div className="stack">
-                                {a.cars.map((c, i) => (
-                                  <CarPreview
-                                    key={
-                                      (c.car?._id ||
-                                        c.car ||
-                                        c.carText ||
-                                        "u") + i
-                                    }
-                                    entry={c}
-                                    cars={cars}
-                                    photoCache={photoCache}
-                                    fetchPhotoForCar={fetchPhotoForCar}
-                                  />
-                                ))}
-                              </div>
-                            ) : (
-                              "—"
-                            )}
-                          </div>
-
-                          {/* NOTES */}
-                          <div className="cal-cell">
-                            {isEditing ? (
-                              <input
-                                name="notesAll"
-                                value={editData.notesAll}
-                                onChange={handleChange}
-                                className="cal-input"
-                                placeholder="Optional notes for all cars"
-                              />
-                            ) : a.cars && a.cars.length ? (
-                              <div className="stack">
-                                {a.cars.map((c, i) => (
-                                  <div key={"n" + i} className="two-line">
-                                    {c.notes || "—"}
+                                    {editData.carIds.length > 0 && (
+                                      <button
+                                        type="button"
+                                        className="btn btn--ghost btn--sm"
+                                        onClick={() =>
+                                          setEditData((p) => ({
+                                            ...p,
+                                            carIds: [],
+                                            clearedCars: true,
+                                          }))
+                                        }
+                                      >
+                                        Clear
+                                      </button>
+                                    )}
                                   </div>
-                                ))}
-                              </div>
-                            ) : (
-                              "—"
-                            )}
-                          </div>
+                                  {Array.isArray(a.cars) &&
+                                    a.cars.some(
+                                      (x) => !x.car && x.carText
+                                    ) && (
+                                      <div className="hint">
+                                        Existing text-only vehicles will be
+                                        kept unless you choose a car or clear.
+                                      </div>
+                                    )}
+                                </div>
+                              ) : a.cars && a.cars.length ? (
+                                <div className="stack">
+                                  {a.cars.map((c, i) => (
+                                    <CarPreview
+                                      key={
+                                        (c.car?._id ||
+                                          c.car ||
+                                          c.carText ||
+                                          "u") + i
+                                      }
+                                      entry={c}
+                                      cars={cars}
+                                      photoCache={photoCache}
+                                      fetchPhotoForCar={fetchPhotoForCar}
+                                    />
+                                  ))}
+                                </div>
+                              ) : (
+                                "—"
+                              )}
+                            </div>
 
-                          {/* CREATED */}
-                          <div className="cal-cell">
-                            <div className="one-line">
-                              {fmtDateShort(a.createdAt)}
+                            {/* NOTES */}
+                            <div className="cal-cell">
+                              {isEditing ? (
+                                <input
+                                  name="notesAll"
+                                  value={editData.notesAll}
+                                  onChange={handleChange}
+                                  className="cal-input"
+                                  placeholder="Optional notes for all cars"
+                                />
+                              ) : a.cars && a.cars.length ? (
+                                <div className="stack">
+                                  {a.cars.map((c, i) => (
+                                    <div key={"n" + i} className="two-line">
+                                      {c.notes || "—"}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                "—"
+                              )}
+                            </div>
+
+                            {/* CREATED */}
+                            <div className="cal-cell">
+                              <div className="one-line">
+                                {fmtDateShort(a.createdAt)}
+                              </div>
+                            </div>
+
+                            {/* ACTIONS (checkbox + trash) */}
+                            <div className="cal-cell cal-actions">
+                              <label className="actioned-toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={!!actionedMap[a._id]}
+                                  onChange={() => toggleActioned(a._id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </label>
+
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    className="btn btn--primary btn--sm"
+                                    onClick={saveChanges}
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    className="btn btn--ghost btn--sm"
+                                    onClick={cancelEdit}
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  className="btn btn--danger btn--sm btn--icon"
+                                  onClick={() => deleteAppointment(a._id)}
+                                  title="Delete"
+                                  aria-label="Delete appointment"
+                                >
+                                  <TrashIcon />
+                                </button>
+                              )}
                             </div>
                           </div>
-
-                          {/* ACTIONS (checkbox + buttons) */}
-                          <div className="cal-cell cal-actions">
-                            <label className="actioned-toggle" title="Actioned">
-                              <input
-                                type="checkbox"
-                                checked={!!actionedMap[a._id]}
-                                onChange={() => toggleActioned(a._id)}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </label>
-
-                            {isEditing ? (
-                              <>
-                                <button
-                                  className="btn btn--primary btn--sm"
-                                  onClick={saveChanges}
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  className="btn btn--ghost btn--sm"
-                                  onClick={cancelEdit}
-                                >
-                                  Cancel
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                className="btn btn--danger btn--sm btn--icon"
-                                onClick={() => deleteAppointment(a._id)}
-                                title="Delete"
-                                aria-label="Delete appointment"
-                              >
-                                <TrashIcon />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </section>
-        );
-      })}
+            </section>
+          );
+        })}
+      </div>
 
       {/* Create modal */}
       <ReconditionerAppointmentFormModal
@@ -798,7 +804,7 @@ function TrashIcon() {
   );
 }
 
-/* ---------- Styles: desktop full-width, mobile scroll ---------- */
+/* ---------- Styles: desktop 2-column, compact rows ---------- */
 const css = `
 :root { color-scheme: dark; }
 html, body, #root { background:#0B1220; overflow-x:hidden; }
@@ -815,42 +821,55 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .with-ham .cal-head{ padding-left:56px; }
 @media (max-width:480px){ .with-ham .cal-head{ padding-left:48px; } }
 
-.cal-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.cal-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
 .cal-head h1 { margin:0 0 2px; font-size:22px; letter-spacing:.2px; }
 .cal-sub { margin:0; color:var(--muted); font-size:12px; }
 .cal-head-titles { display:flex; flex-direction:column; gap:4px; }
-.cal-alert { background:#3B0D0D; border:1px solid #7F1D1D; color:#FECACA; padding:10px 12px; border-radius:12px; margin-bottom:12px; }
+.cal-alert { background:#3B0D0D; border:1px solid #7F1D1D; color:#FECACA; padding:8px 10px; border-radius:10px; margin-bottom:10px; }
 
-.ra-tabs { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+/* new grid to put panels side by side on desktop */
+.ra-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:12px;
+  align-items:flex-start;
+}
+@media (min-width: 1200px){
+  .ra-grid{
+    grid-template-columns:1fr 1fr;
+  }
+}
+
+.ra-tabs { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
 .ra-tab {
   background:#0F172A; border:1px solid #243041; color:#E5E7EB;
-  padding:8px 12px; border-radius:999px; cursor:pointer; font-weight:600; font-size:13px;
+  padding:6px 10px; border-radius:999px; cursor:pointer; font-weight:600; font-size:12px;
 }
 .ra-tab.is-active { border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,0.18) inset; }
-.tab-count { margin-left:8px; color:#9CA3AF; font-weight:600; }
+.tab-count { margin-left:6px; color:#9CA3AF; font-weight:600; }
 
-.btn{ border:1px solid transparent; border-radius:12px; padding:8px 12px; cursor:pointer; font-weight:600; }
+.btn{ border:1px solid transparent; border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:600; }
 .btn:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--ring); }
 .btn--primary{ background:var(--primary); color:#fff; }
 .btn--danger{ background:var(--danger); color:#fff; }
 .btn--ghost{ background:var(--ghost); color:#E5E7EB; border-color:#243041; }
-.btn--sm{ padding:5px 9px; border-radius:10px; font-size:12px; }
-.btn--icon{ padding:4px; width:30px; height:24px; display:inline-flex; align-items:center; justify-content:center; }
+.btn--sm{ padding:4px 8px; border-radius:8px; font-size:12px; }
+.btn--icon{ padding:4px; width:28px; height:24px; display:inline-flex; align-items:center; justify-content:center; }
 
 .cal-panel{ display:flex; flex-direction:column; gap:8px; min-width:0; width:100%; }
 .cal-panel-head{ display:grid; grid-template-columns:1fr auto; align-items:center; gap:8px; min-width:0; }
-.cal-title{ margin:0; font-size:18px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.cal-title{ margin:0; font-size:16px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 
-.table-clip{ width:100%; overflow:hidden; border-radius:14px; }
+.table-clip{ width:100%; overflow:hidden; border-radius:12px; }
 .table-scroll{
   width:100%;
-  border-radius:14px;
+  border-radius:12px;
   background:var(--panel);
   overflow-x:auto;
   overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
-  padding-bottom:8px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
+  padding-bottom:6px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 24px rgba(0,0,0,0.25);
 }
 
 .table-scroll::-webkit-scrollbar{ height:10px; }
@@ -861,16 +880,15 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 
 .cal-grid{
   width:100%;
-  min-width:900px;
+  min-width:760px;
   border:1px solid var(--line);
-  border-radius:14px;
+  border-radius:12px;
   overflow:hidden;
 }
 
-/* 6 columns: Name | Date/Time | Cars | Notes | Created | Actions */
 .cal-row{
   display:grid;
-  grid-template-columns: 1.3fr 0.9fr 2.1fr 2.0fr 0.7fr 0.7fr;
+  grid-template-columns: 1.4fr 1.1fr 2.0fr 2.0fr 0.9fr 0.9fr;
   align-items:center;
   background:var(--panel);
   border-bottom:1px solid var(--line);
@@ -888,7 +906,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 
 .cal-row-empty .cal-cell{
   text-align:center;
-  padding:18px;
+  padding:14px;
   color:#9CA3AF;
 }
 
@@ -930,21 +948,21 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   gap:6px;
 }
 .car-preview-thumb{
-  flex:0 0 48px;
-  height:36px;
+  flex:0 0 44px;
+  height:32px;
   border-radius:6px;
   overflow:hidden;
   background:#111827;
 }
 .car-preview-thumb img{
-  width:48px;
-  height:36px;
+  width:44px;
+  height:32px;
   object-fit:cover;
   display:block;
 }
 .car-thumb-empty{
-  width:48px;
-  height:36px;
+  width:44px;
+  height:32px;
   border-radius:6px;
   background:#111827;
 }
@@ -953,8 +971,8 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 
 .cal-input{
   width:100%;
-  padding:7px 9px;
-  border-radius:10px;
+  padding:6px 8px;
+  border-radius:8px;
   border:1px solid #243041;
   background:#0B1220;
   color:#E5E7EB;
@@ -962,7 +980,7 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
   font-size:13px;
   transition:border-color .2s, box-shadow .2s;
 }
-.cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
+.cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 2px rgba(37,99,235,.25); }
 
 .cal-actions{
   display:flex;
@@ -980,16 +998,16 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 }
 
 .chipbox{ display:flex; flex-direction:column; gap:6px; }
-.chipbox-actions{ display:flex; gap:6px; flex-wrap:wrap; }
+.chipbox-actions{ display:flex; gap:6px; }
 .chip{
   display:inline-flex;
   align-items:center;
   gap:4px;
   background:#111827;
   border:1px solid #243041;
-  padding:5px 7px;
+  padding:4px 6px;
   border-radius:10px;
-  margin:0 6px 6px 0;
+  margin:0 6px 4px 0;
   font-size:12px;
 }
 .chip-x{
