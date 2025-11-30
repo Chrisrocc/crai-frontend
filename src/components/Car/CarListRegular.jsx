@@ -58,7 +58,8 @@ html, body { width: 100%; margin:0; overflow-x:hidden; }
 /* inputs */
 .input{
   background:#0b1220; color:#e5e7eb; border:1px solid #243041; border-radius:10px;
-  padding:8px 10px; outline:none; min-width:140px; width: clamp(180px, 32vw, 520px);
+  padding:8px 10px; outline:none; min-width:140px;
+  width: clamp(180px, 26vw, 360px); /* narrower so buttons + photos toggle stay on one line */
 }
 .input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
 .input--compact{ padding:6px 8px; border-radius:8px; min-width:0; width:100%; }
@@ -71,6 +72,19 @@ html, body { width: 100%; margin:0; overflow-x:hidden; }
 
 /* small buttons so all 3 fit on one row */
 .btn.btn--sm{ padding:5px 8px; font-size:12px; border-radius:8px; }
+
+/* ===== Desktop header: keep everything inline ===== */
+@media (min-width: 1024px){
+  .split-toolbar{
+    flex-wrap:nowrap;              /* prevent wrapping so Hide Photos stays inline */
+    justify-content:flex-end;
+  }
+
+  .split-toolbar .input{
+    flex:0 1 260px;
+    max-width:340px;              /* shorter search bar, frees room for buttons */
+  }
+}
 
 /* ===== Mobile/tablet tweaks (KILL vertical space) ===== */
 @media (max-width: 1024px){
