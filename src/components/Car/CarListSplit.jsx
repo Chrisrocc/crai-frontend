@@ -912,12 +912,12 @@ export default function CarListSplit({
           style={{
             alignItems: "center",
             gap: 10,
-            flexWrap: "nowrap",       // ✅ force one line
+            flexWrap: "nowrap", // ✅ force single line; overflow scrolls instead
             overflowX: "auto",
             paddingBottom: 4,
           }}
         >
-          {/* title + count kept tiny on the left */}
+          {/* title + count on the left */}
           <div
             className="titlebox"
             style={{
@@ -975,7 +975,7 @@ export default function CarListSplit({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{
-              flex: "0 1 340px",   // ✅ smaller than Regular
+              flex: "0 1 340px", // ✅ narrower search
               maxWidth: 380,
               minWidth: 220,
               marginLeft: 6,
