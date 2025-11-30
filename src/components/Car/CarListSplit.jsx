@@ -1,1019 +1,1874 @@
-// src/components/ReconditionerAppointment/ReconditionerAppointmentList.jsx
-import { useEffect, useMemo, useRef, useState } from "react";
+// src/components/Car/CarListSplit.jsx
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import api from "../../lib/api";
-import ReconditionerAppointmentFormModal from "./ReconditionerAppointmentFormModal";
-import ReconditionerCategoryManager from "./ReconditionerCategoryManager";
-import CarPickerModal from "../CarPicker/CarPickerModal";
-import HamburgerMenu from "../utils/HamburgerMenu";
-import { standardizeDayTime, dayTimeHighlightClass } from "../utils/dateTime";
+import CarFormModal from "./CarFormModal";
+import CarProfileModal from "./CarProfileModal";
+import ChecklistFormModal from "./ChecklistFormModal";
+import NextLocationsFormModal from "./NextLocationsFormModal";
+import "./CarList.css";
 
-export default function ReconditionerAppointmentList() {
-  const [categories, setCategories] = useState([]);
-  const [appointments, setAppointments] = useState([]);
+const STAGES = ["In Works", "In Works/Online", "Online", "Sold"];
+
+/* ---------- Icons ---------- */
+const TrashIcon = ({ size = 16 }) => (
+  <svg
+    className="icon"
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    aria-hidden="true"
+    focusable="false"
+  >
+    <path
+      d="M3 6h18"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+    <path
+      d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+    <path
+      d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      fill="none"
+    />
+    <path
+      d="M10 11v6M14 11v6"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+/* ---------- Helpers ---------- */
+
+const isSold = (car = {}) =>
+  String(car.stage || "").trim().toLowerCase() === "sold";
+
+const carString = (car) => {
+  const head = [car.make, car.model].filter(Boolean).join(" ").trim();
+  const tail = [];
+  const b = (car.badge || "").slice(0, 4).trim();
+  if (b) tail.push(b);
+  if (car.year) tail.push(String(car.year));
+  if (car.description) tail.push(car.description);
+  if (car.rego) tail.push(car.rego);
+  return [head, tail.join(", ")].filter(Boolean).join(", ");
+};
+
+const nextDir = (d) => (d === null ? "desc" : d === "desc" ? "asc" : null);
+
+const norm = (v) =>
+  v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v);
+
+const compareStr = (a, b, dir) => {
+  const A = norm(a).toLowerCase();
+  const B = norm(b).toLowerCase();
+  if (A === B) return 0;
+  return dir === "desc" ? (A < B ? 1 : -1) : A < B ? -1 : 1;
+};
+
+const compareNum = (a, b, dir) => {
+  const A = Number(a ?? NaN);
+  const B = Number(b ?? NaN);
+  const aNaN = Number.isNaN(A);
+  const bNaN = Number.isNaN(B);
+  if (aNaN && bNaN) return 0;
+  if (aNaN) return dir === "desc" ? 1 : -1;
+  if (bNaN) return dir === "desc" ? -1 : 1;
+  return dir === "desc" ? B - A : A - B;
+};
+
+const SortChevron = ({ dir }) => (
+  <span style={{ marginLeft: 6, opacity: 0.8 }}>
+    {dir === "desc" ? "↓" : dir === "asc" ? "↑" : ""}
+  </span>
+);
+
+/* =================================================================== */
+
+export default function CarListSplit({
+  embedded = false,
+  listOverride,
+  sortState,
+  onSortChange,
+  showPhotos: showPhotosProp, // when embedded, parent controls photos
+}) {
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
+  const [errMsg, setErrMsg] = useState(null);
 
-  // filter: 'all' | 'on' | 'off'
-  const [catTab, setCatTab] = useState("all");
-
-  // create modal
+  // header UI (only meaningful when not embedded)
+  const [query, setQuery] = useState("");
+  const [stageFilter, setStageFilter] = useState(() => new Set(STAGES));
   const [showForm, setShowForm] = useState(false);
-  const [formCategoryId, setFormCategoryId] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
 
-  // inline edit (whole row on dbl-click)
-  const [editRow, setEditRow] = useState(null);
-  const [editData, setEditData] = useState({
-    name: "",
-    dateTime: "",
-    carIds: [],
-    notesAll: "",
-    clearedCars: false,
+  // local photo toggle for standalone Split (not embedded)
+  const [showPhotosInternal, setShowPhotosInternal] = useState(true);
+  const showPhotos =
+    embedded && typeof showPhotosProp === "boolean"
+      ? showPhotosProp
+      : showPhotosInternal;
+
+  // per-cell editing
+  const [editTarget, setEditTarget] = useState({
+    id: null,
+    field: null,
   });
+  const [editData, setEditData] = useState({});
   const savingRef = useRef(false);
+  const activeRef = useRef(null);
+  const caretRef = useRef({
+    name: null,
+    start: null,
+    end: null,
+  });
+  const stageDirtyRef = useRef(false);
 
-  // car picker for editing
-  const [pickerOpen, setPickerOpen] = useState(false);
+  // modals
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [selectedCar, setSelectedCar] = useState(null);
+  const [checklistModal, setChecklistModal] = useState({
+    open: false,
+    car: null,
+  });
+  const [nextModal, setNextModal] = useState({
+    open: false,
+    car: null,
+  });
 
-  // local "actioned" toggle (per appointment row)
-  const [actionedMap, setActionedMap] = useState({});
+  // sort: internal when uncontrolled, external when used by CarListRegular
+  const isControlled = !!onSortChange;
+  const [internalSort, setInternalSort] = useState({
+    key: null,
+    dir: null,
+  });
+  const sort = isControlled ? sortState || { key: null, dir: null } : internalSort;
 
-  // photo cache: carId -> signed URL
+  // photo cache (thumb URLs)
   const [photoCache, setPhotoCache] = useState({});
 
-  const headers = useMemo(() => ({ "Cache-Control": "no-cache" }), []);
-
-  useEffect(() => {
-    const fetchAll = async () => {
-      setErr("");
-      setLoading(true);
+  const fetchPhoto = useCallback(
+    async (car) => {
+      if (!car?._id) return;
+      if (photoCache[car._id]) return;
       try {
-        const [cat, apps, carList] = await Promise.all([
-          api.get("/reconditioner-categories", { headers }),
-          api.get("/reconditioner-appointments", { headers }),
-          api.get("/cars", { headers }),
-        ]);
-        const appData = apps.data?.data || [];
-        setCategories(cat.data?.data || []);
-        setAppointments(appData);
-        setCars(carList.data?.data || []);
+        const res = await api.get(`/cars/${car._id}/photo-preview`);
+        const url = res?.data?.data || "";
+        if (url) {
+          setPhotoCache((prev) =>
+            prev[car._id] ? prev : { ...prev, [car._id]: url }
+          );
+        }
+      } catch {
+        // silent fail
+      }
+    },
+    [photoCache]
+  );
 
-        setActionedMap((prev) => {
-          const next = { ...prev };
-          appData.forEach((a) => {
-            if (typeof a.actioned === "boolean" && !(a._id in next)) {
-              next[a._id] = a.actioned;
-            }
-          });
-          return next;
+  /* ---------- fetch ---------- */
+  useEffect(() => {
+    if (listOverride) {
+      setCars(listOverride);
+      setLoading(false);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await api.get("/cars", {
+          headers: { "Cache-Control": "no-cache" },
         });
-      } catch (e) {
-        setErr(e.response?.data?.message || e.message || "Failed to load data");
+        setCars(res.data?.data || []);
+      } catch (err) {
+        setErrMsg(
+          err.response?.data?.message || err.message || "Error fetching cars"
+        );
       } finally {
         setLoading(false);
       }
-    };
-    fetchAll();
-  }, [headers]);
+    })();
+  }, [listOverride]);
 
-  const refreshAppointments = async () => {
+  const refreshCars = useCallback(async () => {
+    if (listOverride) return;
     try {
-      const res = await api.get("/reconditioner-appointments", { headers });
-      const appData = res.data?.data || [];
-      setAppointments(appData);
-      setActionedMap((prev) => {
-        const next = { ...prev };
-        appData.forEach((a) => {
-          if (typeof a.actioned === "boolean" && !(a._id in next)) {
-            next[a._id] = a.actioned;
-          }
-        });
-        return next;
+      const res = await api.get("/cars", {
+        headers: { "Cache-Control": "no-cache" },
       });
-    } catch (e) {
-      setErr(e.response?.data?.message || e.message);
+      setCars(res.data?.data || []);
+    } catch (err) {
+      setErrMsg(
+        err.response?.data?.message || err.message || "Error fetching cars"
+      );
+    }
+  }, [listOverride]);
+
+  /* ---------- sort: header click handler ---------- */
+  const handleSortClick = (key) => {
+    if (isControlled) {
+      const curr = sort || { key: null, dir: null };
+      const dir = curr.key === key ? nextDir(curr.dir) : "desc";
+      const next = dir === null ? { key: null, dir: null } : { key, dir };
+      onSortChange(next);
+    } else {
+      setInternalSort((prev) => {
+        const dir = prev.key === key ? nextDir(prev.dir) : "desc";
+        return dir === null ? { key: null, dir: null } : { key, dir };
+      });
     }
   };
 
-  // ----- edit helpers ----- //
-  const enterEdit = (a) => {
-    let notesDefault = "";
-    if (Array.isArray(a.cars) && a.cars.length) {
-      const notesList = a.cars.map((c) => c?.notes || "").filter((n) => n !== "");
-      if (notesList.length) {
-        const allSame = notesList.every((n) => n === notesList[0]);
-        notesDefault = allSame ? notesList[0] : notesList[0];
+  /* ---------- editing helpers ---------- */
+  const startEdit = (car, field, focusName = null) => {
+    setEditTarget({ id: car._id, field });
+    const base = {
+      make: car.make ?? "",
+      model: car.model ?? "",
+      badge: (car.badge ?? "").slice(0, 4),
+      rego: car.rego ?? "",
+      year: car.year ?? "",
+      description: car.description ?? "",
+      location: car.location ?? "",
+      notes: car.notes ?? "",
+      stage: car.stage ?? "In Works",
+    };
+    setEditData(base);
+
+    if (field === "stage") {
+      stageDirtyRef.current = false;
+      caretRef.current = {
+        name: null,
+        start: null,
+        end: null,
+      };
+      return;
+    }
+    caretRef.current = {
+      name: focusName,
+      start: null,
+      end: null,
+    };
+    requestAnimationFrame(() => {
+      const root = activeRef.current;
+      if (!root) return;
+      const el =
+        (focusName && root.querySelector(`[name="${CSS.escape(focusName)}"]`)) ||
+        root.querySelector("input, textarea, select");
+      if (el) {
+        el.focus();
+        el.select?.();
       }
+    });
+  };
+
+  const rememberCaret = (e) => {
+    const { name, selectionStart, selectionEnd } = e.target;
+    caretRef.current = {
+      name,
+      start: selectionStart ?? null,
+      end: selectionEnd ?? null,
+    };
+  };
+
+  const handleChange = (e) => {
+    rememberCaret(e);
+    const { name, value } = e.target;
+    if (name === "year") {
+      return setEditData((p) => ({
+        ...p,
+        year: value.replace(/[^\d]/g, ""),
+      }));
     }
-
-    const existingIds = Array.isArray(a.cars)
-      ? a.cars
-          .map((c) => c?.car?._id || c?.car || null)
-          .filter(Boolean)
-      : [];
-    const firstId = existingIds[0] ? [existingIds[0]] : [];
-
-    setEditRow(a._id);
-    setEditData({
-      name: a.name || "",
-      dateTime: a.dateTime || "",
-      carIds: firstId,
-      notesAll: notesDefault,
-      clearedCars: false,
-    });
+    if (name === "badge") {
+      return setEditData((p) => ({
+        ...p,
+        badge: value.slice(0, 4),
+      }));
+    }
+    if (name === "rego") {
+      const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      return setEditData((p) => ({
+        ...p,
+        rego: clean,
+      }));
+    }
+    setEditData((p) => ({ ...p, [name]: value }));
   };
 
-  const handleChange = (e) =>
-    setEditData((p) => ({ ...p, [e.target.name]: e.target.value }));
-
-  const cancelEdit = () => {
-    setEditRow(null);
-    setEditData({
-      name: "",
-      dateTime: "",
-      carIds: [],
-      notesAll: "",
-      clearedCars: false,
-    });
-  };
+  useLayoutEffect(() => {
+    if (!editTarget.id || editTarget.field === "stage") return;
+    const { name, start, end } = caretRef.current || {};
+    const root = activeRef.current;
+    if (!root) return;
+    const el =
+      (name && root.querySelector(`[name="${CSS.escape(name)}"]`)) ||
+      root.querySelector("input, textarea, select");
+    if (!el) return;
+    if (document.activeElement !== el) el.focus();
+    if (typeof el.setSelectionRange === "function" && "value" in el) {
+      const v = el.value ?? "";
+      const s = typeof start === "number" ? Math.min(start, v.length) : v.length;
+      const ee = typeof end === "number" ? Math.min(end, v.length) : v.length;
+      el.setSelectionRange(s, ee);
+    }
+  }, [editData, editTarget]);
 
   const saveChanges = async () => {
-    if (!editRow || savingRef.current) return;
+    if (!editTarget.id || savingRef.current) return;
     savingRef.current = true;
-    setErr("");
-
     try {
-      const original =
-        appointments.find((a) => a._id === editRow) || { cars: [] };
-
-      const normalized = standardizeDayTime(editData.dateTime || "");
-      const finalDateTime =
-        normalized && normalized.label && normalized.shouldReplaceRaw
-          ? normalized.label
-          : (editData.dateTime || "").trim();
-
-      const originalCars = original.cars || [];
-      const hasSelectedCar =
-        Array.isArray(editData.carIds) && editData.carIds.length > 0;
-      const chosenId = hasSelectedCar ? editData.carIds[0] : null;
-
-      const payload = {
-        name: (editData.name || "").trim(),
-        dateTime: finalDateTime,
-        cars: [],
-      };
-
-      if (hasSelectedCar) {
-        const prev = originalCars.find(
-          (c) => (c.car?._id || c.car) === chosenId
-        );
-        payload.cars = [
-          {
-            car: chosenId,
-            carText: "",
-            notes:
-              editData.notesAll !== "" ? editData.notesAll : prev?.notes || "",
-          },
-        ];
-      } else if (editData.clearedCars) {
-        payload.cars = [];
-      } else {
-        payload.cars = originalCars.map((c) => ({
-          car: c.car || null,
-          carText: c.carText || "",
-          notes: editData.notesAll !== "" ? editData.notesAll : c.notes || "",
-        }));
+      let payload = {};
+      switch (editTarget.field) {
+        case "car":
+          payload = {
+            make: (editData.make || "").trim(),
+            model: (editData.model || "").trim(),
+            badge: (editData.badge || "").trim(),
+            rego: (editData.rego || "").trim(),
+            year: editData.year === "" ? undefined : Number(editData.year),
+            description: (editData.description || "").trim(),
+          };
+          break;
+        case "location":
+          payload = {
+            location: (editData.location || "").trim(),
+          };
+          break;
+        case "notes":
+          payload = {
+            notes: (editData.notes || "").trim(),
+          };
+          break;
+        case "stage":
+          payload = {
+            stage: (editData.stage || "In Works").trim(),
+          };
+          break;
+        default:
+          break;
       }
 
-      setAppointments((prev) =>
-        prev.map((a) =>
-          a._id === editRow
-            ? {
-                ...a,
-                name: payload.name,
-                dateTime: payload.dateTime,
-                cars: payload.cars.map((cp) => {
-                  if (cp.car) {
-                    const carObj = cars.find((c) => c._id === cp.car);
-                    return {
-                      car: carObj
-                        ? {
-                            _id: cp.car,
-                            rego: carObj.rego,
-                            make: carObj.make,
-                            model: carObj.model,
-                            location: carObj.location,
-                            photos: carObj.photos,
-                          }
-                        : cp.car,
-                      notes: cp.notes,
-                    };
-                  }
-                  return { carText: cp.carText, notes: cp.notes };
-                }),
-              }
-            : a
-        )
-      );
+      const res = await api.put(`/cars/${editTarget.id}`, payload, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
-      const res = await api.put(
-        `/reconditioner-appointments/${editRow}`,
-        payload,
-        {
-          headers: { "Content-Type": "application/json" },
+      if (res?.data?.data) {
+        const updated = res.data.data;
+        if (listOverride && Array.isArray(listOverride)) {
+          const ix = listOverride.findIndex((c) => c && c._id === updated._id);
+          if (ix !== -1) {
+            Object.assign(listOverride[ix], updated);
+          }
+        } else {
+          setCars((prev) => prev.map((c) => (c._id === updated._id ? updated : c)));
         }
-      );
-
-      if (res.data?.data) {
-        setAppointments((prev) =>
-          prev.map((a) => (a._id === editRow ? res.data.data : a))
-        );
-      } else {
-        await refreshAppointments();
+      } else if (!listOverride) {
+        await refreshCars();
       }
 
-      cancelEdit();
-    } catch (e) {
-      setErr(e.response?.data?.message || e.message || "Update failed");
-      await refreshAppointments();
+      setEditTarget({ id: null, field: null });
+    } catch (err) {
+      alert(
+        "Error updating car: " +
+          (err.response?.data?.message || err.message)
+      );
+      if (!listOverride) await refreshCars();
+      setEditTarget({ id: null, field: null });
     } finally {
       savingRef.current = false;
     }
   };
 
-  // click-outside save (grid rows)
   useEffect(() => {
     const onDown = (e) => {
-      if (!editRow || pickerOpen) return;
-      const rowEl = document.querySelector(`.cal-row[data-id="${editRow}"]`);
-      if (rowEl && !rowEl.contains(e.target)) saveChanges();
-    };
-    if (editRow) document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [editRow, editData, pickerOpen]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const deleteAppointment = async (id) => {
-    setErr("");
-    const before = appointments;
-    setAppointments((prev) => prev.filter((a) => a._id !== id));
-    try {
-      await api.delete(`/reconditioner-appointments/${id}`);
-    } catch (e) {
-      setErr(e.response?.data?.message || e.message || "Delete failed");
-      setAppointments(before);
-    }
-  };
-
-  const openCreateForCategory = (categoryId) => {
-    setFormCategoryId(categoryId);
-    setShowForm(true);
-  };
-
-  const carLabelFromId = (id) => {
-    const c = cars.find((x) => x._id === id);
-    return c ? `${c.rego} • ${c.make} ${c.model}` : "";
-  };
-
-  const addCarId = (id) =>
-    id &&
-    setEditData((p) => ({
-      ...p,
-      carIds: [id],
-      clearedCars: false,
-    }));
-
-  const removeCarId = (id) =>
-    setEditData((p) => ({
-      ...p,
-      carIds: p.carIds.filter((x) => x !== id),
-    }));
-
-  const toggleActioned = (id) => {
-    setActionedMap((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
-  const fetchPhotoForCar = async (car) => {
-    if (!car?._id) return "";
-    const id = car._id;
-    if (photoCache[id]) return photoCache[id];
-
-    try {
-      const res = await api.get(`/cars/${id}/photo-preview`);
-      const url = res?.data?.data || "";
-      if (url) {
-        setPhotoCache((p) => ({ ...p, [id]: url }));
-        return url;
+      if (!editTarget.id) return;
+      const rowEl = document.querySelector(`tr[data-id="${editTarget.id}"]`);
+      if (!rowEl) return;
+      if (!rowEl.contains(e.target)) {
+        if (editTarget.field === "stage" && !stageDirtyRef.current) {
+          setEditTarget({ id: null, field: null });
+        } else {
+          saveChanges();
+        }
       }
-    } catch (e) {
-      console.warn(`❌ Error loading photo for ${car.rego}`, e);
+    };
+    if (editTarget.id) document.addEventListener("mousedown", onDown);
+    if (editTarget.id)
+      document.addEventListener("touchstart", onDown, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTarget, editData]);
+
+  const handleDelete = async (carId) => {
+    if (!window.confirm("Delete this car?")) return;
+    try {
+      await api.delete(`/cars/${encodeURIComponent(carId)}`);
+      setCars((prev) => prev.filter((c) => c._id !== carId));
+      await refreshCars();
+    } catch (err) {
+      const status = err?.response?.status;
+      const msg =
+        err?.response?.data?.message || err?.message || "Delete failed";
+      if (status === 404) {
+        alert("Car not found (may already be deleted). Refreshing list.");
+        await refreshCars();
+      } else if (status === 401) {
+        alert("Not authorized. Please log in again.");
+      } else {
+        alert(`Delete failed: ${msg}`);
+      }
     }
-    return "";
   };
 
-  const renderDayTime = (raw) => {
-    if (!raw || !String(raw).trim()) return "—";
-    const { label } = standardizeDayTime(raw);
-    return label ?? String(raw).trim();
+  /* ---------- header actions (standalone Split only) ---------- */
+  const triggerCsv = () => fileInputRef.current?.click();
+
+  const handleCsvChosen = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("defaultStage", "In Works");
+      const res = await api.post("/cars/import-csv", form, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      const {
+        createdCount = 0,
+        skippedCount = 0,
+        errorCount = 0,
+      } = res.data || {};
+      alert(
+        `Import complete\nCreated: ${createdCount}\nSkipped: ${skippedCount}\nErrors: ${errorCount}`
+      );
+      await refreshCars();
+    } catch (err) {
+      alert(
+        `CSV import failed: ${
+          err.response?.data?.message || err.message
+        }`
+      );
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="ra-wrap with-ham">
-        <style>{css}</style>
-        <HamburgerMenu />
-        <div className="cal-loading">Loading…</div>
-      </div>
-    );
-  }
+  const submitPaste = async () => {
+    try {
+      const res = await api.post(
+        "/cars/mark-online-from-text",
+        { text: pasteText },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const d = res.data?.data || {};
+      alert(
+        `Processed.\nChanged: ${
+          d.totals?.changed ?? 0
+        }\nSkipped: ${d.totals?.skipped ?? 0}\nNot found: ${
+          d.totals?.notFound ?? 0
+        }`
+      );
+      setPasteOpen(false);
+      setPasteText("");
+      await refreshCars();
+    } catch (e) {
+      alert(
+        e.response?.data?.message ||
+          e.message ||
+          "Error processing pasted list"
+      );
+    }
+  };
 
-  const onCount = categories.filter((c) => !!c.onPremises).length;
-  const offCount = categories.filter((c) => !c.onPremises).length;
-  const filteredCategories =
-    catTab === "on"
-      ? categories.filter((c) => !!c.onPremises)
-      : catTab === "off"
-      ? categories.filter((c) => !c.onPremises)
-      : categories;
+  /* ---------- data shaping + sorting ---------- */
 
-  const fmtDateShort = (d) =>
-    d
-      ? new Date(d).toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "2-digit",
-        })
-      : "—";
+  const [leftList, rightList] = useMemo(() => {
+    // base list: either coming from parent or local state
+    let list = cars;
+
+    // Embedded + listOverride:
+    // parent already filtered / sorted / Sold-first.
+    // Here we only ensure Sold stay in left column.
+    if (embedded && listOverride) {
+      const sold = list.filter(isSold);
+      const other = list.filter((c) => !isSold(c));
+
+      const total = sold.length + other.length;
+      const targetLeft = Math.ceil(total / 2);
+      const othersOnLeft = Math.max(0, targetLeft - sold.length);
+
+      const left = [...sold, ...other.slice(0, othersOnLeft)];
+      const right = other.slice(othersOnLeft);
+      return [left, right];
+    }
+
+    // Standalone Split view: apply filters/search
+    if (!embedded) {
+      list =
+        stageFilter.size > 0
+          ? list.filter((c) => stageFilter.has(c?.stage ?? ""))
+          : [];
+
+      const q = query.trim().toLowerCase();
+      if (q) {
+        list = list.filter((car) => {
+          const hay = [
+            car.make,
+            car.model,
+            car.badge,
+            car.rego,
+            car.year,
+            car.description,
+            car.location,
+            car.stage,
+            ...(Array.isArray(car.nextLocations)
+              ? car.nextLocations
+              : [car.nextLocation]),
+            ...(Array.isArray(car.checklist) ? car.checklist : []),
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return hay.includes(q);
+        });
+      }
+    }
+
+    // Split into Sold vs Other
+    let sold = [];
+    let other = [];
+    for (const c of list) {
+      (isSold(c) ? sold : other).push(c);
+    }
+
+    // Sort each group separately so Sold stay grouped
+    if (sort?.key && sort?.dir) {
+      const { key, dir } = sort;
+
+      const cmp = (a, b) => {
+        switch (key) {
+          case "car": {
+            const byMake = compareStr(a.make, b.make, dir);
+            if (byMake !== 0) return byMake;
+            return compareStr(a.model, b.model, dir);
+          }
+          case "location":
+            return compareStr(a.location, b.location, dir);
+          case "next": {
+            const an =
+              Array.isArray(a.nextLocations) && a.nextLocations.length
+                ? a.nextLocations.join(", ")
+                : a.nextLocation;
+            const bn =
+              Array.isArray(b.nextLocations) && b.nextLocations.length
+                ? b.nextLocations.join(", ")
+                : b.nextLocation;
+            return compareStr(an, bn, dir);
+          }
+          case "checklist": {
+            const ac = Array.isArray(a.checklist)
+              ? a.checklist.join(", ")
+              : a.checklist;
+            const bc = Array.isArray(b.checklist)
+              ? b.checklist.join(", ")
+              : b.checklist;
+            return compareStr(ac, bc, dir);
+          }
+          case "notes":
+            return compareStr(a.notes, b.notes, dir);
+          case "stage":
+            return compareStr(a.stage, b.stage, dir);
+          case "year":
+            return compareNum(a.year, b.year, dir);
+          default:
+            return 0;
+        }
+      };
+
+      sold = sold.slice().sort(cmp);
+      other = other.slice().sort(cmp);
+    }
+
+    // Distribute:
+    // - all Sold in LEFT (at top)
+    // - then some "other" to balance heights
+    // - RIGHT only has "other"
+    const total = sold.length + other.length;
+    const targetLeft = Math.ceil(total / 2);
+    const othersOnLeft = Math.max(0, targetLeft - sold.length);
+
+    const left = [...sold, ...other.slice(0, othersOnLeft)];
+    const right = other.slice(othersOnLeft);
+
+    return [left, right];
+  }, [cars, listOverride, query, stageFilter, embedded, sort?.key, sort?.dir]);
+
+  // prefetch thumbnails for visible cars (both panels)
+  useEffect(() => {
+    const all = [...leftList, ...rightList];
+    all.forEach((car) => {
+      fetchPhoto(car);
+    });
+  }, [leftList, rightList, fetchPhoto]);
+
+  if (loading) return <div className="page-pad">Loading…</div>;
 
   return (
-    <div className="ra-wrap with-ham">
-      <style>{css}</style>
-      <HamburgerMenu />
+    <div className="page-pad split-root">
+      <style>{`
+        .split-root{
+          padding-left: 8px;
+          padding-right: 8px;
+        }
 
-      <header className="cal-head">
-        <div className="cal-head-titles">
-          <h1>Reconditioner Appointments</h1>
-          <p className="cal-sub">
-            Double-click a row to edit. Add cars with the picker.
-          </p>
+        /* Split grid */
+        .split-panels{
+          display:grid;
+          grid-template-columns: 1fr;
+          gap:12px;
+        }
+        @media (min-width: 1100px){
+          .split-panels{
+            grid-template-columns: 1fr 1fr;
+          }
+        }
+
+        .table-wrap{
+          position:relative;
+          overflow-x:auto;
+          overflow-y:hidden;
+          -webkit-overflow-scrolling:touch;
+          border:1px solid #1d2a3a;
+          border-radius:10px;
+          background:#0b1220;
+          cursor:grab;
+        }
+        .table-wrap.is-dragging{
+          cursor:grabbing;
+        }
+
+        /* When photos are hidden, rows go compact */
+        .table-wrap--compact .car-table th,
+        .table-wrap--compact .car-table td{
+          padding:3px 6px;
+        }
+
+        .car-table{
+          width:100%;
+          table-layout:fixed;
+          border-collapse:separate;
+          border-spacing:0;
+          font-size:13px;
+          line-height:1.2;
+        }
+        .car-table th,
+        .car-table td{
+          padding:6px 8px;
+          vertical-align:middle;
+        }
+        .car-table thead th{
+          position:sticky;
+          top:0;
+          background:#0f1a2b;
+          z-index:1;
+        }
+
+        .car-table col.col-photo{ width:64px; }
+        .car-table col.col-car{ width:340px; }
+        .car-table col.col-loc{ width:110px; }
+        .car-table col.col-next{ width:170px; }
+        .car-table col.col-chk{ width:230px; }
+        .car-table col.col-notes{ width:170px; }
+        .car-table col.col-stage{ width:86px; }
+        .car-table col.col-act{ width:76px; }
+
+        @media (min-width: 1400px){
+          .car-table{ font-size:12px; }
+          .car-table th,
+          .car-table td{ padding:5px 7px; }
+
+          .car-table col.col-photo{ width:66px; }
+          .car-table col.col-car{ width:340px; }
+          .car-table col.col-loc{ width:110px; }
+          .car-table col.col-next{ width:180px; }
+          .car-table col.col-chk{ width:240px; }
+          .car-table col.col-notes{ width:180px; }
+          .car-table col.col-stage{ width:86px; }
+          .car-table col.col-act{ width:76px; }
+        }
+
+        .car-table .cell{
+          display:block;
+          overflow:hidden;
+          text-overflow:ellipsis;
+          white-space:nowrap;
+          max-width:100%;
+        }
+
+        .thbtn{
+          all:unset;
+          cursor:pointer;
+          color:#cbd5e1;
+          padding:2px 4px;
+          border-radius:6px;
+        }
+        .thbtn:hover{
+          background:#1f2937;
+        }
+
+        /* Photo column */
+        .photo-cell{
+          padding:2px 4px;
+          text-align:center;
+        }
+        .photo-thumb,
+        .photo-placeholder{
+          width:48px;
+          height:36px;
+          border-radius:8px;
+          display:block;
+          margin:0 auto;
+        }
+        .photo-placeholder{
+          background:#1E293B;
+        }
+
+        /* Editing */
+        td.is-editing{
+          background:#0c1a2e;
+          box-shadow: inset 0 0 0 1px #2b3b54;
+          border-radius:8px;
+          position:relative;
+          z-index:5;
+          overflow:visible;
+        }
+        .edit-cell{
+          display:flex;
+          align-items:center;
+          gap:8px;
+        }
+        .edit-cell-group{
+          display:flex;
+          flex-direction:column;
+          gap:6px;
+        }
+        .edit-inline{
+          display:flex;
+          gap:6px;
+        }
+        .edit-actions{
+          display:flex;
+          gap:6px;
+          margin-top:2px;
+        }
+        .input.input--compact{
+          padding:6px 8px;
+          font-size:12.5px;
+          line-height:1.25;
+        }
+        .edit-cell-group .input{
+          width:100%;
+        }
+        td.is-editing .input--wider{
+          width:auto;
+          min-width:260px;
+          max-width:min(640px, 70vw);
+        }
+        td.is-editing .textarea--wider{
+          width:auto;
+          min-width:360px;
+          max-width:min(720px, 80vw);
+          min-height:40px;
+          resize:vertical;
+        }
+
+        /* Car edit grid (shared with Regular view) */
+        .car-edit{
+          display:flex;
+          flex-direction:column;
+          gap:8px;
+          max-width:720px;
+        }
+        .car-edit-grid{
+          display:grid;
+          grid-template-columns:repeat(2, minmax(0, 1fr));
+          gap:8px 12px;
+        }
+        .car-edit-field{
+          display:flex;
+          flex-direction:column;
+          gap:3px;
+          font-size:12px;
+        }
+        .car-edit-label{
+          color:#9CA3AF;
+          font-size:11px;
+          text-transform:uppercase;
+          letter-spacing:0.04em;
+        }
+        .car-edit-rego{
+          grid-column:1 / -1;
+        }
+        .car-edit-field .input{
+          width:100%;
+        }
+        @media (max-width: 900px){
+          .car-edit-grid{
+            grid-template-columns:1fr;
+          }
+        }
+
+        .btn{
+          border:1px solid transparent;
+          border-radius:10px;
+          padding:6px 10px;
+          cursor:pointer;
+          font-weight:600;
+        }
+        .btn--xs{
+          font-size:12px;
+          padding:4px 8px;
+        }
+        .btn--icon{
+          padding:4px;
+          width:28px;
+          height:24px;
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+        }
+        .btn--danger{
+          background:#DC2626;
+          color:#fff;
+        }
+        .btn--kebab{
+          background:#1f2a3e;
+          color:#c9d3e3;
+        }
+        .btn--primary{
+          background:#2563EB;
+          color:#fff;
+        }
+        .btn--muted{
+          background:#334155;
+          color:#e5e7eb;
+        }
+        .btn--sm{
+          padding:5px 8px;
+          font-size:12px;
+          border-radius:8px;
+        }
+
+        :root{
+          --sold-bg: rgba(14, 165, 233, 0.12);
+          --sold-bg-hover: rgba(14, 165, 233, 0.18);
+          --sold-border: rgba(14, 165, 233, 0.35);
+        }
+        .car-table tr.row--sold td{
+          background: var(--sold-bg);
+          box-shadow: inset 0 0 0 1px var(--sold-border);
+        }
+        .car-table tr.row--sold:hover td{
+          background: var(--sold-bg-hover);
+        }
+      `}</style>
+
+      {/* Standalone Split header (NOT used when embedded inside Regular) */}
+      {!embedded && (
+        <div
+          className="toolbar header-row split-toolbar"
+          style={{
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "nowrap", // ✅ force single line; overflow scrolls instead
+            overflowX: "auto",
+            paddingBottom: 4,
+          }}
+        >
+          {/* title + count on the left */}
+          <div
+            className="titlebox"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              flexShrink: 0,
+              marginRight: 6,
+            }}
+          >
+            <h1 className="title" style={{ margin: 0 }}>
+              Car Inventory
+            </h1>
+            <p className="subtitle" style={{ margin: 0 }}>
+              {cars.length} cars
+            </p>
+          </div>
+
+          {/* stage chips */}
+          <div
+            className="chip-row"
+            style={{
+              display: "flex",
+              gap: 6,
+              flexWrap: "nowrap",
+              flexShrink: 0,
+              minWidth: 0,
+            }}
+          >
+            {STAGES.map((s) => {
+              const on = stageFilter.has(s);
+              return (
+                <button
+                  key={s}
+                  className={`chip ${on ? "chip--on" : ""}`}
+                  onClick={() =>
+                    setStageFilter((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(s)) next.delete(s);
+                      else next.add(s);
+                      return next;
+                    })
+                  }
+                  title={s}
+                >
+                  {s}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* search – deliberately narrower so buttons fit */}
+          <input
+            className="input searchbar"
+            placeholder="Search cars…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            style={{
+              flex: "0 1 340px", // ✅ narrower search
+              maxWidth: 380,
+              minWidth: 220,
+              marginLeft: 6,
+              marginRight: 6,
+            }}
+          />
+
+          {/* actions + photo toggle – fixed width, never wraps */}
+          <div
+            className="btn-row"
+            style={{
+              display: "flex",
+              gap: 8,
+              flexShrink: 0,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <button
+              className="btn btn--primary"
+              onClick={() => setShowForm(true)}
+            >
+              + Add New Car
+            </button>
+            <button
+              className="btn btn--muted btn--sm"
+              onClick={triggerCsv}
+              disabled={uploading}
+            >
+              {uploading ? "Uploading…" : "Upload CSV"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: "none" }}
+              onChange={handleCsvChosen}
+            />
+            <button
+              className="btn btn--muted btn--sm"
+              onClick={() => setPasteOpen(true)}
+            >
+              Paste Online List
+            </button>
+            <button
+              className="btn btn--muted btn--sm"
+              onClick={() => setShowPhotosInternal((v) => !v)}
+            >
+              {showPhotos ? "Hide Photos" : "Show Photos"}
+            </button>
+          </div>
         </div>
-      </header>
+      )}
 
-      {err ? <div className="cal-alert">{err}</div> : null}
+      {errMsg && <div className="alert alert--error">{errMsg}</div>}
 
-      <ReconditionerCategoryManager
-        categories={categories}
-        setCategories={setCategories}
-      />
-
-      {/* PAGE FILTER TABS */}
-      <div className="ra-tabs" role="tablist" aria-label="Category filter">
-        <button
-          role="tab"
-          aria-selected={catTab === "all"}
-          className={`ra-tab ${catTab === "all" ? "is-active" : ""}`}
-          onClick={() => setCatTab("all")}
-        >
-          All <span className="tab-count">{categories.length}</span>
-        </button>
-        <button
-          role="tab"
-          aria-selected={catTab === "on"}
-          className={`ra-tab ${catTab === "on" ? "is-active" : ""}`}
-          onClick={() => setCatTab("on")}
-        >
-          On premises <span className="tab-count">{onCount}</span>
-        </button>
-        <button
-          role="tab"
-          aria-selected={catTab === "off"}
-          className={`ra-tab ${catTab === "off" ? "is-active" : ""}`}
-          onClick={() => setCatTab("off")}
-        >
-          Off premises <span className="tab-count">{offCount}</span>
-        </button>
+      {/* Two tables side by side */}
+      <div className="split-panels">
+        <Table
+          list={leftList}
+          sort={sort}
+          onSortClick={handleSortClick}
+          photoCache={photoCache}
+          showPhotos={showPhotos}
+          {...{
+            editTarget,
+            setEditTarget,
+            editData,
+            startEdit,
+            rememberCaret,
+            handleChange,
+            saveChanges,
+            stageDirtyRef,
+            activeRef,
+            setProfileOpen,
+            setSelectedCar,
+            setChecklistModal,
+            setNextModal,
+            handleDelete,
+          }}
+        />
+        <Table
+          list={rightList}
+          sort={sort}
+          onSortClick={handleSortClick}
+          photoCache={photoCache}
+          showPhotos={showPhotos}
+          {...{
+            editTarget,
+            setEditTarget,
+            editData,
+            startEdit,
+            rememberCaret,
+            handleChange,
+            saveChanges,
+            stageDirtyRef,
+            activeRef,
+            setProfileOpen,
+            setSelectedCar,
+            setChecklistModal,
+            setNextModal,
+            handleDelete,
+          }}
+        />
       </div>
 
-      {/* Category sections (filtered) */}
-      {filteredCategories.map((cat) => {
-        const catApps = appointments.filter(
-          (a) => (a.category?._id || a.category) === cat._id
-        );
-        return (
-          <section key={cat._id} className="cal-panel">
-            <div className="cal-panel-head">
-              <h2 className="cal-title" title={cat.name}>
-                {cat.name}
-              </h2>
-              <button
-                className="btn btn--primary btn--sm"
-                onClick={() => openCreateForCategory(cat._id)}
+      {/* Modals (unchanged) */}
+      {showForm && (
+        <CarFormModal
+          show={showForm}
+          onClose={() => setShowForm(false)}
+          onSave={refreshCars}
+        />
+      )}
+
+      {profileOpen && (
+        <CarProfileModal
+          open={profileOpen}
+          car={selectedCar}
+          onClose={() => setProfileOpen(false)}
+        />
+      )}
+
+      {checklistModal.open && (
+        <ChecklistFormModal
+          open
+          items={checklistModal.car?.checklist ?? []}
+          onSave={async (items) => {
+            if (!checklistModal.car) return;
+            try {
+              await api.put(
+                `/cars/${checklistModal.car._id}`,
+                { checklist: items },
+                {
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                }
+              );
+              await refreshCars();
+            } catch (e) {
+              alert(
+                e.response?.data?.message ||
+                  e.message ||
+                  "Error saving checklist"
+              );
+            } finally {
+              setChecklistModal({
+                open: false,
+                car: null,
+              });
+            }
+          }}
+          onClose={() =>
+            setChecklistModal({
+              open: false,
+              car: null,
+            })
+          }
+        />
+      )}
+
+      {nextModal.open && (
+        <NextLocationsFormModal
+          open
+          items={
+            Array.isArray(nextModal.car?.nextLocations)
+              ? nextModal.car.nextLocations
+              : nextModal.car?.nextLocation
+              ? [nextModal.car.nextLocation]
+              : []
+          }
+          onSave={async (items) => {
+            if (!nextModal.car) return;
+            try {
+              await api.put(
+                `/cars/${nextModal.car._id}`,
+                {
+                  nextLocations: items,
+                  nextLocation: items[items.length - 1] ?? "",
+                },
+                {
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                }
+              );
+              await refreshCars();
+            } catch (e) {
+              alert(
+                e.response?.data?.message ||
+                  e.message ||
+                  "Error saving destinations"
+              );
+            } finally {
+              setNextModal({
+                open: false,
+                car: null,
+              });
+            }
+          }}
+          onSetCurrent={async (loc) => {
+            if (!nextModal.car) return;
+            try {
+              const existing = Array.isArray(nextModal.car.nextLocations)
+                ? nextModal.car.nextLocations
+                : nextModal.car.nextLocation
+                ? [nextModal.car.nextLocation]
+                : [];
+              const remaining = existing.filter((s) => s !== loc);
+              await api.put(
+                `/cars/${nextModal.car._id}`,
+                {
+                  location: loc,
+                  nextLocations: remaining,
+                  nextLocation: remaining[remaining.length - 1] ?? "",
+                },
+                {
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                }
+              );
+              await refreshCars();
+            } catch (e) {
+              alert(
+                e.response?.data?.message ||
+                  e.message ||
+                  "Error setting current location"
+              );
+            }
+          }}
+          onClose={() =>
+            setNextModal({
+              open: false,
+              car: null,
+            })
+          }
+        />
+      )}
+
+      {pasteOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setPasteOpen(false)}
+        >
+          <div
+            style={{
+              background: "#0b1220",
+              border: "1px solid #243041",
+              borderRadius: 12,
+              width: "min(900px, 92vw)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: 14,
+                borderBottom: "1px solid #243041",
+              }}
+            >
+              <h3 style={{ margin: 0 }}>Paste Autogate List</h3>
+              <p
+                style={{
+                  margin: "4px 0 0",
+                  color: "#9CA3AF",
+                  fontSize: 13,
+                }}
               >
-                + Add Appointment
-              </button>
+                We’ll set cars to <b>Online</b> only if they’re currently{" "}
+                <b>In Works</b>.
+              </p>
             </div>
-
-            <div className="table-clip">
+            <div style={{ padding: 14 }}>
+              <textarea
+                className="input"
+                style={{
+                  width: "100%",
+                  minHeight: 280,
+                  resize: "vertical",
+                }}
+                placeholder="Paste the whole Autogate block here…"
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+              />
               <div
-                className="table-scroll"
-                role="region"
-                aria-label={`${cat.name} appointments`}
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  justifyContent: "flex-end",
+                  marginTop: 10,
+                }}
               >
-                <div className="cal-grid" role="grid">
-                  {/* Header row */}
-                  <div className="cal-row cal-row-head" role="row">
-                    <div className="cal-cell cal-head-cell">Name</div>
-                    <div className="cal-cell cal-head-cell">Date/Time</div>
-                    <div className="cal-cell cal-head-cell">Car(s)</div>
-                    <div className="cal-cell cal-head-cell">Notes</div>
-                    <div className="cal-cell cal-head-cell">Created</div>
-                    <div className="cal-cell cal-head-cell">Actions</div>
-                  </div>
-
-                  {/* Body rows */}
-                  {catApps.length === 0 ? (
-                    <div className="cal-row cal-row-empty">
-                      <div className="cal-cell" style={{ gridColumn: "1 / 7" }}>
-                        No appointments.
-                      </div>
-                    </div>
-                  ) : (
-                    catApps.map((a) => {
-                      const isEditing = editRow === a._id;
-                      const isActioned = !!actionedMap[a._id];
-
-                      // Day/time highlight (today / tomorrow)
-                      let rowCls = "cal-row";
-                      let hl = "";
-                      if (a.dateTime && String(a.dateTime).trim()) {
-                        hl = dayTimeHighlightClass(a.dateTime);
-                      }
-                      const hasHighlight = !!hl;
-                      if (hl) rowCls += ` ${hl}`;
-
-                      // Age-based highlight: older than 3 full days
-                      let isOld = false;
-                      if (a.createdAt) {
-                        const createdMs = new Date(a.createdAt).getTime();
-                        if (!Number.isNaN(createdMs)) {
-                          const ageDays =
-                            (Date.now() - createdMs) / (1000 * 60 * 60 * 24);
-                          if (ageDays >= 3) isOld = true;
-                        }
-                      }
-
-                      // Priority:
-                      // 1) today/tomorrow (green/yellow) -> ignore old/actioned colours
-                      // 2) actioned (blue)
-                      // 3) old (red)
-                      if (!hasHighlight) {
-                        if (isActioned) {
-                          rowCls += " is-actioned";
-                        } else if (isOld) {
-                          rowCls += " is-old";
-                        }
-                      }
-
-                      return (
-                        <div
-                          key={a._id}
-                          data-id={a._id}
-                          className={rowCls}
-                          role="row"
-                          onDoubleClick={(e) => {
-                            e.stopPropagation();
-                            enterEdit(a);
-                          }}
-                        >
-                          {/* NAME */}
-                          <div className="cal-cell">
-                            {isEditing ? (
-                              <input
-                                name="name"
-                                value={editData.name}
-                                onChange={handleChange}
-                                className="cal-input"
-                                autoFocus
-                              />
-                            ) : (
-                              <div className="one-line">
-                                {a.name || "—"}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* DATE/TIME */}
-                          <div className="cal-cell">
-                            {isEditing ? (
-                              <input
-                                name="dateTime"
-                                value={editData.dateTime}
-                                onChange={handleChange}
-                                className="cal-input"
-                                placeholder="e.g. Sat 10:30, tomorrow 2pm, 27/9 09:00"
-                              />
-                            ) : (
-                              <div className="one-line">
-                                {renderDayTime(a.dateTime)}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* CARS */}
-                          <div className="cal-cell">
-                            {isEditing ? (
-                              <div className="chipbox">
-                                {editData.carIds.length === 0 && (
-                                  <div className="muted">
-                                    No cars selected.
-                                  </div>
-                                )}
-                                {editData.carIds.map((id) => (
-                                  <span key={id} className="chip">
-                                    {carLabelFromId(id)}
-                                    <button
-                                      className="chip-x"
-                                      onClick={() => removeCarId(id)}
-                                      aria-label="Remove"
-                                    >
-                                      ×
-                                    </button>
-                                  </span>
-                                ))}
-                                <div className="chipbox-actions">
-                                  <button
-                                    type="button"
-                                    className="btn btn--ghost btn--sm"
-                                    onClick={() => setPickerOpen(true)}
-                                  >
-                                    + Add Car
-                                  </button>
-                                  {editData.carIds.length > 0 && (
-                                    <button
-                                      type="button"
-                                      className="btn btn--ghost btn--sm"
-                                      onClick={() =>
-                                        setEditData((p) => ({
-                                          ...p,
-                                          carIds: [],
-                                          clearedCars: true,
-                                        }))
-                                      }
-                                    >
-                                      Clear
-                                    </button>
-                                  )}
-                                </div>
-                                {Array.isArray(a.cars) &&
-                                  a.cars.some(
-                                    (x) => !x.car && x.carText
-                                  ) && (
-                                    <div className="hint">
-                                      Existing text-only vehicles will be kept
-                                      unless you choose a car or clear.
-                                    </div>
-                                  )}
-                              </div>
-                            ) : a.cars && a.cars.length ? (
-                              <div className="stack">
-                                {a.cars.map((c, i) => (
-                                  <CarPreview
-                                    key={
-                                      (c.car?._id ||
-                                        c.car ||
-                                        c.carText ||
-                                        "u") + i
-                                    }
-                                    entry={c}
-                                    cars={cars}
-                                    photoCache={photoCache}
-                                    fetchPhotoForCar={fetchPhotoForCar}
-                                  />
-                                ))}
-                              </div>
-                            ) : (
-                              "—"
-                            )}
-                          </div>
-
-                          {/* NOTES */}
-                          <div className="cal-cell">
-                            {isEditing ? (
-                              <input
-                                name="notesAll"
-                                value={editData.notesAll}
-                                onChange={handleChange}
-                                className="cal-input"
-                                placeholder="Optional notes for all cars"
-                              />
-                            ) : a.cars && a.cars.length ? (
-                              <div className="stack">
-                                {a.cars.map((c, i) => (
-                                  <div key={"n" + i} className="two-line">
-                                    {c.notes || "—"}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              "—"
-                            )}
-                          </div>
-
-                          {/* CREATED */}
-                          <div className="cal-cell">
-                            <div className="one-line">
-                              {fmtDateShort(a.createdAt)}
-                            </div>
-                          </div>
-
-                          {/* ACTIONS (checkbox + buttons) */}
-                          <div className="cal-cell cal-actions">
-                            <label className="actioned-toggle" title="Actioned">
-                              <input
-                                type="checkbox"
-                                checked={!!actionedMap[a._id]}
-                                onChange={() => toggleActioned(a._id)}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </label>
-
-                            {isEditing ? (
-                              <>
-                                <button
-                                  className="btn btn--primary btn--sm"
-                                  onClick={saveChanges}
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  className="btn btn--ghost btn--sm"
-                                  onClick={cancelEdit}
-                                >
-                                  Cancel
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                className="btn btn--danger btn--sm btn--icon"
-                                onClick={() => deleteAppointment(a._id)}
-                                title="Delete"
-                                aria-label="Delete appointment"
-                              >
-                                <TrashIcon />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+                <button
+                  className="btn btn--muted"
+                  onClick={() => setPasteOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn--primary"
+                  onClick={submitPaste}
+                >
+                  Process
+                </button>
               </div>
             </div>
-          </section>
-        );
-      })}
-
-      {/* Create modal */}
-      <ReconditionerAppointmentFormModal
-        show={showForm}
-        onClose={() => {
-          setShowForm(false);
-          setFormCategoryId(null);
-        }}
-        onSaved={async () => {
-          setShowForm(false);
-          setFormCategoryId(null);
-          await refreshAppointments();
-        }}
-        cars={cars}
-        categoryId={formCategoryId}
-      />
-
-      {/* Car picker for inline edit */}
-      <CarPickerModal
-        show={pickerOpen}
-        cars={cars}
-        onClose={() => setPickerOpen(false)}
-        onSelect={(carOrNull) => {
-          setPickerOpen(false);
-          if (carOrNull?._id) addCarId(carOrNull._id);
-        }}
-      />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function CarPreview({ entry, cars, photoCache, fetchPhotoForCar }) {
-  const [photoUrl, setPhotoUrl] = useState("");
+/* ---------- Table (dumb, uses provided sort + click handler) ---------- */
+function Table({
+  list,
+  sort,
+  onSortClick,
+  photoCache,
+  showPhotos,
+  editTarget,
+  setEditTarget,
+  editData,
+  startEdit,
+  handleChange,
+  rememberCaret,
+  saveChanges,
+  stageDirtyRef,
+  activeRef,
+  setProfileOpen,
+  setSelectedCar,
+  setChecklistModal,
+  setNextModal,
+  handleDelete,
+}) {
+  const Sort = ({ col }) =>
+    sort?.key === col ? <SortChevron dir={sort.dir} /> : null;
 
-  const carId = entry?.car?._id || entry?.car || null;
-  let carDoc = null;
-  if (carId) {
-    carDoc = cars.find((c) => c._id === carId) || null;
-  }
+  // drag-to-scroll with threshold so double-click still works
+  const wrapRef = useRef(null);
+  const dragRef = useRef({
+    tracking: false,
+    active: false,
+    startX: 0,
+    scrollLeft: 0,
+    pointerId: null,
+    justDragged: false,
+  });
+  const [dragging, setDragging] = useState(false);
 
-  const label = carDoc
-    ? [carDoc.rego, carDoc.make, carDoc.model].filter(Boolean).join(" • ")
-    : entry.carText
-    ? entry.carText
-    : "[Unidentified]";
+  const isFormElement = (el) => {
+    if (!el) return false;
+    const tag = el.tagName;
+    if (!tag) return false;
+    const t = tag.toUpperCase();
+    if (
+      ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "OPTION", "LABEL"].includes(t)
+    ) {
+      return true;
+    }
+    if (el.closest(".is-editing")) return true;
+    return false;
+  };
 
-  const location = carDoc?.location || "";
+  const onPointerDown = (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
 
-  useEffect(() => {
-    let active = true;
-    if (!carDoc || !carDoc.photos || !carDoc.photos.length || !carId) return;
+    const el = wrapRef.current;
+    if (!el) return;
 
-    const cached = photoCache[carId];
-    if (cached) {
-      setPhotoUrl(cached);
-      return;
+    if (isFormElement(e.target)) return;
+
+    dragRef.current = {
+      tracking: true,
+      active: false,
+      startX: e.clientX,
+      scrollLeft: el.scrollLeft,
+      pointerId: e.pointerId,
+      justDragged: false,
+    };
+  };
+
+  const onPointerMove = (e) => {
+    const st = dragRef.current;
+    if (!st.tracking) return;
+    const el = wrapRef.current;
+    if (!el) return;
+
+    const dx = e.clientX - st.startX;
+
+    if (!st.active) {
+      if (Math.abs(dx) > 5) {
+        st.active = true;
+        setDragging(true);
+        try {
+          el.setPointerCapture(st.pointerId);
+        } catch {
+          // ignore
+        }
+      } else {
+        return;
+      }
     }
 
-    fetchPhotoForCar(carDoc).then((url) => {
-      if (active && url) setPhotoUrl(url);
-    });
+    el.scrollLeft = st.scrollLeft - dx;
+  };
 
-    return () => {
-      active = false;
-    };
-  }, [carDoc, carId, photoCache, fetchPhotoForCar]);
+  const endDrag = () => {
+    const st = dragRef.current;
+    if (!st.tracking) return;
+
+    const el = wrapRef.current;
+    const wasActive = st.active;
+
+    st.tracking = false;
+    st.active = false;
+    setDragging(false);
+
+    if (el && st.pointerId != null) {
+      try {
+        if (el.hasPointerCapture(st.pointerId)) {
+          el.releasePointerCapture(st.pointerId);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    st.justDragged = !!wasActive;
+  };
+
+  const onClickCapture = (e) => {
+    if (dragRef.current.justDragged) {
+      e.stopPropagation();
+      e.preventDefault();
+      dragRef.current.justDragged = false;
+    }
+  };
 
   return (
-    <div className="car-preview-row">
-      <div className="car-preview-thumb">
-        {photoUrl ? (
-          <img src={photoUrl} alt={label} />
-        ) : (
-          <div className="car-thumb-empty" />
-        )}
-      </div>
-      <div className="car-preview-text">
-        <div className="two-line">{label}</div>
-        {location ? <div className="car-location">{location}</div> : null}
-      </div>
+    <div
+      className={
+        "table-wrap" +
+        (dragging ? " is-dragging" : "") +
+        (showPhotos ? "" : " table-wrap--compact")
+      }
+      ref={wrapRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerLeave={endDrag}
+      onClickCapture={onClickCapture}
+    >
+      <table className="car-table">
+        <colgroup>
+          {showPhotos && <col className="col-photo" />}
+          <col className="col-car" />
+          <col className="col-loc" />
+          <col className="col-next" />
+          <col className="col-chk" />
+          <col className="col-notes" />
+          <col className="col-stage" />
+          <col className="col-act" />
+        </colgroup>
+        <thead>
+          <tr>
+            {showPhotos && <th>Photo</th>}
+            <th>
+              <button
+                className="thbtn"
+                onClick={() => onSortClick("car")}
+              >
+                Car <Sort col="car" />
+              </button>
+            </th>
+            <th>
+              <button
+                className="thbtn"
+                onClick={() => onSortClick("location")}
+              >
+                Location <Sort col="location" />
+              </button>
+            </th>
+            <th>
+              <button
+                className="thbtn"
+                onClick={() => onSortClick("next")}
+              >
+                Next Loc <Sort col="next" />
+              </button>
+            </th>
+            <th>
+              <button
+                className="thbtn"
+                onClick={() => onSortClick("checklist")}
+              >
+                Checklist <Sort col="checklist" />
+              </button>
+            </th>
+            <th>
+              <button
+                className="thbtn"
+                onClick={() => onSortClick("notes")}
+              >
+                Notes <Sort col="notes" />
+              </button>
+            </th>
+            <th>
+              <button
+                className="thbtn"
+                onClick={() => onSortClick("stage")}
+              >
+                Stage <Sort col="stage" />
+              </button>
+            </th>
+            <th>Act</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.length === 0 ? (
+            <tr>
+              <td colSpan={showPhotos ? 8 : 7} className="empty">
+                No cars.
+              </td>
+            </tr>
+          ) : (
+            list.map((car) => {
+              const editing =
+                editTarget.id === car._id ? editTarget.field : null;
+              const refCb = editing
+                ? (el) => {
+                    if (el) activeRef.current = el;
+                  }
+                : null;
+
+              const thumbUrl = photoCache?.[car._id];
+
+              return (
+                <tr
+                  key={car._id}
+                  data-id={car._id}
+                  className={isSold(car) ? "row--sold" : ""}
+                  ref={refCb}
+                >
+                  {/* PHOTO */}
+                  {showPhotos && (
+                    <td
+                      className="photo-cell"
+                      onClick={() => {
+                        setSelectedCar(car);
+                        setProfileOpen(true);
+                      }}
+                    >
+                      {thumbUrl ? (
+                        <img
+                          src={thumbUrl}
+                          alt={carString(car) || car.rego || "Car photo"}
+                          className="photo-thumb"
+                        />
+                      ) : (
+                        <div className="photo-placeholder" />
+                      )}
+                    </td>
+                  )}
+
+                  {/* CAR */}
+                  <td
+                    onDoubleClick={() =>
+                      editing !== "car" && startEdit(car, "car", "make")
+                    }
+                    className={editing === "car" ? "is-editing" : ""}
+                  >
+                    {editing === "car" ? (
+                      <div className="car-edit">
+                        <div className="car-edit-grid">
+                          <label className="car-edit-field">
+                            <span className="car-edit-label">Make</span>
+                            <input
+                              className="input input--compact"
+                              name="make"
+                              value={editData.make}
+                              onChange={handleChange}
+                              onKeyUp={rememberCaret}
+                              onClick={rememberCaret}
+                              placeholder="Make"
+                            />
+                          </label>
+                          <label className="car-edit-field">
+                            <span className="car-edit-label">Model</span>
+                            <input
+                              className="input input--compact"
+                              name="model"
+                              value={editData.model}
+                              onChange={handleChange}
+                              onKeyUp={rememberCaret}
+                              onClick={rememberCaret}
+                              placeholder="Model"
+                            />
+                          </label>
+
+                          <label className="car-edit-field">
+                            <span className="car-edit-label">Badge</span>
+                            <input
+                              className="input input--compact"
+                              name="badge"
+                              value={editData.badge}
+                              maxLength={4}
+                              onChange={handleChange}
+                              onKeyUp={rememberCaret}
+                              onClick={rememberCaret}
+                              placeholder="GLX…"
+                            />
+                          </label>
+                          <label className="car-edit-field">
+                            <span className="car-edit-label">Year</span>
+                            <input
+                              className="input input--compact"
+                              name="year"
+                              value={editData.year}
+                              onChange={handleChange}
+                              onKeyUp={rememberCaret}
+                              onClick={rememberCaret}
+                              placeholder="2014"
+                            />
+                          </label>
+
+                          <label className="car-edit-field car-edit-rego">
+                            <span className="car-edit-label">Description</span>
+                            <input
+                              className="input input--compact"
+                              name="description"
+                              value={editData.description}
+                              onChange={handleChange}
+                              onKeyUp={rememberCaret}
+                              onClick={rememberCaret}
+                              placeholder="Colour / body / extra info"
+                            />
+                          </label>
+
+                          <label className="car-edit-field car-edit-rego">
+                            <span className="car-edit-label">Rego</span>
+                            <input
+                              className="input input--compact"
+                              name="rego"
+                              value={editData.rego}
+                              onChange={handleChange}
+                              onKeyUp={rememberCaret}
+                              onClick={rememberCaret}
+                              placeholder="1AT8QG"
+                              style={{
+                                textTransform: "uppercase",
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        <div className="edit-actions">
+                          <button
+                            className="btn btn--primary"
+                            onClick={saveChanges}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="btn btn--muted"
+                            onClick={() =>
+                              setEditTarget({
+                                id: null,
+                                field: null,
+                              })
+                            }
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="cell" title={carString(car)}>
+                        {carString(car) || "-"}
+                      </span>
+                    )}
+                  </td>
+
+                  {/* LOCATION */}
+                  <td
+                    onDoubleClick={() =>
+                      editing !== "location" &&
+                      startEdit(car, "location", "location")
+                    }
+                    className={editing === "location" ? "is-editing" : ""}
+                  >
+                    {editing === "location" ? (
+                      <div className="edit-cell">
+                        <input
+                          className="input input--compact input--wider"
+                          name="location"
+                          value={editData.location}
+                          onChange={handleChange}
+                          onKeyUp={rememberCaret}
+                          onClick={rememberCaret}
+                          placeholder="Location"
+                        />
+                        <div className="edit-actions">
+                          <button
+                            className="btn btn--primary"
+                            onClick={saveChanges}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="cell" title={car.location || ""}>
+                        {car.location || "-"}
+                      </span>
+                    )}
+                  </td>
+
+                  {/* NEXT (modal) */}
+                  <td
+                    onDoubleClick={() =>
+                      setNextModal({
+                        open: true,
+                        car,
+                      })
+                    }
+                  >
+                    <span
+                      className="cell"
+                      title={
+                        Array.isArray(car.nextLocations) &&
+                        car.nextLocations.length
+                          ? car.nextLocations.join(", ")
+                          : car.nextLocation || ""
+                      }
+                    >
+                      {Array.isArray(car.nextLocations) &&
+                      car.nextLocations.length
+                        ? car.nextLocations.join(", ")
+                        : car.nextLocation || "-"}
+                    </span>
+                  </td>
+
+                  {/* CHECKLIST (modal) */}
+                  <td
+                    onDoubleClick={() =>
+                      setChecklistModal({
+                        open: true,
+                        car,
+                      })
+                    }
+                    onClick={() =>
+                      setChecklistModal({
+                        open: true,
+                        car,
+                      })
+                    }
+                  >
+                    <span
+                      className="cell"
+                      title={
+                        Array.isArray(car.checklist)
+                          ? car.checklist.join(", ")
+                          : ""
+                      }
+                    >
+                      {Array.isArray(car.checklist) && car.checklist.length
+                        ? car.checklist.join(", ")
+                        : "-"}
+                    </span>
+                  </td>
+
+                  {/* NOTES */}
+                  <td
+                    onDoubleClick={() =>
+                      editing !== "notes" &&
+                      startEdit(car, "notes", "notes")
+                    }
+                    className={editing === "notes" ? "is-editing" : ""}
+                  >
+                    {editing === "notes" ? (
+                      <div className="edit-cell">
+                        <textarea
+                          className="input input--compact textarea--wider"
+                          name="notes"
+                          rows={2}
+                          value={editData.notes}
+                          onChange={handleChange}
+                          onKeyUp={rememberCaret}
+                          onClick={rememberCaret}
+                          placeholder="Notes"
+                        />
+                        <div className="edit-actions">
+                          <button
+                            className="btn btn--primary"
+                            onClick={saveChanges}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="cell" title={car.notes || ""}>
+                        {car.notes || "-"}
+                      </span>
+                    )}
+                  </td>
+
+                  {/* STAGE */}
+                  <td
+                    onDoubleClick={() =>
+                      editing !== "stage" &&
+                      startEdit(car, "stage", "stage")
+                    }
+                    className={editing === "stage" ? "is-editing" : ""}
+                  >
+                    {editing === "stage" ? (
+                      <div className="edit-cell">
+                        <select
+                          className="input input--compact input--select-lg input--wider"
+                          name="stage"
+                          value={editData.stage}
+                          onChange={(e) => {
+                            stageDirtyRef.current = true;
+                            return handleChange(e);
+                          }}
+                          onBlur={() => {
+                            if (stageDirtyRef.current) saveChanges();
+                            else
+                              setEditTarget({
+                                id: null,
+                                field: null,
+                              });
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onTouchStart={(e) => e.stopPropagation()}
+                        >
+                          {STAGES.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <span className="cell">{car.stage || "-"}</span>
+                    )}
+                  </td>
+
+                  {/* ACTIONS */}
+                  <td>
+                    <div
+                      className="actions"
+                      style={{
+                        display: "flex",
+                        gap: 6,
+                      }}
+                    >
+                      <button
+                        className="btn btn--kebab btn--xs"
+                        title="Open car profile"
+                        onClick={() => {
+                          setSelectedCar(car);
+                          setProfileOpen(true);
+                        }}
+                      >
+                        ⋯
+                      </button>
+                      <button
+                        className="btn btn--danger btn--xs btn--icon"
+                        title="Delete car"
+                        aria-label="Delete"
+                        onClick={() => handleDelete(car._id)}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
-
-function TrashIcon() {
-  return (
-    <svg
-      className="icon"
-      viewBox="0 0 24 24"
-      width="16"
-      height="16"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path
-        d="M3 6h18"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <path
-        d="M10 11v6M14 11v6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-/* ---------- Styles: desktop full-width, mobile scroll ---------- */
-const css = `
-:root { color-scheme: dark; }
-html, body, #root { background:#0B1220; overflow-x:hidden; }
-* { box-sizing:border-box; }
-
-.ra-wrap {
-  --bg:#0B1220; --panel:#0F172A; --muted:#9CA3AF; --text:#E5E7EB; --line:#1F2937;
-  --primary:#2563EB; --danger:#DC2626; --ghost:#111827; --ring:#2E4B8F;
-  color:var(--text); background:var(--bg);
-  min-height:100vh; padding:20px; font-family:Inter, system-ui, -apple-system, Segoe UI, Arial;
-  overflow-x:hidden;
-}
-
-.with-ham .cal-head{ padding-left:56px; }
-@media (max-width:480px){ .with-ham .cal-head{ padding-left:48px; } }
-
-.cal-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
-.cal-head h1 { margin:0 0 2px; font-size:22px; letter-spacing:.2px; }
-.cal-sub { margin:0; color:var(--muted); font-size:12px; }
-.cal-head-titles { display:flex; flex-direction:column; gap:4px; }
-.cal-alert { background:#3B0D0D; border:1px solid #7F1D1D; color:#FECACA; padding:10px 12px; border-radius:12px; margin-bottom:12px; }
-
-.ra-tabs { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
-.ra-tab {
-  background:#0F172A; border:1px solid #243041; color:#E5E7EB;
-  padding:8px 12px; border-radius:999px; cursor:pointer; font-weight:600; font-size:13px;
-}
-.ra-tab.is-active { border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,0.18) inset; }
-.tab-count { margin-left:8px; color:#9CA3AF; font-weight:600; }
-
-.btn{ border:1px solid transparent; border-radius:12px; padding:8px 12px; cursor:pointer; font-weight:600; }
-.btn:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--ring); }
-.btn--primary{ background:var(--primary); color:#fff; }
-.btn--danger{ background:var(--danger); color:#fff; }
-.btn--ghost{ background:var(--ghost); color:#E5E7EB; border-color:#243041; }
-.btn--sm{ padding:5px 9px; border-radius:10px; font-size:12px; }
-.btn--icon{ padding:4px; width:30px; height:24px; display:inline-flex; align-items:center; justify-content:center; }
-
-.cal-panel{ display:flex; flex-direction:column; gap:8px; min-width:0; width:100%; }
-.cal-panel-head{ display:grid; grid-template-columns:1fr auto; align-items:center; gap:8px; min-width:0; }
-.cal-title{ margin:0; font-size:18px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-
-.table-clip{ width:100%; overflow:hidden; border-radius:14px; }
-.table-scroll{
-  width:100%;
-  border-radius:14px;
-  background:var(--panel);
-  overflow-x:auto;
-  overflow-y:hidden;
-  -webkit-overflow-scrolling:touch;
-  padding-bottom:8px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.25);
-}
-
-.table-scroll::-webkit-scrollbar{ height:10px; }
-.table-scroll::-webkit-scrollbar-track{ background:#0B1220; border-radius:10px; }
-.table-scroll::-webkit-scrollbar-thumb{ background:#59637C; border:2px solid #0B1220; border-radius:10px; }
-.table-scroll:hover::-webkit-scrollbar-thumb{ background:#7B88A6; }
-.table-scroll{ scrollbar-color:#59637C #0B1220; scrollbar-width:thin; }
-
-.cal-grid{
-  width:100%;
-  min-width:900px;
-  border:1px solid var(--line);
-  border-radius:14px;
-  overflow:hidden;
-}
-
-/* 6 columns: Name | Date/Time | Cars | Notes | Created | Actions */
-.cal-row{
-  display:grid;
-  grid-template-columns: 1.3fr 0.9fr 2.1fr 2.0fr 0.7fr 0.7fr;
-  align-items:center;
-  background:var(--panel);
-  border-bottom:1px solid var(--line);
-}
-.cal-row:last-child{
-  border-bottom:none;
-}
-
-.cal-row-head{
-  position:sticky;
-  top:0;
-  z-index:1;
-  background:#0F172A;
-}
-
-.cal-row-empty .cal-cell{
-  text-align:center;
-  padding:18px;
-  color:#9CA3AF;
-}
-
-.cal-cell{
-  padding:8px 10px;
-  font-size:13px;
-  color:#E5E7EB;
-  min-width:0;
-}
-
-.cal-head-cell{
-  font-size:11px;
-  font-weight:600;
-  color:#9CA3AF;
-}
-
-.cal-grid .cal-row:not(.cal-row-head):hover{
-  background:#0B1428;
-}
-
-.one-line{
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.two-line{
-  display:-webkit-box;
-  -webkit-line-clamp:2;
-  -webkit-box-orient:vertical;
-  overflow:hidden;
-  white-space:normal;
-  word-break:normal;
-}
-.stack{ display:flex; flex-direction:column; gap:3px; }
-
-.car-preview-row{
-  display:flex;
-  align-items:center;
-  gap:6px;
-}
-.car-preview-thumb{
-  flex:0 0 48px;
-  height:36px;
-  border-radius:6px;
-  overflow:hidden;
-  background:#111827;
-}
-.car-preview-thumb img{
-  width:48px;
-  height:36px;
-  object-fit:cover;
-  display:block;
-}
-.car-thumb-empty{
-  width:48px;
-  height:36px;
-  border-radius:6px;
-  background:#111827;
-}
-.car-preview-text{ min-width:0; }
-.car-location{ font-size:11px; color:#9CA3AF; }
-
-.cal-input{
-  width:100%;
-  padding:7px 9px;
-  border-radius:10px;
-  border:1px solid #243041;
-  background:#0B1220;
-  color:#E5E7EB;
-  outline:none;
-  font-size:13px;
-  transition:border-color .2s, box-shadow .2s;
-}
-.cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
-
-.cal-actions{
-  display:flex;
-  align-items:center;
-  justify-content:flex-end;
-  gap:6px;
-  white-space:nowrap;
-}
-
-.cal-actioned{ text-align:center; }
-.actioned-toggle input{
-  width:14px;
-  height:14px;
-  cursor:pointer;
-}
-
-.chipbox{ display:flex; flex-direction:column; gap:6px; }
-.chipbox-actions{ display:flex; gap:6px; flex-wrap:wrap; }
-.chip{
-  display:inline-flex;
-  align-items:center;
-  gap:4px;
-  background:#111827;
-  border:1px solid #243041;
-  padding:5px 7px;
-  border-radius:10px;
-  margin:0 6px 6px 0;
-  font-size:12px;
-}
-.chip-x{
-  background:transparent;
-  border:none;
-  color:#9CA3AF;
-  cursor:pointer;
-  font-size:13px;
-  line-height:1;
-}
-.muted{ color:#9CA3AF; font-size:12px; }
-.hint{ color:#9CA3AF; font-size:11px; }
-
-/* row highlights */
-.cal-row.is-old{
-  background:#2a0f10 !important;  /* red-ish for overdue */
-}
-.cal-row.is-today{
-  background:#0f2a12 !important;  /* green */
-}
-.cal-row.is-tomorrow{
-  background:#2a210f !important;  /* yellow/orange */
-}
-.cal-row.is-actioned{
-  background:#0B2340 !important;  /* blue */
-}
-`;
