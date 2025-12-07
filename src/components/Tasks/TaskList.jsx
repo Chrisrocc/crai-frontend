@@ -31,6 +31,7 @@ export default function TaskList() {
         ]);
         setTasks(t.data?.data || []);
         setCars(c.data?.data || []);
+        setErr("");
       } catch (e) {
         setErr(e.response?.data?.message || e.message);
       } finally {
@@ -42,6 +43,7 @@ export default function TaskList() {
   const refreshTasks = async () => {
     const res = await api.get("/tasks", nocache);
     setTasks(res.data?.data || []);
+    setErr("");
   };
 
   const enterEdit = (t) => {
@@ -52,12 +54,16 @@ export default function TaskList() {
     });
   };
 
-  const handleChange = (e) => setEditData((p) => ({ ...p, [e.target.name]: e.target.value }));
+  const handleChange = (e) =>
+    setEditData((p) => ({ ...p, [e.target.name]: e.target.value }));
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this task?")) return;
-    await api.delete(`/tasks/${id}`);
-    await refreshTasks();
+    try {
+      await api.delete(`/tasks/${id}`);
+      await refreshTasks();
+    } catch (e) {
+      setErr(e.response?.data?.message || e.message);
+    }
   };
 
   const saveChanges = async () => {
@@ -69,7 +75,9 @@ export default function TaskList() {
 
       // optimistic
       setTasks((prev) =>
-        prev.map((t) => (t._id === editRow ? { ...t, task: payload.task, car: t.car } : t))
+        prev.map((t) =>
+          t._id === editRow ? { ...t, task: payload.task, car: t.car } : t
+        )
       );
 
       const res = await api.put(`/tasks/${editRow}`, payload, {
@@ -77,13 +85,16 @@ export default function TaskList() {
       });
 
       if (res.data?.data) {
-        setTasks((prev) => prev.map((t) => (t._id === editRow ? res.data.data : t)));
+        setTasks((prev) =>
+          prev.map((t) => (t._id === editRow ? res.data.data : t))
+        );
       } else {
         await refreshTasks();
       }
       setEditRow(null);
+      setErr("");
     } catch (e) {
-      alert("Error: " + (e.response?.data?.message || e.message));
+      setErr(e.response?.data?.message || e.message);
       await refreshTasks();
     } finally {
       savingRef.current = false;
@@ -104,14 +115,22 @@ export default function TaskList() {
   const carLabel = (objOrId) => {
     if (!objOrId) return "";
     if (typeof objOrId === "object") {
-      return [objOrId.rego, objOrId.make, objOrId.model].filter(Boolean).join(" • ");
+      return [objOrId.rego, objOrId.make, objOrId.model]
+        .filter(Boolean)
+        .join(" • ");
     }
     const c = cars.find((x) => x._id === objOrId);
     return c ? `${c.rego} • ${c.make} ${c.model}` : "";
   };
 
   const fmtDate = (d) =>
-    d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
+    d
+      ? new Date(d).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "2-digit",
+        })
+      : "—";
 
   if (loading) {
     return (
@@ -132,18 +151,30 @@ export default function TaskList() {
       <header className="cal-head">
         <div className="cal-head-titles">
           <h1>Tasks</h1>
-          <p className="cal-sub">Double-click a row to edit. Double-click the car cell to pick a car.</p>
+          <p className="cal-sub">
+            Double-click a row to edit. Double-click the car cell to pick a car.
+          </p>
         </div>
 
         <div className="cal-head-actions">
-          <button className="btn btn--primary" onClick={() => setShowForm(true)}>+ New Task</button>
+          <button
+            className="btn btn--primary"
+            onClick={() => setShowForm(true)}
+          >
+            + New Task
+          </button>
         </div>
       </header>
 
       {err ? <div className="cal-alert">{err}</div> : null}
 
       {/* Create modal */}
-      <TaskFormModal show={showForm} onClose={() => setShowForm(false)} onSave={refreshTasks} cars={cars} />
+      <TaskFormModal
+        show={showForm}
+        onClose={() => setShowForm(false)}
+        onSave={refreshTasks}
+        cars={cars}
+      />
 
       <section className="cal-panel">
         <div className="cal-table-clip">
@@ -165,7 +196,11 @@ export default function TaskList() {
               </thead>
               <tbody>
                 {tasks.length === 0 ? (
-                  <tr><td colSpan="4" className="cal-empty">No tasks.</td></tr>
+                  <tr>
+                    <td colSpan="4" className="cal-empty">
+                      No tasks.
+                    </td>
+                  </tr>
                 ) : (
                   tasks.map((t) => {
                     const isEditing = editRow === t._id;
@@ -173,7 +208,10 @@ export default function TaskList() {
                       <tr
                         key={t._id}
                         data-id={t._id}
-                        onDoubleClick={(e) => { e.stopPropagation(); enterEdit(t); }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          enterEdit(t);
+                        }}
                       >
                         {/* Task */}
                         <td>
@@ -185,7 +223,9 @@ export default function TaskList() {
                               onChange={handleChange}
                               autoFocus
                             />
-                          ) : (t.task || "—")}
+                          ) : (
+                            t.task || "—"
+                          )}
                         </td>
 
                         {/* Car (double-click to open picker) */}
@@ -198,15 +238,36 @@ export default function TaskList() {
                         >
                           {isEditing ? (
                             <div className="car-edit">
-                              <input className="cal-input" readOnly value={carLabel(editData.car)} placeholder="No car" />
-                              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setPickerOpen(true)}>Pick</button>
+                              <input
+                                className="cal-input"
+                                readOnly
+                                value={carLabel(editData.car)}
+                                placeholder="No car"
+                              />
+                              <button
+                                type="button"
+                                className="btn btn--ghost btn--sm"
+                                onClick={() => setPickerOpen(true)}
+                              >
+                                Pick
+                              </button>
                               {editData.car && (
-                                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditData((p) => ({ ...p, car: "" }))}>
+                                <button
+                                  type="button"
+                                  className="btn btn--ghost btn--sm"
+                                  onClick={() =>
+                                    setEditData((p) => ({ ...p, car: "" }))
+                                  }
+                                >
                                   Clear
                                 </button>
                               )}
                             </div>
-                          ) : (t.car ? carLabel(t.car) : "—")}
+                          ) : t.car ? (
+                            carLabel(t.car)
+                          ) : (
+                            "—"
+                          )}
                         </td>
 
                         {/* Created */}
@@ -216,8 +277,18 @@ export default function TaskList() {
                         <td className="cal-actions">
                           {isEditing ? (
                             <>
-                              <button className="btn btn--primary btn--sm" onClick={saveChanges}>Save</button>
-                              <button className="btn btn--ghost btn--sm" onClick={() => setEditRow(null)}>Cancel</button>
+                              <button
+                                className="btn btn--primary btn--sm"
+                                onClick={saveChanges}
+                              >
+                                Save
+                              </button>
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                onClick={() => setEditRow(null)}
+                              >
+                                Cancel
+                              </button>
                             </>
                           ) : (
                             <button
@@ -247,7 +318,8 @@ export default function TaskList() {
         onClose={() => setPickerOpen(false)}
         onSelect={(carOrNull) => {
           setPickerOpen(false);
-          if (carOrNull?._id) setEditData((p) => ({ ...p, car: carOrNull._id }));
+          if (carOrNull?._id)
+            setEditData((p) => ({ ...p, car: carOrNull._id }));
         }}
       />
     </div>
@@ -257,10 +329,31 @@ export default function TaskList() {
 function TrashIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-      <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-      <path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
-      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path
+        d="M3 6h18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M10 11v6M14 11v6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -330,13 +423,11 @@ html, body, #root { background:#0B1220; overflow-x:hidden; }
 .cal-table tbody tr:hover{ background:#0B1428; }
 .cal-empty{ text-align:center; padding:20px; color:var(--muted); }
 
-/* column widths */
 .cal-table col.col-task{ width:44%; }
 .cal-table col.col-car{ width:28%; }
 .cal-table col.col-created{ width:16%; }
 .cal-table col.col-actions{ width:120px; }
 
-/* inputs */
 .cal-input{ width:100%; padding:8px 10px; border-radius:10px; border:1px solid #243041; background:#0B1220; color:#E5E7EB; outline:none; transition:border-color .2s, box-shadow .2s; }
 .cal-input:focus{ border-color:#2E4B8F; box-shadow:0 0 0 3px rgba(37,99,235,.25); }
 
