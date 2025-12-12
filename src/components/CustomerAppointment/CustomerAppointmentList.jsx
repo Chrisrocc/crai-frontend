@@ -51,6 +51,14 @@ export default function CustomerAppointmentList() {
     }
   };
 
+  // ✅ important: never let backend response wipe the flags we just set
+  const applyBackendRowMerged = (id, payload, backendRow) => {
+    if (!backendRow) return;
+    setAppointments((p) =>
+      p.map((a) => (a._id === id ? { ...backendRow, ...payload } : a))
+    );
+  };
+
   const enterEdit = (appointment) => {
     setEditRow(appointment._id);
     setEditData({
@@ -135,8 +143,17 @@ export default function CustomerAppointmentList() {
       });
 
       if (res.data?.data) {
+        // keep any existing flags from current state, don’t clobber
         setAppointments((p) =>
-          p.map((a) => (a._id === editRow ? res.data.data : a))
+          p.map((a) =>
+            a._id === editRow
+              ? {
+                  ...res.data.data,
+                  isDelivery: a.isDelivery,
+                  isFollowUp: a.isFollowUp,
+                }
+              : a
+          )
         );
       } else {
         await refreshAppointments();
@@ -165,6 +182,7 @@ export default function CustomerAppointmentList() {
       dateTime: "TBC",
     };
 
+    // optimistic update
     setAppointments((p) =>
       p.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a))
     );
@@ -175,10 +193,10 @@ export default function CustomerAppointmentList() {
         payload,
         { headers: { "Content-Type": "application/json" } }
       );
+
       if (res.data?.data) {
-        setAppointments((p) =>
-          p.map((a) => (a._id === appointment._id ? res.data.data : a))
-        );
+        // ✅ merge payload back in so backend can't unset flags
+        applyBackendRowMerged(appointment._id, payload, res.data.data);
       } else {
         await refreshAppointments();
       }
@@ -203,6 +221,7 @@ export default function CustomerAppointmentList() {
       dateTime: "TBC",
     };
 
+    // optimistic update
     setAppointments((p) =>
       p.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a))
     );
@@ -213,10 +232,10 @@ export default function CustomerAppointmentList() {
         payload,
         { headers: { "Content-Type": "application/json" } }
       );
+
       if (res.data?.data) {
-        setAppointments((p) =>
-          p.map((a) => (a._id === appointment._id ? res.data.data : a))
-        );
+        // ✅ THIS is what stops it snapping back into Customer Appointments
+        applyBackendRowMerged(appointment._id, payload, res.data.data);
       } else {
         await refreshAppointments();
       }
@@ -235,8 +254,10 @@ export default function CustomerAppointmentList() {
     const prev = appointments;
     const restoredTime = appointment.originalDateTime || "";
 
+    // ✅ clear BOTH flags no matter what
     const payload = {
       isDelivery: false,
+      isFollowUp: false,
       dateTime: restoredTime,
       originalDateTime: "",
     };
@@ -251,10 +272,9 @@ export default function CustomerAppointmentList() {
         payload,
         { headers: { "Content-Type": "application/json" } }
       );
+
       if (res.data?.data) {
-        setAppointments((p) =>
-          p.map((a) => (a._id === appointment._id ? res.data.data : a))
-        );
+        applyBackendRowMerged(appointment._id, payload, res.data.data);
       } else {
         await refreshAppointments();
       }
@@ -273,8 +293,10 @@ export default function CustomerAppointmentList() {
     const prev = appointments;
     const restoredTime = appointment.originalDateTime || "";
 
+    // ✅ clear BOTH flags no matter what
     const payload = {
       isFollowUp: false,
+      isDelivery: false,
       dateTime: restoredTime,
       originalDateTime: "",
     };
@@ -289,10 +311,9 @@ export default function CustomerAppointmentList() {
         payload,
         { headers: { "Content-Type": "application/json" } }
       );
+
       if (res.data?.data) {
-        setAppointments((p) =>
-          p.map((a) => (a._id === appointment._id ? res.data.data : a))
-        );
+        applyBackendRowMerged(appointment._id, payload, res.data.data);
       } else {
         await refreshAppointments();
       }
@@ -754,7 +775,7 @@ export default function CustomerAppointmentList() {
             </div>
           </section>
 
-          {/* Follow Up (below delivery, offset down, but still flows) */}
+          {/* Follow Up */}
           <section className="cal-panel cal-followup-panel" aria-label="Follow Up">
             <div className="cal-panel-head">
               <h2>Follow Up</h2>
@@ -901,7 +922,7 @@ html, body, #root { background: #0B1220; }
 .btn--icon { padding:6px; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; }
 .btn .icon { display:inline-block; }
 
-/* ✅ 2 columns: left = appointments, right = stack */
+/* 2 columns: left = appointments, right = stack */
 .cal-grid{
   display:grid;
   grid-template-columns:minmax(0,1fr) minmax(0,1fr);
@@ -919,7 +940,7 @@ html, body, #root { background: #0B1220; }
   min-width:0;
 }
 
-/* ✅ Follow Up starts lower but still flows + gets pushed down if Delivery grows */
+/* Follow Up starts lower but still flows + gets pushed down if Delivery grows */
 .cal-followup-panel{
   margin-top: clamp(120px, 18vh, 240px);
 }
@@ -967,6 +988,3 @@ html, body, #root { background: #0B1220; }
 .cal-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
 .car-edit { display:flex; align-items:center; gap:8px; }
 `;
-
-
-
