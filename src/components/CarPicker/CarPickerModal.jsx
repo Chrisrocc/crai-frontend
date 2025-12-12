@@ -1,34 +1,54 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../../lib/api";
+import CarFormModal from "../Car/CarFormModal";
 
-export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
+export default function CarPickerModal({
+  show,
+  cars = [],
+  onClose,
+  onSelect,
+}) {
   const [q, setQ] = useState("");
   const [photoCache, setPhotoCache] = useState({});
+  const [showAdd, setShowAdd] = useState(false);
+  const [localCars, setLocalCars] = useState(cars);
   const inputRef = useRef(null);
+
+  // keep local list in sync with prop (but allow us to insert new car without parent refresh)
+  useEffect(() => {
+    setLocalCars(cars || []);
+  }, [cars]);
 
   // ✅ Focus & ESC
   useEffect(() => {
     if (!show) return;
     const t = setTimeout(() => inputRef.current?.focus(), 60);
-    const onKey = (e) => e.key === "Escape" && onClose?.();
+
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        if (showAdd) setShowAdd(false);
+        else onClose?.();
+      }
+    };
+
     document.addEventListener("keydown", onKey);
     return () => {
       clearTimeout(t);
       document.removeEventListener("keydown", onKey);
     };
-  }, [show, onClose]);
+  }, [show, onClose, showAdd]);
 
   // ✅ Search filter
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    if (!term) return cars;
-    return cars.filter((c) =>
+    if (!term) return localCars;
+    return localCars.filter((c) =>
       [c.rego ?? "", c.make ?? "", c.model ?? "", (c.year ?? "").toString()]
         .join(" ")
         .toLowerCase()
         .includes(term)
     );
-  }, [q, cars]);
+  }, [q, localCars]);
 
   // ✅ Lazy signed photo preview
   const fetchPhoto = async (car) => {
@@ -47,6 +67,31 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
     return "";
   };
 
+  const handleCarCreated = (createdCar) => {
+    setShowAdd(false);
+
+    if (!createdCar) return;
+
+    // Insert at top (dedupe by _id)
+    setLocalCars((prev) => {
+      const next = [createdCar, ...(prev || [])];
+      const seen = new Set();
+      return next.filter((c) => {
+        const id = c?._id || c?.id;
+        if (!id) return true;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+    });
+
+    // Make it easy to see it / select it immediately
+    const rego = (createdCar.rego || "").trim();
+    if (rego) setQ(rego);
+
+    onSelect?.(createdCar);
+  };
+
   if (!show) return null;
 
   return (
@@ -59,10 +104,20 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
       }}
     >
       <style>{css}</style>
+
+      {/* Add Car modal (nested) */}
+      <CarFormModal
+        show={showAdd}
+        onClose={() => setShowAdd(false)}
+        onSave={handleCarCreated}
+      />
+
       <div className="cpk-modal" onClick={(e) => e.stopPropagation()}>
         <header className="cpk-head">
           <h3>Select a Car</h3>
-          <button className="cpk-x" onClick={onClose}>×</button>
+          <button className="cpk-x" onClick={onClose}>
+            ×
+          </button>
         </header>
 
         <div className="cpk-tools">
@@ -74,8 +129,25 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
             onChange={(e) => setQ(e.target.value)}
           />
           <div className="cpk-spacer" />
-          <button className="cpk-btn cpk-btn--ghost" onClick={() => onSelect?.(null)}>Clear</button>
-          <button className="cpk-btn cpk-btn--primary" onClick={onClose}>Done</button>
+
+          <button
+            className="cpk-btn cpk-btn--ghost"
+            onClick={() => setShowAdd(true)}
+            title="Add a new car"
+          >
+            + Add Car
+          </button>
+
+          <button
+            className="cpk-btn cpk-btn--ghost"
+            onClick={() => onSelect?.(null)}
+          >
+            Clear
+          </button>
+
+          <button className="cpk-btn cpk-btn--primary" onClick={onClose}>
+            Done
+          </button>
         </div>
 
         <div className="cpk-table-wrap">
@@ -101,7 +173,9 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td className="cpk-empty" colSpan={6}>No cars match your search.</td>
+                  <td className="cpk-empty" colSpan={6}>
+                    No cars match your search.
+                  </td>
                 </tr>
               ) : (
                 filtered.map((c) => (
@@ -124,6 +198,7 @@ export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
 
 function CarRow({ car, fetchPhoto, cachedUrl, onSelect }) {
   const [photoUrl, setPhotoUrl] = useState(cachedUrl || "");
+
   useEffect(() => {
     if (!cachedUrl && car?.photos?.length) {
       fetchPhoto(car).then((url) => url && setPhotoUrl(url));
@@ -144,7 +219,10 @@ function CarRow({ car, fetchPhoto, cachedUrl, onSelect }) {
       <td>{car.model || "—"}</td>
       <td>{car.year || "—"}</td>
       <td className="cpk-actions">
-        <button className="cpk-btn cpk-btn--primary cpk-btn--sm" onClick={() => onSelect?.(car)}>
+        <button
+          className="cpk-btn cpk-btn--primary cpk-btn--sm"
+          onClick={() => onSelect?.(car)}
+        >
           Select
         </button>
       </td>
@@ -226,4 +304,3 @@ const css = `
 }
 .cpk-actions { text-align:right; }
 `;
-

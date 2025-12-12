@@ -72,6 +72,7 @@ export default function CarFormModal({ show, onClose, onSave }) {
     e.preventDefault();
     if (busy) return;
     setBusy(true);
+
     try {
       const payload = {
         ...formData,
@@ -88,7 +89,9 @@ export default function CarFormModal({ show, onClose, onSave }) {
 
       // 1) create the car (JSON)
       const { data } = await api.post("/cars", payload);
-      const carId = data?.data?._id || data?.data?.id;
+      const createdCar = data?.data;
+      const carId = createdCar?._id || createdCar?.id;
+
       if (!carId) throw new Error("Car created but no id returned");
 
       // 2) enqueue photos for background upload (non-blocking)
@@ -99,7 +102,7 @@ export default function CarFormModal({ show, onClose, onSave }) {
         }
       }
 
-      onSave?.();
+      onSave?.(createdCar); // ✅ now returns the created car
       onClose?.();
     } catch (err) {
       const msg =
