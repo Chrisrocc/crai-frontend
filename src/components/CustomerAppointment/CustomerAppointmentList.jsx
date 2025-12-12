@@ -24,7 +24,9 @@ export default function CustomerAppointmentList() {
     (async () => {
       try {
         const [a, c] = await Promise.all([
-          api.get("/customer-appointments", { headers: { "Cache-Control": "no-cache" } }),
+          api.get("/customer-appointments", {
+            headers: { "Cache-Control": "no-cache" },
+          }),
           api.get("/cars", { headers: { "Cache-Control": "no-cache" } }),
         ]);
         setAppointments(a.data?.data || []);
@@ -39,7 +41,9 @@ export default function CustomerAppointmentList() {
 
   const refreshAppointments = async () => {
     try {
-      const res = await api.get("/customer-appointments", { headers: { "Cache-Control": "no-cache" } });
+      const res = await api.get("/customer-appointments", {
+        headers: { "Cache-Control": "no-cache" },
+      });
       setAppointments(res.data?.data || []);
     } catch (e) {
       console.error("Refresh failed:", e.response?.data || e.message);
@@ -108,10 +112,15 @@ export default function CustomerAppointmentList() {
           ? {
               ...a,
               name: payload.name,
-              dateTime: finalDateTime, // ⬅ store locked label in local state
+              dateTime: finalDateTime,
               notes: payload.notes,
               car: chosen
-                ? { _id: chosen._id, rego: chosen.rego, make: chosen.make, model: chosen.model }
+                ? {
+                    _id: chosen._id,
+                    rego: chosen.rego,
+                    make: chosen.make,
+                    model: chosen.model,
+                  }
                 : null,
               carText: chosen ? "" : a.carText,
             }
@@ -125,12 +134,13 @@ export default function CustomerAppointmentList() {
       });
 
       if (res.data?.data) {
-        setAppointments((p) => p.map((a) => (a._id === editRow ? res.data.data : a)));
+        setAppointments((p) =>
+          p.map((a) => (a._id === editRow ? res.data.data : a))
+        );
       } else {
         await refreshAppointments();
       }
 
-      // also update editData to the locked value so if you re-open edit, you see the frozen label
       setEditData((prev) => ({ ...prev, dateTime: finalDateTime }));
       setEditRow(null);
     } catch (e) {
@@ -141,6 +151,7 @@ export default function CustomerAppointmentList() {
     }
   };
 
+  // ======= Move helpers (Delivery / Follow Up) =======
   const moveToDelivery = async (appointment) => {
     if (savingRef.current) return;
     savingRef.current = true;
@@ -148,23 +159,69 @@ export default function CustomerAppointmentList() {
     const prev = appointments;
     const payload = {
       isDelivery: true,
+      isFollowUp: false,
       originalDateTime: appointment.dateTime || "",
       dateTime: "TBC",
+      dayTime: "TBC",
     };
 
-    setAppointments((p) => p.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a)));
+    setAppointments((p) =>
+      p.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a))
+    );
 
     try {
-      const res = await api.put(`/customer-appointments/${appointment._id}`, payload, {
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await api.put(
+        `/customer-appointments/${appointment._id}`,
+        payload,
+        { headers: { "Content-Type": "application/json" } }
+      );
       if (res.data?.data) {
-        setAppointments((p) => p.map((a) => (a._id === appointment._id ? res.data.data : a)));
+        setAppointments((p) =>
+          p.map((a) => (a._id === appointment._id ? res.data.data : a))
+        );
       } else {
         await refreshAppointments();
       }
     } catch (e) {
       console.error("Move to delivery failed:", e.response?.data || e.message);
+      setAppointments(prev);
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  const moveToFollowUp = async (appointment) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+
+    const prev = appointments;
+    const payload = {
+      isFollowUp: true,
+      isDelivery: false,
+      originalDateTime: appointment.dateTime || "",
+      dateTime: "TBC",
+      dayTime: "TBC",
+    };
+
+    setAppointments((p) =>
+      p.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a))
+    );
+
+    try {
+      const res = await api.put(
+        `/customer-appointments/${appointment._id}`,
+        payload,
+        { headers: { "Content-Type": "application/json" } }
+      );
+      if (res.data?.data) {
+        setAppointments((p) =>
+          p.map((a) => (a._id === appointment._id ? res.data.data : a))
+        );
+      } else {
+        await refreshAppointments();
+      }
+    } catch (e) {
+      console.error("Move to follow up failed:", e.response?.data || e.message);
       setAppointments(prev);
     } finally {
       savingRef.current = false;
@@ -180,22 +237,67 @@ export default function CustomerAppointmentList() {
     const payload = {
       isDelivery: false,
       dateTime: restoredTime,
+      dayTime: restoredTime,
       originalDateTime: "",
     };
 
-    setAppointments((p) => p.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a)));
+    setAppointments((p) =>
+      p.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a))
+    );
 
     try {
-      const res = await api.put(`/customer-appointments/${appointment._id}`, payload, {
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await api.put(
+        `/customer-appointments/${appointment._id}`,
+        payload,
+        { headers: { "Content-Type": "application/json" } }
+      );
       if (res.data?.data) {
-        setAppointments((p) => p.map((a) => (a._id === appointment._id ? res.data.data : a)));
+        setAppointments((p) =>
+          p.map((a) => (a._id === appointment._id ? res.data.data : a))
+        );
       } else {
         await refreshAppointments();
       }
     } catch (e) {
       console.error("Undo delivery failed:", e.response?.data || e.message);
+      setAppointments(prev);
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  const undoFollowUp = async (appointment) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+
+    const prev = appointments;
+    const restoredTime = appointment.originalDateTime || "";
+    const payload = {
+      isFollowUp: false,
+      dateTime: restoredTime,
+      dayTime: restoredTime,
+      originalDateTime: "",
+    };
+
+    setAppointments((p) =>
+      p.map((a) => (a._id === appointment._id ? { ...a, ...payload } : a))
+    );
+
+    try {
+      const res = await api.put(
+        `/customer-appointments/${appointment._id}`,
+        payload,
+        { headers: { "Content-Type": "application/json" } }
+      );
+      if (res.data?.data) {
+        setAppointments((p) =>
+          p.map((a) => (a._id === appointment._id ? res.data.data : a))
+        );
+      } else {
+        await refreshAppointments();
+      }
+    } catch (e) {
+      console.error("Undo follow up failed:", e.response?.data || e.message);
       setAppointments(prev);
     } finally {
       savingRef.current = false;
@@ -236,7 +338,13 @@ export default function CustomerAppointmentList() {
   }
 
   const fmtDateShort = (d) =>
-    d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
+    d
+      ? new Date(d).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "2-digit",
+        })
+      : "—";
 
   const renderCarCell = (a) => {
     if (a.car) return `${a.car.rego} • ${a.car.make} ${a.car.model}`;
@@ -249,12 +357,13 @@ export default function CustomerAppointmentList() {
     return c ? `${c.rego} • ${c.make} ${c.model}` : "";
   };
 
-  const apptRows = appointments.filter((a) => !a.isDelivery);
+  const apptRows = appointments.filter((a) => !a.isDelivery && !a.isFollowUp);
   const deliveryRows = appointments.filter((a) => a.isDelivery);
+  const followUpRows = appointments.filter((a) => a.isFollowUp);
 
   const renderDayTime = (raw) => {
     const { label } = standardizeDayTime(raw);
-    return label || (raw || "—");
+    return label || raw || "—";
   };
 
   const rowClassFor = (raw) => dayTimeHighlightClass(raw);
@@ -267,8 +376,11 @@ export default function CustomerAppointmentList() {
 
       <header className="cal-head">
         <div className="cal-head-titles">
-          <h1>Appointments & Delivery</h1>
-          <p className="cal-sub">Edit inline, move to Delivery, and keep everything up to date fast.</p>
+          <h1>Appointments, Delivery & Follow Up</h1>
+          <p className="cal-sub">
+            Edit inline, move to Delivery/Follow Up, and keep everything up to
+            date fast.
+          </p>
         </div>
         <button className="btn btn--primary" onClick={() => setShowForm(true)}>
           + New Appointment
@@ -289,12 +401,15 @@ export default function CustomerAppointmentList() {
         onSelect={onCarPicked}
       />
 
-      <main className="cal-grid">
+      <main className="cal-grid cal-grid--3">
         {/* LEFT: Appointments */}
         <section className="cal-panel" aria-label="Customer Appointments">
           <div className="cal-panel-head">
             <h2>Customer Appointments</h2>
-            <p className="cal-sub">Double-click a row to edit. Double-click the car cell to pick a car.</p>
+            <p className="cal-sub">
+              Double-click a row to edit. Double-click the car cell to pick a
+              car.
+            </p>
           </div>
 
           <div className="cal-table-scroll">
@@ -424,14 +539,26 @@ export default function CustomerAppointmentList() {
                             </>
                           ) : (
                             <>
+                              {/* ✅ Delivery button label now "D" */}
                               <button
                                 className="btn btn--primary btn--sm"
                                 type="button"
                                 onClick={() => moveToDelivery(a)}
                                 title="Move to Delivery (sets time to TBC)"
                               >
-                                Delivery
+                                D
                               </button>
+
+                              {/* ✅ Follow up button "F" */}
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                type="button"
+                                onClick={() => moveToFollowUp(a)}
+                                title="Move to Follow Up (sets time to TBC)"
+                              >
+                                F
+                              </button>
+
                               <button
                                 className="btn btn--danger btn--sm btn--icon"
                                 type="button"
@@ -453,13 +580,13 @@ export default function CustomerAppointmentList() {
           </div>
         </section>
 
-        {/* RIGHT: Delivery */}
+        {/* MIDDLE: Delivery */}
         <section className="cal-panel" aria-label="Delivery">
           <div className="cal-panel-head">
             <h2>Delivery</h2>
             <p className="cal-sub">
-              Double-click to edit. Double-click the car cell to pick a car. “Undo” sends it back with the original
-              time.
+              Double-click to edit. Double-click the car cell to pick a car.
+              “Undo” sends it back with the original time.
             </p>
           </div>
 
@@ -618,6 +745,171 @@ export default function CustomerAppointmentList() {
             </table>
           </div>
         </section>
+
+        {/* RIGHT: Follow Up */}
+        <section className="cal-panel" aria-label="Follow Up">
+          <div className="cal-panel-head">
+            <h2>Follow Up</h2>
+            <p className="cal-sub">
+              Click “Undo” to send it back with the original time.
+            </p>
+          </div>
+
+          <div className="cal-table-scroll">
+            <table className="cal-table" role="grid">
+              <colgroup>
+                <col className="col-name" />
+                <col className="col-daytime" />
+                <col className="col-car" />
+                <col className="col-notes" />
+                <col className="col-datecreated" />
+                <col className="col-actions" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Day/Time</th>
+                  <th>Car</th>
+                  <th>Notes</th>
+                  <th>Date Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {followUpRows.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="cal-empty">
+                      No follow ups.
+                    </td>
+                  </tr>
+                ) : (
+                  followUpRows.map((a) => {
+                    const isEditing = editRow === a._id;
+                    const rowCls = rowClassFor(a.dateTime);
+                    return (
+                      <tr
+                        key={a._id}
+                        data-id={a._id}
+                        className={rowCls}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          enterEdit(a);
+                        }}
+                      >
+                        <td>
+                          {isEditing ? (
+                            <input
+                              name="name"
+                              value={editData.name}
+                              onChange={handleChange}
+                              className="cal-input"
+                              autoFocus
+                            />
+                          ) : (
+                            a.name || "—"
+                          )}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <input
+                              name="dateTime"
+                              value={editData.dateTime}
+                              onChange={handleChange}
+                              className="cal-input"
+                              placeholder="TBC or set a time"
+                            />
+                          ) : (
+                            renderDayTime(a.dateTime)
+                          )}
+                        </td>
+                        <td
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            openCarPicker(a);
+                          }}
+                          title="Double-click to pick a car"
+                        >
+                          {isEditing ? (
+                            <div className="car-edit">
+                              <input
+                                className="cal-input"
+                                value={carLabelFromId(editData.car)}
+                                readOnly
+                                placeholder="No Car"
+                              />
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                type="button"
+                                onClick={() => openCarPicker(a)}
+                              >
+                                Pick
+                              </button>
+                            </div>
+                          ) : (
+                            renderCarCell(a)
+                          )}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <input
+                              name="notes"
+                              value={editData.notes}
+                              onChange={handleChange}
+                              className="cal-input"
+                            />
+                          ) : (
+                            a.notes || "—"
+                          )}
+                        </td>
+                        <td>{fmtDateShort(a.dateCreated)}</td>
+                        <td className="cal-actions">
+                          {isEditing ? (
+                            <>
+                              <button
+                                className="btn btn--primary btn--sm"
+                                type="button"
+                                onClick={saveChanges}
+                              >
+                                Save
+                              </button>
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                type="button"
+                                onClick={() => setEditRow(null)}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                type="button"
+                                onClick={() => undoFollowUp(a)}
+                                title="Send back to Appointments with original time"
+                              >
+                                Undo
+                              </button>
+                              <button
+                                className="btn btn--danger btn--sm btn--icon"
+                                type="button"
+                                onClick={() => handleDelete(a._id)}
+                                title="Delete"
+                                aria-label="Delete follow up"
+                              >
+                                <TrashIconSmall />
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </main>
     </div>
   );
@@ -625,9 +917,26 @@ export default function CustomerAppointmentList() {
 
 function TrashIconSmall() {
   return (
-    <svg className="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
-      <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <svg
+      className="icon"
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M3 6h18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
       <path
         d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"
         stroke="currentColor"
@@ -635,12 +944,17 @@ function TrashIconSmall() {
         strokeLinecap="round"
         fill="none"
       />
-      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path
+        d="M10 11v6M14 11v6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
-/* ---------- Styles (unchanged) ---------- */
+/* ---------- Styles (tiny addition: 3-column grid on desktop) ---------- */
 const css = `
 :root { color-scheme: dark; }
 html, body, #root { background: #0B1220; }
@@ -681,8 +995,10 @@ html, body, #root { background: #0B1220; }
 .btn--icon { padding:6px; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; }
 .btn .icon { display:inline-block; }
 
-.cal-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
-@media (max-width: 960px){ .cal-grid { grid-template-columns:1fr; } }
+/* ✅ 3 panels on desktop, stack on smaller screens */
+.cal-grid { display:grid; gap:16px; }
+.cal-grid--3 { grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); }
+@media (max-width: 1200px){ .cal-grid--3 { grid-template-columns: 1fr; } }
 
 .cal-panel { background:transparent; display:flex; flex-direction:column; gap:10px; min-width:0; }
 .cal-panel-head h2 { margin:0 0 2px; font-size:18px; }
