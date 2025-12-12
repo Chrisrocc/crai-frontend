@@ -3,6 +3,13 @@
 // - Photo column is toggleable (Show / Hide Photos)
 // - Photo column hidden by default, normal row height
 // - Show/Hide Photos button sits inline with Upload CSV + Paste buttons
+//
+// FIX (requested):
+// When editing a right-side column on small screens, focusing an input/select
+// caused the table to jump back to the far-left. We now:
+// 1) Capture the current .table-wrap scrollLeft before entering edit mode
+// 2) Focus with preventScroll (when supported)
+// 3) Restore scrollLeft before + after focus, and during caret restore
 
 import {
   useEffect,
@@ -246,6 +253,27 @@ export default function CarListRegular() {
   // track if Stage changed to decide whether to save on blur/outside click
   const stageDirtyRef = useRef(false);
 
+  // === NEW: lock/restore table horizontal scroll during edit/focus ===
+  const scrollLockRef = useRef({ el: null, left: 0 });
+  const captureTableScrollFromEvent = (e) => {
+    const wrap = e?.currentTarget?.closest?.(".table-wrap");
+    if (wrap) {
+      scrollLockRef.current = { el: wrap, left: wrap.scrollLeft };
+    }
+  };
+  const restoreTableScroll = () => {
+    const { el, left } = scrollLockRef.current || {};
+    if (el) el.scrollLeft = left || 0;
+  };
+  const focusNoScroll = (el) => {
+    if (!el) return;
+    try {
+      el.focus({ preventScroll: true });
+    } catch {
+      el.focus();
+    }
+  };
+
   // modals
   const [checklistModal, setChecklistModal] = useState({
     open: false,
@@ -390,9 +418,7 @@ export default function CarListRegular() {
       );
       const d = res.data?.data || {};
       alert(
-        `Processed.\nChanged: ${d.totals?.changed ?? 0}\nSkipped: ${
-          d.totals?.skipped ?? 0
-        }\nNot found: ${d.totals?.notFound ?? 0}`
+        `Processed.\nChanged: ${d.totals?.changed ?? 0}\nSkipped: ${d.totals?.skipped ?? 0}\nNot found: ${d.totals?.notFound ?? 0}`
       );
       setPasteOpen(false);
       setPasteText("");
@@ -403,7 +429,10 @@ export default function CarListRegular() {
   };
 
   // ---------- Edit helpers ----------
-  const startEdit = (car, field, initialNameForCaret = null) => {
+  const startEdit = (car, field, initialNameForCaret = null, evt = null) => {
+    // NEW: capture current horizontal scroll so focus/edit doesn't snap table to left
+    if (evt) captureTableScrollFromEvent(evt);
+
     setEditTarget({ id: car._id, field });
 
     const lastNext =
@@ -428,6 +457,7 @@ export default function CarListRegular() {
     setEditData(base);
 
     // For stage, don't auto-focus to avoid table jump on iOS
+    // (we still restore scroll after render, in case DOM changes nudge it)
     if (field === "stage") {
       stageDirtyRef.current = false;
       caretRef.current = {
@@ -435,6 +465,9 @@ export default function CarListRegular() {
         start: null,
         end: null,
       };
+      requestAnimationFrame(() => {
+        restoreTableScroll();
+      });
       return;
     }
 
@@ -448,12 +481,19 @@ export default function CarListRegular() {
     requestAnimationFrame(() => {
       const root = activeRef.current;
       if (!root) return;
+
+      // restore scroll BEFORE focusing
+      restoreTableScroll();
+
       const preferred =
         initialNameForCaret && root.querySelector(`[name="${CSS.escape(initialNameForCaret)}"]`);
       const el = preferred || root.querySelector("input, textarea, select");
       if (el) {
-        el.focus();
+        focusNoScroll(el);
         el.select?.();
+
+        // restore scroll AGAIN after focus (some browsers still nudge it)
+        restoreTableScroll();
       }
     });
   };
@@ -612,11 +652,22 @@ export default function CarListRegular() {
     const { name, start, end } = caretRef.current || {};
     const root = activeRef.current;
     if (!root) return;
+
+    // keep horizontal scroll stable while caret-focus restores
+    restoreTableScroll();
+
     const el =
       (name && root.querySelector(`[name="${CSS.escape(name)}"]`)) ||
       root.querySelector("input, textarea, select");
     if (!el) return;
-    if (document.activeElement !== el) el.focus();
+
+    if (document.activeElement !== el) {
+      focusNoScroll(el);
+    }
+
+    // restore again after focus
+    restoreTableScroll();
+
     if (typeof el.setSelectionRange === "function" && "value" in el) {
       const v = el.value ?? "";
       const s = typeof start === "number" ? Math.min(start, v.length) : v.length;
@@ -837,7 +888,7 @@ export default function CarListRegular() {
 
                 {/* CAR cell */}
                 <td
-                  onDoubleClick={() => !isEditingCar && startEdit(car, "car", "make")}
+                  onDoubleClick={(e) => !isEditingCar && startEdit(car, "car", "make", e)}
                   className={isEditingCar ? "is-editing" : ""}
                 >
                   {isEditingCar ? (
@@ -946,7 +997,9 @@ export default function CarListRegular() {
 
                 {/* LOCATION */}
                 <td
-                  onDoubleClick={() => !isEditingLoc && startEdit(car, "location", "location")}
+                  onDoubleClick={(e) =>
+                    !isEditingLoc && startEdit(car, "location", "location", e)
+                  }
                   className={isEditingLoc ? "is-editing" : ""}
                 >
                   {isEditingLoc ? (
@@ -988,7 +1041,10 @@ export default function CarListRegular() {
                 </td>
 
                 {/* CHECKLIST (open modal) */}
-                <td onClick={() => openChecklistModal(car)} onDoubleClick={() => openChecklistModal(car)}>
+                <td
+                  onClick={() => openChecklistModal(car)}
+                  onDoubleClick={() => openChecklistModal(car)}
+                >
                   <Cell
                     title={Array.isArray(car.checklist) ? car.checklist.join(", ") : ""}
                   >
@@ -1000,7 +1056,7 @@ export default function CarListRegular() {
 
                 {/* NOTES */}
                 <td
-                  onDoubleClick={() => !isEditingNotes && startEdit(car, "notes", "notes")}
+                  onDoubleClick={(e) => !isEditingNotes && startEdit(car, "notes", "notes", e)}
                   className={isEditingNotes ? "is-editing" : ""}
                 >
                   {isEditingNotes ? (
@@ -1027,7 +1083,7 @@ export default function CarListRegular() {
 
                 {/* STAGE (select, save on blur / outside click) */}
                 <td
-                  onDoubleClick={() => !isEditingStage && startEdit(car, "stage", "stage")}
+                  onDoubleClick={(e) => !isEditingStage && startEdit(car, "stage", "stage", e)}
                   className={isEditingStage ? "is-editing" : ""}
                 >
                   {isEditingStage ? (
@@ -1102,7 +1158,7 @@ export default function CarListRegular() {
 
   /* ---------- Table ---------- */
   const Table = ({ list, showPhotos }) => {
-    // ✅ ADD: drag-to-scroll (same logic as CarListSplit)
+    // ✅ drag-to-scroll (same logic as CarListSplit)
     const wrapRef = useRef(null);
     const dragRef = useRef({
       tracking: false,
@@ -1119,7 +1175,8 @@ export default function CarListRegular() {
       const tag = el.tagName;
       if (!tag) return false;
       const t = tag.toUpperCase();
-      if (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "OPTION", "LABEL"].includes(t)) return true;
+      if (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "OPTION", "LABEL"].includes(t))
+        return true;
       if (el.closest(".is-editing")) return true;
       return false;
     };
@@ -1601,9 +1658,11 @@ export default function CarListRegular() {
           items={checklistModal.car?.checklist ?? []}
           onSave={async (items) => {
             try {
-              await api.put(`/cars/${checklistModal.car._id}`, { checklist: items }, {
-                headers: { "Content-Type": "application/json" },
-              });
+              await api.put(
+                `/cars/${checklistModal.car._id}`,
+                { checklist: items },
+                { headers: { "Content-Type": "application/json" } }
+              );
               await refreshCars();
             } catch (e) {
               alert(e.response?.data?.message || e.message || "Error saving checklist");
@@ -1649,7 +1708,11 @@ export default function CarListRegular() {
               const remaining = existing.filter((s) => s !== loc);
               await api.put(
                 `/cars/${nextModal.car._id}`,
-                { location: loc, nextLocations: remaining, nextLocation: remaining[remaining.length - 1] ?? "" },
+                {
+                  location: loc,
+                  nextLocations: remaining,
+                  nextLocation: remaining[remaining.length - 1] ?? "",
+                },
                 { headers: { "Content-Type": "application/json" } }
               );
               await refreshCars();
