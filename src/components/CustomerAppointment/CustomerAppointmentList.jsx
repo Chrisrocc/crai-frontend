@@ -1,3 +1,4 @@
+// src/components/CustomerAppointment/CustomerAppointmentList.jsx
 import { useEffect, useRef, useState } from "react";
 import api from "../../lib/api";
 import CustomerAppointmentFormModal from "./CustomerAppointmentFormModal";
@@ -141,7 +142,7 @@ export default function CustomerAppointmentList() {
         await refreshAppointments();
       }
 
-      setEditData((prev) => ({ ...prev, dateTime: finalDateTime }));
+      setEditData((prev2) => ({ ...prev2, dateTime: finalDateTime }));
       setEditRow(null);
     } catch (e) {
       console.error("Save failed:", e.response?.data || e.message);
@@ -151,18 +152,17 @@ export default function CustomerAppointmentList() {
     }
   };
 
-  // ======= Move helpers (Delivery / Follow Up) =======
   const moveToDelivery = async (appointment) => {
     if (savingRef.current) return;
     savingRef.current = true;
 
     const prev = appointments;
+
     const payload = {
       isDelivery: true,
       isFollowUp: false,
       originalDateTime: appointment.dateTime || "",
       dateTime: "TBC",
-      dayTime: "TBC",
     };
 
     setAppointments((p) =>
@@ -195,12 +195,12 @@ export default function CustomerAppointmentList() {
     savingRef.current = true;
 
     const prev = appointments;
+
     const payload = {
       isFollowUp: true,
       isDelivery: false,
       originalDateTime: appointment.dateTime || "",
       dateTime: "TBC",
-      dayTime: "TBC",
     };
 
     setAppointments((p) =>
@@ -234,10 +234,10 @@ export default function CustomerAppointmentList() {
 
     const prev = appointments;
     const restoredTime = appointment.originalDateTime || "";
+
     const payload = {
       isDelivery: false,
       dateTime: restoredTime,
-      dayTime: restoredTime,
       originalDateTime: "",
     };
 
@@ -272,10 +272,10 @@ export default function CustomerAppointmentList() {
 
     const prev = appointments;
     const restoredTime = appointment.originalDateTime || "";
+
     const payload = {
       isFollowUp: false,
       dateTime: restoredTime,
-      dayTime: restoredTime,
       originalDateTime: "",
     };
 
@@ -376,10 +376,9 @@ export default function CustomerAppointmentList() {
 
       <header className="cal-head">
         <div className="cal-head-titles">
-          <h1>Appointments, Delivery & Follow Up</h1>
+          <h1>Appointments, Delivery &amp; Follow Up</h1>
           <p className="cal-sub">
-            Edit inline, move to Delivery/Follow Up, and keep everything up to
-            date fast.
+            Edit inline, move to Delivery/Follow Up, and keep everything up to date fast.
           </p>
         </div>
         <button className="btn btn--primary" onClick={() => setShowForm(true)}>
@@ -401,14 +400,13 @@ export default function CustomerAppointmentList() {
         onSelect={onCarPicked}
       />
 
-      <main className="cal-grid cal-grid--3">
+      <main className="cal-grid">
         {/* LEFT: Appointments */}
         <section className="cal-panel" aria-label="Customer Appointments">
           <div className="cal-panel-head">
             <h2>Customer Appointments</h2>
             <p className="cal-sub">
-              Double-click a row to edit. Double-click the car cell to pick a
-              car.
+              Double-click a row to edit. Double-click the car cell to pick a car.
             </p>
           </div>
 
@@ -443,6 +441,7 @@ export default function CustomerAppointmentList() {
                   apptRows.map((a) => {
                     const isEditing = editRow === a._id;
                     const rowCls = rowClassFor(a.dateTime);
+
                     return (
                       <tr
                         key={a._id}
@@ -466,6 +465,7 @@ export default function CustomerAppointmentList() {
                             a.name || "—"
                           )}
                         </td>
+
                         <td>
                           {isEditing ? (
                             <input
@@ -479,6 +479,7 @@ export default function CustomerAppointmentList() {
                             renderDayTime(a.dateTime)
                           )}
                         </td>
+
                         <td
                           onDoubleClick={(e) => {
                             e.stopPropagation();
@@ -506,6 +507,7 @@ export default function CustomerAppointmentList() {
                             renderCarCell(a)
                           )}
                         </td>
+
                         <td>
                           {isEditing ? (
                             <input
@@ -518,7 +520,9 @@ export default function CustomerAppointmentList() {
                             a.notes || "—"
                           )}
                         </td>
+
                         <td>{fmtDateShort(a.dateCreated)}</td>
+
                         <td className="cal-actions">
                           {isEditing ? (
                             <>
@@ -539,7 +543,6 @@ export default function CustomerAppointmentList() {
                             </>
                           ) : (
                             <>
-                              {/* ✅ Delivery button label now "D" */}
                               <button
                                 className="btn btn--primary btn--sm"
                                 type="button"
@@ -548,8 +551,6 @@ export default function CustomerAppointmentList() {
                               >
                                 D
                               </button>
-
-                              {/* ✅ Follow up button "F" */}
                               <button
                                 className="btn btn--ghost btn--sm"
                                 type="button"
@@ -558,7 +559,6 @@ export default function CustomerAppointmentList() {
                               >
                                 F
                               </button>
-
                               <button
                                 className="btn btn--danger btn--sm btn--icon"
                                 type="button"
@@ -580,336 +580,252 @@ export default function CustomerAppointmentList() {
           </div>
         </section>
 
-        {/* MIDDLE: Delivery */}
-        <section className="cal-panel" aria-label="Delivery">
-          <div className="cal-panel-head">
-            <h2>Delivery</h2>
-            <p className="cal-sub">
-              Double-click to edit. Double-click the car cell to pick a car.
-              “Undo” sends it back with the original time.
-            </p>
-          </div>
+        {/* RIGHT: Delivery + Follow Up */}
+        <div className="cal-right-stack">
+          {/* Delivery */}
+          <section className="cal-panel" aria-label="Delivery">
+            <div className="cal-panel-head">
+              <h2>Delivery</h2>
+              <p className="cal-sub">
+                Double-click to edit. Double-click the car cell to pick a car. “Undo” sends it back with the original
+                time.
+              </p>
+            </div>
 
-          <div className="cal-table-scroll">
-            <table className="cal-table" role="grid">
-              <colgroup>
-                <col className="col-name" />
-                <col className="col-daytime" />
-                <col className="col-car" />
-                <col className="col-notes" />
-                <col className="col-datecreated" />
-                <col className="col-actions" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Day/Time</th>
-                  <th>Car</th>
-                  <th>Notes</th>
-                  <th>Date Created</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {deliveryRows.length === 0 ? (
+            <div className="cal-table-scroll">
+              <table className="cal-table" role="grid">
+                <colgroup>
+                  <col className="col-name" />
+                  <col className="col-daytime" />
+                  <col className="col-car" />
+                  <col className="col-notes" />
+                  <col className="col-datecreated" />
+                  <col className="col-actions" />
+                </colgroup>
+                <thead>
                   <tr>
-                    <td colSpan="6" className="cal-empty">
-                      No deliveries.
-                    </td>
+                    <th>Name</th>
+                    <th>Day/Time</th>
+                    <th>Car</th>
+                    <th>Notes</th>
+                    <th>Date Created</th>
+                    <th>Actions</th>
                   </tr>
-                ) : (
-                  deliveryRows.map((a) => {
-                    const isEditing = editRow === a._id;
-                    const rowCls = rowClassFor(a.dateTime);
-                    return (
-                      <tr
-                        key={a._id}
-                        data-id={a._id}
-                        className={rowCls}
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          enterEdit(a);
-                        }}
-                      >
-                        <td>
-                          {isEditing ? (
-                            <input
-                              name="name"
-                              value={editData.name}
-                              onChange={handleChange}
-                              className="cal-input"
-                              autoFocus
-                            />
-                          ) : (
-                            a.name || "—"
-                          )}
-                        </td>
-                        <td>
-                          {isEditing ? (
-                            <input
-                              name="dateTime"
-                              value={editData.dateTime}
-                              onChange={handleChange}
-                              className="cal-input"
-                              placeholder="TBC or set a time"
-                            />
-                          ) : (
-                            renderDayTime(a.dateTime)
-                          )}
-                        </td>
-                        <td
+                </thead>
+                <tbody>
+                  {deliveryRows.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="cal-empty">
+                        No deliveries.
+                      </td>
+                    </tr>
+                  ) : (
+                    deliveryRows.map((a) => {
+                      const isEditing = editRow === a._id;
+                      const rowCls = rowClassFor(a.dateTime);
+
+                      return (
+                        <tr
+                          key={a._id}
+                          data-id={a._id}
+                          className={rowCls}
                           onDoubleClick={(e) => {
                             e.stopPropagation();
-                            openCarPicker(a);
+                            enterEdit(a);
                           }}
-                          title="Double-click to pick a car"
                         >
-                          {isEditing ? (
-                            <div className="car-edit">
+                          <td>
+                            {isEditing ? (
                               <input
+                                name="name"
+                                value={editData.name}
+                                onChange={handleChange}
                                 className="cal-input"
-                                value={carLabelFromId(editData.car)}
-                                readOnly
-                                placeholder="No Car"
+                                autoFocus
                               />
-                              <button
-                                className="btn btn--ghost btn--sm"
-                                type="button"
-                                onClick={() => openCarPicker(a)}
-                              >
-                                Pick
-                              </button>
-                            </div>
-                          ) : (
-                            renderCarCell(a)
-                          )}
-                        </td>
-                        <td>
-                          {isEditing ? (
-                            <input
-                              name="notes"
-                              value={editData.notes}
-                              onChange={handleChange}
-                              className="cal-input"
-                            />
-                          ) : (
-                            a.notes || "—"
-                          )}
-                        </td>
-                        <td>{fmtDateShort(a.dateCreated)}</td>
-                        <td className="cal-actions">
-                          {isEditing ? (
-                            <>
-                              <button
-                                className="btn btn--primary btn--sm"
-                                type="button"
-                                onClick={saveChanges}
-                              >
-                                Save
-                              </button>
-                              <button
-                                className="btn btn--ghost btn--sm"
-                                type="button"
-                                onClick={() => setEditRow(null)}
-                              >
-                                Cancel
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                className="btn btn--ghost btn--sm"
-                                type="button"
-                                onClick={() => undoDelivery(a)}
-                                title="Send back to Appointments with original time"
-                              >
-                                Undo
-                              </button>
-                              <button
-                                className="btn btn--danger btn--sm btn--icon"
-                                type="button"
-                                onClick={() => handleDelete(a._id)}
-                                title="Delete"
-                                aria-label="Delete delivery"
-                              >
-                                <TrashIconSmall />
-                              </button>
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                            ) : (
+                              a.name || "—"
+                            )}
+                          </td>
 
-        {/* RIGHT: Follow Up */}
-        <section className="cal-panel" aria-label="Follow Up">
-          <div className="cal-panel-head">
-            <h2>Follow Up</h2>
-            <p className="cal-sub">
-              Click “Undo” to send it back with the original time.
-            </p>
-          </div>
+                          <td>
+                            {isEditing ? (
+                              <input
+                                name="dateTime"
+                                value={editData.dateTime}
+                                onChange={handleChange}
+                                className="cal-input"
+                                placeholder="TBC or set a time"
+                              />
+                            ) : (
+                              renderDayTime(a.dateTime)
+                            )}
+                          </td>
 
-          <div className="cal-table-scroll">
-            <table className="cal-table" role="grid">
-              <colgroup>
-                <col className="col-name" />
-                <col className="col-daytime" />
-                <col className="col-car" />
-                <col className="col-notes" />
-                <col className="col-datecreated" />
-                <col className="col-actions" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Day/Time</th>
-                  <th>Car</th>
-                  <th>Notes</th>
-                  <th>Date Created</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {followUpRows.length === 0 ? (
+                          <td
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              openCarPicker(a);
+                            }}
+                            title="Double-click to pick a car"
+                          >
+                            {isEditing ? (
+                              <div className="car-edit">
+                                <input
+                                  className="cal-input"
+                                  value={carLabelFromId(editData.car)}
+                                  readOnly
+                                  placeholder="No Car"
+                                />
+                                <button
+                                  className="btn btn--ghost btn--sm"
+                                  type="button"
+                                  onClick={() => openCarPicker(a)}
+                                >
+                                  Pick
+                                </button>
+                              </div>
+                            ) : (
+                              renderCarCell(a)
+                            )}
+                          </td>
+
+                          <td>
+                            {isEditing ? (
+                              <input
+                                name="notes"
+                                value={editData.notes}
+                                onChange={handleChange}
+                                className="cal-input"
+                              />
+                            ) : (
+                              a.notes || "—"
+                            )}
+                          </td>
+
+                          <td>{fmtDateShort(a.dateCreated)}</td>
+
+                          <td className="cal-actions">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  className="btn btn--primary btn--sm"
+                                  type="button"
+                                  onClick={saveChanges}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  className="btn btn--ghost btn--sm"
+                                  type="button"
+                                  onClick={() => setEditRow(null)}
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  className="btn btn--ghost btn--sm"
+                                  type="button"
+                                  onClick={() => undoDelivery(a)}
+                                  title="Send back to Appointments with original time"
+                                >
+                                  Undo
+                                </button>
+                                <button
+                                  className="btn btn--danger btn--sm btn--icon"
+                                  type="button"
+                                  onClick={() => handleDelete(a._id)}
+                                  title="Delete"
+                                  aria-label="Delete delivery"
+                                >
+                                  <TrashIconSmall />
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* Follow Up (below delivery, offset down, but still flows) */}
+          <section className="cal-panel cal-followup-panel" aria-label="Follow Up">
+            <div className="cal-panel-head">
+              <h2>Follow Up</h2>
+              <p className="cal-sub">Click “Undo” to send it back with the original time.</p>
+            </div>
+
+            <div className="cal-table-scroll">
+              <table className="cal-table" role="grid">
+                <colgroup>
+                  <col className="col-name" />
+                  <col className="col-daytime" />
+                  <col className="col-car" />
+                  <col className="col-notes" />
+                  <col className="col-datecreated" />
+                  <col className="col-actions" />
+                </colgroup>
+                <thead>
                   <tr>
-                    <td colSpan="6" className="cal-empty">
-                      No follow ups.
-                    </td>
+                    <th>Name</th>
+                    <th>Day/Time</th>
+                    <th>Car</th>
+                    <th>Notes</th>
+                    <th>Date Created</th>
+                    <th>Actions</th>
                   </tr>
-                ) : (
-                  followUpRows.map((a) => {
-                    const isEditing = editRow === a._id;
-                    const rowCls = rowClassFor(a.dateTime);
-                    return (
-                      <tr
-                        key={a._id}
-                        data-id={a._id}
-                        className={rowCls}
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          enterEdit(a);
-                        }}
-                      >
-                        <td>
-                          {isEditing ? (
-                            <input
-                              name="name"
-                              value={editData.name}
-                              onChange={handleChange}
-                              className="cal-input"
-                              autoFocus
-                            />
-                          ) : (
-                            a.name || "—"
-                          )}
-                        </td>
-                        <td>
-                          {isEditing ? (
-                            <input
-                              name="dateTime"
-                              value={editData.dateTime}
-                              onChange={handleChange}
-                              className="cal-input"
-                              placeholder="TBC or set a time"
-                            />
-                          ) : (
-                            renderDayTime(a.dateTime)
-                          )}
-                        </td>
-                        <td
-                          onDoubleClick={(e) => {
-                            e.stopPropagation();
-                            openCarPicker(a);
-                          }}
-                          title="Double-click to pick a car"
-                        >
-                          {isEditing ? (
-                            <div className="car-edit">
-                              <input
-                                className="cal-input"
-                                value={carLabelFromId(editData.car)}
-                                readOnly
-                                placeholder="No Car"
-                              />
-                              <button
-                                className="btn btn--ghost btn--sm"
-                                type="button"
-                                onClick={() => openCarPicker(a)}
-                              >
-                                Pick
-                              </button>
-                            </div>
-                          ) : (
-                            renderCarCell(a)
-                          )}
-                        </td>
-                        <td>
-                          {isEditing ? (
-                            <input
-                              name="notes"
-                              value={editData.notes}
-                              onChange={handleChange}
-                              className="cal-input"
-                            />
-                          ) : (
-                            a.notes || "—"
-                          )}
-                        </td>
-                        <td>{fmtDateShort(a.dateCreated)}</td>
-                        <td className="cal-actions">
-                          {isEditing ? (
-                            <>
-                              <button
-                                className="btn btn--primary btn--sm"
-                                type="button"
-                                onClick={saveChanges}
-                              >
-                                Save
-                              </button>
-                              <button
-                                className="btn btn--ghost btn--sm"
-                                type="button"
-                                onClick={() => setEditRow(null)}
-                              >
-                                Cancel
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                className="btn btn--ghost btn--sm"
-                                type="button"
-                                onClick={() => undoFollowUp(a)}
-                                title="Send back to Appointments with original time"
-                              >
-                                Undo
-                              </button>
-                              <button
-                                className="btn btn--danger btn--sm btn--icon"
-                                type="button"
-                                onClick={() => handleDelete(a._id)}
-                                title="Delete"
-                                aria-label="Delete follow up"
-                              >
-                                <TrashIconSmall />
-                              </button>
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                </thead>
+                <tbody>
+                  {followUpRows.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="cal-empty">
+                        No follow ups.
+                      </td>
+                    </tr>
+                  ) : (
+                    followUpRows.map((a) => {
+                      const rowCls = rowClassFor(a.dateTime);
+                      return (
+                        <tr key={a._id} data-id={a._id} className={rowCls}>
+                          <td>{a.name || "—"}</td>
+                          <td>{renderDayTime(a.dateTime)}</td>
+                          <td>{renderCarCell(a)}</td>
+                          <td>{a.notes || "—"}</td>
+                          <td>{fmtDateShort(a.dateCreated)}</td>
+                          <td className="cal-actions">
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              type="button"
+                              onClick={() => undoFollowUp(a)}
+                              title="Send back to Appointments with original time"
+                            >
+                              Undo
+                            </button>
+                            <button
+                              className="btn btn--danger btn--sm btn--icon"
+                              type="button"
+                              onClick={() => handleDelete(a._id)}
+                              title="Delete"
+                              aria-label="Delete follow up"
+                            >
+                              <TrashIconSmall />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
       </main>
     </div>
   );
@@ -925,12 +841,7 @@ function TrashIconSmall() {
       aria-hidden="true"
       focusable="false"
     >
-      <path
-        d="M3 6h18"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path
         d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
         stroke="currentColor"
@@ -944,17 +855,12 @@ function TrashIconSmall() {
         strokeLinecap="round"
         fill="none"
       />
-      <path
-        d="M10 11v6M14 11v6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
 
-/* ---------- Styles (tiny addition: 3-column grid on desktop) ---------- */
+/* ---------- Styles ---------- */
 const css = `
 :root { color-scheme: dark; }
 html, body, #root { background: #0B1220; }
@@ -995,10 +901,28 @@ html, body, #root { background: #0B1220; }
 .btn--icon { padding:6px; width:32px; height:28px; display:inline-flex; align-items:center; justify-content:center; }
 .btn .icon { display:inline-block; }
 
-/* ✅ 3 panels on desktop, stack on smaller screens */
-.cal-grid { display:grid; gap:16px; }
-.cal-grid--3 { grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); }
-@media (max-width: 1200px){ .cal-grid--3 { grid-template-columns: 1fr; } }
+/* ✅ 2 columns: left = appointments, right = stack */
+.cal-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:16px;
+  align-items:start;
+}
+@media (max-width: 960px){
+  .cal-grid{ grid-template-columns:1fr; }
+}
+
+.cal-right-stack{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+  min-width:0;
+}
+
+/* ✅ Follow Up starts lower but still flows + gets pushed down if Delivery grows */
+.cal-followup-panel{
+  margin-top: clamp(120px, 18vh, 240px);
+}
 
 .cal-panel { background:transparent; display:flex; flex-direction:column; gap:10px; min-width:0; }
 .cal-panel-head h2 { margin:0 0 2px; font-size:18px; }
@@ -1043,3 +967,6 @@ html, body, #root { background: #0B1220; }
 .cal-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
 .car-edit { display:flex; align-items:center; gap:8px; }
 `;
+
+
+
