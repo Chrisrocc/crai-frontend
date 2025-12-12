@@ -1,4 +1,3 @@
-// src/components/Car/CarFormModal.jsx
 import { useState, useEffect, useRef } from "react";
 import api from "../../lib/api";
 
@@ -102,7 +101,9 @@ export default function CarFormModal({ show, onClose, onSave }) {
         }
       }
 
-      onSave?.(createdCar); // ✅ now returns the created car
+      // ✅ return the created car to caller (CarPickerModal uses this)
+      onSave?.(createdCar);
+
       onClose?.();
     } catch (err) {
       const msg =
@@ -119,12 +120,28 @@ export default function CarFormModal({ show, onClose, onSave }) {
   if (!show) return null;
 
   return (
-    <div style={overlay}>
-      <div style={modal} role="dialog" aria-modal="true" aria-labelledby="add-car-title">
+    <div
+      style={overlay}
+      // ✅ stop bubbling to any parent modal overlay
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div
+        style={modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-car-title"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div style={header}>
-          <h2 id="add-car-title" style={{ margin: 0, fontSize: 18 }}>Add New Car</h2>
-          <button onClick={onClose} style={closeBtn} aria-label="Close">×</button>
+          <h2 id="add-car-title" style={{ margin: 0, fontSize: 18 }}>
+            Add New Car
+          </h2>
+          <button onClick={onClose} style={closeBtn} aria-label="Close">
+            ×
+          </button>
         </div>
 
         {/* Scrollable content */}
@@ -179,6 +196,7 @@ export default function CarFormModal({ show, onClose, onSave }) {
                 Add
               </button>
             </div>
+
             {formData.checklist.length > 0 && (
               <ul style={{ marginTop: 8, fontSize: 13, paddingLeft: 16 }}>
                 {formData.checklist.map((item, i) => (
@@ -217,14 +235,18 @@ export default function CarFormModal({ show, onClose, onSave }) {
             />
             {photos.length > 0 && (
               <ul style={{ marginTop: 8, fontSize: 13, paddingLeft: 16 }}>
-                {photos.map((p, i) => <li key={i}>{p.name}</li>)}
+                {photos.map((p, i) => (
+                  <li key={i}>{p.name}</li>
+                ))}
               </ul>
             )}
           </div>
 
           {/* Sticky footer actions */}
           <div style={footer}>
-            <button type="button" onClick={onClose} style={btnMuted}>Cancel</button>
+            <button type="button" onClick={onClose} style={btnMuted}>
+              Cancel
+            </button>
             <button type="submit" disabled={busy} style={btnPrimary}>
               {busy ? "Saving…" : "Add Car"}
             </button>
@@ -331,5 +353,5 @@ const btnBase = {
 };
 
 const btnPrimary = { ...btnBase, background: "#2563EB", color: "#fff" };
-const btnMuted   = { ...btnBase, background: "#1f2937", color: "#e5e7eb" };
+const btnMuted = { ...btnBase, background: "#1f2937", color: "#e5e7eb" };
 const linkDanger = { background: "none", border: "none", color: "#f87171", cursor: "pointer" };

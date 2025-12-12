@@ -1,13 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import api from "../../lib/api";
 import CarFormModal from "../Car/CarFormModal";
 
-export default function CarPickerModal({
-  show,
-  cars = [],
-  onClose,
-  onSelect,
-}) {
+export default function CarPickerModal({ show, cars = [], onClose, onSelect }) {
   const [q, setQ] = useState("");
   const [photoCache, setPhotoCache] = useState({});
   const [showAdd, setShowAdd] = useState(false);
@@ -19,9 +14,10 @@ export default function CarPickerModal({
     setLocalCars(cars || []);
   }, [cars]);
 
-  // ✅ Focus & ESC
+  // Focus + ESC
   useEffect(() => {
     if (!show) return;
+
     const t = setTimeout(() => inputRef.current?.focus(), 60);
 
     const onKey = (e) => {
@@ -36,9 +32,9 @@ export default function CarPickerModal({
       clearTimeout(t);
       document.removeEventListener("keydown", onKey);
     };
-  }, [show, onClose, showAdd]);
+  }, [show, showAdd, onClose]);
 
-  // ✅ Search filter
+  // Search filter
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return localCars;
@@ -50,29 +46,31 @@ export default function CarPickerModal({
     );
   }, [q, localCars]);
 
-  // ✅ Lazy signed photo preview
-  const fetchPhoto = async (car) => {
-    if (photoCache[car._id]) return photoCache[car._id];
-    try {
-      const res = await api.get(`/cars/${car._id}/photo-preview`);
-      const url = res?.data?.data || "";
-      if (url) {
-        setPhotoCache((p) => ({ ...p, [car._id]: url }));
-        console.log(`✅ Photo loaded for ${car.rego}`);
-        return url;
-      } else console.log(`🚫 No photo for ${car.rego}`);
-    } catch (e) {
-      console.warn(`❌ Error loading photo for ${car.rego}`, e);
-    }
-    return "";
-  };
+  // Lazy signed photo preview
+  const fetchPhoto = useCallback(
+    async (car) => {
+      if (!car?._id) return "";
+      if (photoCache[car._id]) return photoCache[car._id];
+
+      try {
+        const res = await api.get(`/cars/${car._id}/photo-preview`);
+        const url = res?.data?.data || "";
+        if (url) {
+          setPhotoCache((p) => ({ ...p, [car._id]: url }));
+          return url;
+        }
+      } catch (e) {
+        console.warn(`❌ Error loading photo for ${car?.rego}`, e);
+      }
+      return "";
+    },
+    [photoCache]
+  );
 
   const handleCarCreated = (createdCar) => {
     setShowAdd(false);
-
     if (!createdCar) return;
 
-    // Insert at top (dedupe by _id)
     setLocalCars((prev) => {
       const next = [createdCar, ...(prev || [])];
       const seen = new Set();
@@ -85,7 +83,6 @@ export default function CarPickerModal({
       });
     });
 
-    // Make it easy to see it / select it immediately
     const rego = (createdCar.rego || "").trim();
     if (rego) setQ(rego);
 
@@ -100,19 +97,25 @@ export default function CarPickerModal({
       role="dialog"
       aria-modal="true"
       onClick={(e) => {
+        // ✅ don’t let the picker close while nested Add Car modal is open
+        if (showAdd) return;
         if (e.target.classList.contains("cpk-wrap")) onClose?.();
       }}
     >
       <style>{css}</style>
 
-      {/* Add Car modal (nested) */}
+      {/* Nested Add Car modal */}
       <CarFormModal
         show={showAdd}
         onClose={() => setShowAdd(false)}
         onSave={handleCarCreated}
       />
 
-      <div className="cpk-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="cpk-modal"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <header className="cpk-head">
           <h3>Select a Car</h3>
           <button className="cpk-x" onClick={onClose}>
@@ -130,18 +133,11 @@ export default function CarPickerModal({
           />
           <div className="cpk-spacer" />
 
-          <button
-            className="cpk-btn cpk-btn--ghost"
-            onClick={() => setShowAdd(true)}
-            title="Add a new car"
-          >
+          <button className="cpk-btn cpk-btn--ghost" onClick={() => setShowAdd(true)}>
             + Add Car
           </button>
 
-          <button
-            className="cpk-btn cpk-btn--ghost"
-            onClick={() => onSelect?.(null)}
-          >
+          <button className="cpk-btn cpk-btn--ghost" onClick={() => onSelect?.(null)}>
             Clear
           </button>
 
@@ -200,9 +196,16 @@ function CarRow({ car, fetchPhoto, cachedUrl, onSelect }) {
   const [photoUrl, setPhotoUrl] = useState(cachedUrl || "");
 
   useEffect(() => {
+    let alive = true;
     if (!cachedUrl && car?.photos?.length) {
-      fetchPhoto(car).then((url) => url && setPhotoUrl(url));
+      fetchPhoto(car).then((url) => {
+        if (!alive) return;
+        if (url) setPhotoUrl(url);
+      });
     }
+    return () => {
+      alive = false;
+    };
   }, [car, cachedUrl, fetchPhoto]);
 
   return (
@@ -219,10 +222,7 @@ function CarRow({ car, fetchPhoto, cachedUrl, onSelect }) {
       <td>{car.model || "—"}</td>
       <td>{car.year || "—"}</td>
       <td className="cpk-actions">
-        <button
-          className="cpk-btn cpk-btn--primary cpk-btn--sm"
-          onClick={() => onSelect?.(car)}
-        >
+        <button className="cpk-btn cpk-btn--primary cpk-btn--sm" onClick={() => onSelect?.(car)}>
           Select
         </button>
       </td>
