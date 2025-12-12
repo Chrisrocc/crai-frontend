@@ -99,6 +99,37 @@ const SortChevron = ({ dir }) => (
   </span>
 );
 
+/* ---------- Days-at-location (copied from CarListRegular logic) ---------- */
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+const dateOnly = (d) => {
+  const dt = new Date(d || Date.now());
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+};
+
+const daysAtCurrentLocation = (car) => {
+  if (!car?.location) return null;
+  const history = Array.isArray(car.history) ? car.history : [];
+  if (!history.length) return null;
+
+  // Prefer an open segment at this location (no endDate)
+  let current = history.find((h) => !h.endDate && h.location === car.location);
+
+  // Fallback: latest segment with this location
+  if (!current) {
+    const sameLoc = history.filter((h) => h.location === car.location);
+    if (!sameLoc.length) return null;
+    current = sameLoc[sameLoc.length - 1];
+  }
+
+  if (!current?.startDate) return null;
+
+  const start = dateOnly(current.startDate);
+  const end = current.endDate ? dateOnly(current.endDate) : dateOnly(Date.now());
+  const diffDays = Math.max(1, Math.floor((end - start) / MS_PER_DAY));
+  return diffDays;
+};
+
 /* =================================================================== */
 
 export default function CarListSplit({
@@ -144,7 +175,6 @@ export default function CarListSplit({
   const stageDirtyRef = useRef(false);
 
   // modals
-  
   const [profileOpen, setProfileOpen] = useState(false);
   const [selectedCar, setSelectedCar] = useState(null);
   const [checklistModal, setChecklistModal] = useState({
@@ -382,7 +412,9 @@ export default function CarListSplit({
             Object.assign(listOverride[ix], updated);
           }
         } else {
-          setCars((prev) => prev.map((c) => (c._id === updated._id ? updated : c)));
+          setCars((prev) =>
+            prev.map((c) => (c._id === updated._id ? updated : c))
+          );
         }
       } else if (!listOverride) {
         await refreshCars();
@@ -391,8 +423,7 @@ export default function CarListSplit({
       setEditTarget({ id: null, field: null });
     } catch (err) {
       alert(
-        "Error updating car: " +
-          (err.response?.data?.message || err.message)
+        "Error updating car: " + (err.response?.data?.message || err.message)
       );
       if (!listOverride) await refreshCars();
       setEditTarget({ id: null, field: null });
@@ -432,8 +463,7 @@ export default function CarListSplit({
       await refreshCars();
     } catch (err) {
       const status = err?.response?.status;
-      const msg =
-        err?.response?.data?.message || err?.message || "Delete failed";
+      const msg = err?.response?.data?.message || err?.message || "Delete failed";
       if (status === 404) {
         alert("Car not found (may already be deleted). Refreshing list.");
         await refreshCars();
@@ -461,21 +491,13 @@ export default function CarListSplit({
           "Content-Type": "multipart/form-data",
         },
       });
-      const {
-        createdCount = 0,
-        skippedCount = 0,
-        errorCount = 0,
-      } = res.data || {};
+      const { createdCount = 0, skippedCount = 0, errorCount = 0 } = res.data || {};
       alert(
         `Import complete\nCreated: ${createdCount}\nSkipped: ${skippedCount}\nErrors: ${errorCount}`
       );
       await refreshCars();
     } catch (err) {
-      alert(
-        `CSV import failed: ${
-          err.response?.data?.message || err.message
-        }`
-      );
+      alert(`CSV import failed: ${err.response?.data?.message || err.message}`);
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -495,21 +517,15 @@ export default function CarListSplit({
       );
       const d = res.data?.data || {};
       alert(
-        `Processed.\nChanged: ${
-          d.totals?.changed ?? 0
-        }\nSkipped: ${d.totals?.skipped ?? 0}\nNot found: ${
-          d.totals?.notFound ?? 0
-        }`
+        `Processed.\nChanged: ${d.totals?.changed ?? 0}\nSkipped: ${
+          d.totals?.skipped ?? 0
+        }\nNot found: ${d.totals?.notFound ?? 0}`
       );
       setPasteOpen(false);
       setPasteText("");
       await refreshCars();
     } catch (e) {
-      alert(
-        e.response?.data?.message ||
-          e.message ||
-          "Error processing pasted list"
-      );
+      alert(e.response?.data?.message || e.message || "Error processing pasted list");
     }
   };
 
@@ -991,10 +1007,7 @@ export default function CarListSplit({
               whiteSpace: "nowrap",
             }}
           >
-            <button
-              className="btn btn--primary"
-              onClick={() => setShowForm(true)}
-            >
+            <button className="btn btn--primary" onClick={() => setShowForm(true)}>
               + Add New Car
             </button>
             <button
@@ -1011,10 +1024,7 @@ export default function CarListSplit({
               style={{ display: "none" }}
               onChange={handleCsvChosen}
             />
-            <button
-              className="btn btn--muted btn--sm"
-              onClick={() => setPasteOpen(true)}
-            >
+            <button className="btn btn--muted btn--sm" onClick={() => setPasteOpen(true)}>
               Paste Online List
             </button>
             <button
@@ -1104,32 +1114,16 @@ export default function CarListSplit({
               await api.put(
                 `/cars/${checklistModal.car._id}`,
                 { checklist: items },
-                {
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                }
+                { headers: { "Content-Type": "application/json" } }
               );
               await refreshCars();
             } catch (e) {
-              alert(
-                e.response?.data?.message ||
-                  e.message ||
-                  "Error saving checklist"
-              );
+              alert(e.response?.data?.message || e.message || "Error saving checklist");
             } finally {
-              setChecklistModal({
-                open: false,
-                car: null,
-              });
+              setChecklistModal({ open: false, car: null });
             }
           }}
-          onClose={() =>
-            setChecklistModal({
-              open: false,
-              car: null,
-            })
-          }
+          onClose={() => setChecklistModal({ open: false, car: null })}
         />
       )}
 
@@ -1148,28 +1142,14 @@ export default function CarListSplit({
             try {
               await api.put(
                 `/cars/${nextModal.car._id}`,
-                {
-                  nextLocations: items,
-                  nextLocation: items[items.length - 1] ?? "",
-                },
-                {
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                }
+                { nextLocations: items, nextLocation: items[items.length - 1] ?? "" },
+                { headers: { "Content-Type": "application/json" } }
               );
               await refreshCars();
             } catch (e) {
-              alert(
-                e.response?.data?.message ||
-                  e.message ||
-                  "Error saving destinations"
-              );
+              alert(e.response?.data?.message || e.message || "Error saving destinations");
             } finally {
-              setNextModal({
-                open: false,
-                car: null,
-              });
+              setNextModal({ open: false, car: null });
             }
           }}
           onSetCurrent={async (loc) => {
@@ -1188,27 +1168,14 @@ export default function CarListSplit({
                   nextLocations: remaining,
                   nextLocation: remaining[remaining.length - 1] ?? "",
                 },
-                {
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                }
+                { headers: { "Content-Type": "application/json" } }
               );
               await refreshCars();
             } catch (e) {
-              alert(
-                e.response?.data?.message ||
-                  e.message ||
-                  "Error setting current location"
-              );
+              alert(e.response?.data?.message || e.message || "Error setting current location");
             }
           }}
-          onClose={() =>
-            setNextModal({
-              open: false,
-              car: null,
-            })
-          }
+          onClose={() => setNextModal({ open: false, car: null })}
         />
       )}
 
@@ -1234,54 +1201,25 @@ export default function CarListSplit({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                padding: 14,
-                borderBottom: "1px solid #243041",
-              }}
-            >
+            <div style={{ padding: 14, borderBottom: "1px solid #243041" }}>
               <h3 style={{ margin: 0 }}>Paste Autogate List</h3>
-              <p
-                style={{
-                  margin: "4px 0 0",
-                  color: "#9CA3AF",
-                  fontSize: 13,
-                }}
-              >
-                We’ll set cars to <b>Online</b> only if they’re currently{" "}
-                <b>In Works</b>.
+              <p style={{ margin: "4px 0 0", color: "#9CA3AF", fontSize: 13 }}>
+                We’ll set cars to <b>Online</b> only if they’re currently <b>In Works</b>.
               </p>
             </div>
             <div style={{ padding: 14 }}>
               <textarea
                 className="input"
-                style={{
-                  width: "100%",
-                  minHeight: 280,
-                  resize: "vertical",
-                }}
+                style={{ width: "100%", minHeight: 280, resize: "vertical" }}
                 placeholder="Paste the whole Autogate block here…"
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
               />
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  justifyContent: "flex-end",
-                  marginTop: 10,
-                }}
-              >
-                <button
-                  className="btn btn--muted"
-                  onClick={() => setPasteOpen(false)}
-                >
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+                <button className="btn btn--muted" onClick={() => setPasteOpen(false)}>
                   Cancel
                 </button>
-                <button
-                  className="btn btn--primary"
-                  onClick={submitPaste}
-                >
+                <button className="btn btn--primary" onClick={submitPaste}>
                   Process
                 </button>
               </div>
@@ -1448,50 +1386,32 @@ function Table({
           <tr>
             {showPhotos && <th>Photo</th>}
             <th>
-              <button
-                className="thbtn"
-                onClick={() => onSortClick("car")}
-              >
+              <button className="thbtn" onClick={() => onSortClick("car")}>
                 Car <Sort col="car" />
               </button>
             </th>
             <th>
-              <button
-                className="thbtn"
-                onClick={() => onSortClick("location")}
-              >
+              <button className="thbtn" onClick={() => onSortClick("location")}>
                 Location <Sort col="location" />
               </button>
             </th>
             <th>
-              <button
-                className="thbtn"
-                onClick={() => onSortClick("next")}
-              >
+              <button className="thbtn" onClick={() => onSortClick("next")}>
                 Next Loc <Sort col="next" />
               </button>
             </th>
             <th>
-              <button
-                className="thbtn"
-                onClick={() => onSortClick("checklist")}
-              >
+              <button className="thbtn" onClick={() => onSortClick("checklist")}>
                 Checklist <Sort col="checklist" />
               </button>
             </th>
             <th>
-              <button
-                className="thbtn"
-                onClick={() => onSortClick("notes")}
-              >
+              <button className="thbtn" onClick={() => onSortClick("notes")}>
                 Notes <Sort col="notes" />
               </button>
             </th>
             <th>
-              <button
-                className="thbtn"
-                onClick={() => onSortClick("stage")}
-              >
+              <button className="thbtn" onClick={() => onSortClick("stage")}>
                 Stage <Sort col="stage" />
               </button>
             </th>
@@ -1507,8 +1427,7 @@ function Table({
             </tr>
           ) : (
             list.map((car) => {
-              const editing =
-                editTarget.id === car._id ? editTarget.field : null;
+              const editing = editTarget.id === car._id ? editTarget.field : null;
               const refCb = editing
                 ? (el) => {
                     if (el) activeRef.current = el;
@@ -1516,6 +1435,14 @@ function Table({
                 : null;
 
               const thumbUrl = photoCache?.[car._id];
+
+              // ✅ compute "Location (days)" using the same logic as Regular
+              const locDays = daysAtCurrentLocation(car);
+              const locLabel = car.location
+                ? locDays
+                  ? `${car.location} (${locDays})`
+                  : car.location
+                : "-";
 
               return (
                 <tr
@@ -1629,28 +1556,18 @@ function Table({
                               onKeyUp={rememberCaret}
                               onClick={rememberCaret}
                               placeholder="1AT8QG"
-                              style={{
-                                textTransform: "uppercase",
-                              }}
+                              style={{ textTransform: "uppercase" }}
                             />
                           </label>
                         </div>
 
                         <div className="edit-actions">
-                          <button
-                            className="btn btn--primary"
-                            onClick={saveChanges}
-                          >
+                          <button className="btn btn--primary" onClick={saveChanges}>
                             Save
                           </button>
                           <button
                             className="btn btn--muted"
-                            onClick={() =>
-                              setEditTarget({
-                                id: null,
-                                field: null,
-                              })
-                            }
+                            onClick={() => setEditTarget({ id: null, field: null })}
                           >
                             Cancel
                           </button>
@@ -1663,11 +1580,10 @@ function Table({
                     )}
                   </td>
 
-                  {/* LOCATION */}
+                  {/* LOCATION (with days) */}
                   <td
                     onDoubleClick={() =>
-                      editing !== "location" &&
-                      startEdit(car, "location", "location")
+                      editing !== "location" && startEdit(car, "location", "location")
                     }
                     className={editing === "location" ? "is-editing" : ""}
                   >
@@ -1683,41 +1599,29 @@ function Table({
                           placeholder="Location"
                         />
                         <div className="edit-actions">
-                          <button
-                            className="btn btn--primary"
-                            onClick={saveChanges}
-                          >
+                          <button className="btn btn--primary" onClick={saveChanges}>
                             Save
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <span className="cell" title={car.location || ""}>
-                        {car.location || "-"}
+                      <span className="cell" title={locLabel}>
+                        {locLabel}
                       </span>
                     )}
                   </td>
 
                   {/* NEXT (modal) */}
-                  <td
-                    onDoubleClick={() =>
-                      setNextModal({
-                        open: true,
-                        car,
-                      })
-                    }
-                  >
+                  <td onDoubleClick={() => setNextModal({ open: true, car })}>
                     <span
                       className="cell"
                       title={
-                        Array.isArray(car.nextLocations) &&
-                        car.nextLocations.length
+                        Array.isArray(car.nextLocations) && car.nextLocations.length
                           ? car.nextLocations.join(", ")
                           : car.nextLocation || ""
                       }
                     >
-                      {Array.isArray(car.nextLocations) &&
-                      car.nextLocations.length
+                      {Array.isArray(car.nextLocations) && car.nextLocations.length
                         ? car.nextLocations.join(", ")
                         : car.nextLocation || "-"}
                     </span>
@@ -1725,26 +1629,12 @@ function Table({
 
                   {/* CHECKLIST (modal) */}
                   <td
-                    onDoubleClick={() =>
-                      setChecklistModal({
-                        open: true,
-                        car,
-                      })
-                    }
-                    onClick={() =>
-                      setChecklistModal({
-                        open: true,
-                        car,
-                      })
-                    }
+                    onDoubleClick={() => setChecklistModal({ open: true, car })}
+                    onClick={() => setChecklistModal({ open: true, car })}
                   >
                     <span
                       className="cell"
-                      title={
-                        Array.isArray(car.checklist)
-                          ? car.checklist.join(", ")
-                          : ""
-                      }
+                      title={Array.isArray(car.checklist) ? car.checklist.join(", ") : ""}
                     >
                       {Array.isArray(car.checklist) && car.checklist.length
                         ? car.checklist.join(", ")
@@ -1754,10 +1644,7 @@ function Table({
 
                   {/* NOTES */}
                   <td
-                    onDoubleClick={() =>
-                      editing !== "notes" &&
-                      startEdit(car, "notes", "notes")
-                    }
+                    onDoubleClick={() => editing !== "notes" && startEdit(car, "notes", "notes")}
                     className={editing === "notes" ? "is-editing" : ""}
                   >
                     {editing === "notes" ? (
@@ -1773,10 +1660,7 @@ function Table({
                           placeholder="Notes"
                         />
                         <div className="edit-actions">
-                          <button
-                            className="btn btn--primary"
-                            onClick={saveChanges}
-                          >
+                          <button className="btn btn--primary" onClick={saveChanges}>
                             Save
                           </button>
                         </div>
@@ -1790,10 +1674,7 @@ function Table({
 
                   {/* STAGE */}
                   <td
-                    onDoubleClick={() =>
-                      editing !== "stage" &&
-                      startEdit(car, "stage", "stage")
-                    }
+                    onDoubleClick={() => editing !== "stage" && startEdit(car, "stage", "stage")}
                     className={editing === "stage" ? "is-editing" : ""}
                   >
                     {editing === "stage" ? (
@@ -1808,11 +1689,7 @@ function Table({
                           }}
                           onBlur={() => {
                             if (stageDirtyRef.current) saveChanges();
-                            else
-                              setEditTarget({
-                                id: null,
-                                field: null,
-                              });
+                            else setEditTarget({ id: null, field: null });
                           }}
                           onClick={(e) => e.stopPropagation()}
                           onMouseDown={(e) => e.stopPropagation()}
@@ -1832,13 +1709,7 @@ function Table({
 
                   {/* ACTIONS */}
                   <td>
-                    <div
-                      className="actions"
-                      style={{
-                        display: "flex",
-                        gap: 6,
-                      }}
-                    >
+                    <div className="actions" style={{ display: "flex", gap: 6 }}>
                       <button
                         className="btn btn--kebab btn--xs"
                         title="Open car profile"
